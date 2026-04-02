@@ -1,0 +1,10 @@
+node_modules
+dist
+release
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.env
+.cache
+*.log
+.DS_Store

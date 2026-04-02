@@ -1,0 +1,2 @@
+@echo off
+docker run --rm -v "%cd%":/project -v "%userprofile%\.cache\electron:/root/.cache/electron" -v "%userprofile%\.cache\electron-builder:/root/.cache/electron-builder" electronuserland/builder:wine /bin/bash -c "cd /project && npm install && npm run electron:build:mac"

@@ -1,0 +1,6 @@
+JWT_SECRET=your-secure-jwt-secret
+VITE_SUPABASE_URL=your-supabase-url
+VITE_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+GH_TOKEN=your-github-token
+SUPABASE_MANAGEMENT_KEY=your-management-key
