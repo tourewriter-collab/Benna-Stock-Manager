@@ -1,22 +1,36 @@
 let cachedPort: number | null = null;
+let isResolving = false;
 
 async function getApiRoot() {
-  if (cachedPort) return `http://localhost:${cachedPort}`;
+  if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
+  if (isResolving) {
+    // Wait a bit if another call is already resolving the port
+    await new Promise(r => setTimeout(r, 500));
+    if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
+  }
+
+  isResolving = true;
   
-  if (window.electron?.updates?.getAppVersion) {
-    try {
-      const info = await window.electron.updates.getAppVersion();
-      if (info.serverPort) {
-        cachedPort = info.serverPort;
-        return `http://localhost:${cachedPort}`;
+  // Retry loop: give the backend up to 5 seconds to wake up and report its port
+  for (let i = 0; i < 10; i++) {
+    if (window.electron?.updates?.getAppVersion) {
+      try {
+        const info = await window.electron.updates.getAppVersion();
+        if (info.serverPort) {
+          cachedPort = info.serverPort;
+          isResolving = false;
+          return `http://127.0.0.1:${cachedPort}`;
+        }
+      } catch (err) {
+        console.warn('[API] Retrying port discovery…', i);
       }
-    } catch (err) {
-      console.error('[API] Failed to get server port from Electron:', err);
     }
+    await new Promise(r => setTimeout(r, 500));
   }
   
+  isResolving = false;
   // Fallback to default
-  return 'http://localhost:5000';
+  return 'http://127.0.0.1:5000';
 }
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {

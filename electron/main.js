@@ -42,7 +42,7 @@ function waitForServer(port, maxAttempts = 40) {
   return new Promise((resolve) => {
     let attempts = 0;
     const check = () => {
-      const req = http.get(`http://localhost:${port}/api/health`, (res) => {
+      const req = http.get(`http://127.0.0.1:${port}/api/health`, (res) => {
         log.info(`[Server] Health check passed on port ${port}`);
         resolve(true);
       });
@@ -73,11 +73,11 @@ async function startServer() {
       log.info(`[Server] Attempting to start on port ${port}…`);
       process.env.PORT = port.toString();
       
-      // Load the server module. 
-      // Note: we use a dynamic import. If the module is already loaded (on retry), 
-      // it won't re-execute everything unless we handle it, but server/index.js 
-      // is designed to listen when imported.
-      await import(`../server/index.js?update=${Date.now()}`); 
+      // Load the server module. Use absolute path for reliability in packaged mode.
+      const serverFile = path.resolve(app.getAppPath(), 'server', 'index.js');
+      log.info(`[Server] Importing module: ${serverFile}`);
+      
+      await import(`file://${serverFile.replace(/\\/g, '/')}`); 
       
       log.info(`[Server] Module loaded for port ${port}, waiting for HTTP health check…`);
       const ready = await waitForServer(port, 10); // Faster check for each port

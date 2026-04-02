@@ -75,8 +75,8 @@ app.use((_req, res) => {
 // ---------------------------------------------------------------------------
 // Start listening
 // ---------------------------------------------------------------------------
-const server = app.listen(PORT, () => {
-  console.log(`[Server] Express listening on port ${PORT}`);
+const server = app.listen(PORT, '127.0.0.1', () => {
+  console.log(`[Server] Express listening on 127.0.0.1:${PORT}`);
 });
 
 server.on('error', (err) => {
