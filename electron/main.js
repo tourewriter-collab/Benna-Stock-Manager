@@ -74,7 +74,12 @@ async function startServer() {
       process.env.PORT = port.toString();
       
       // Load the server module. Use absolute path for reliability in packaged mode.
-      const serverFile = path.resolve(app.getAppPath(), 'server', 'index.js');
+      // In production (packaged), the server folder is unpacked from the ASAR archive.
+      let serverFile = path.join(app.getAppPath(), 'server', 'index.js');
+      if (app.isPackaged) {
+        serverFile = serverFile.replace('app.asar', 'app.asar.unpacked');
+      }
+      
       log.info(`[Server] Importing module: ${serverFile}`);
       
       await import(`file://${serverFile.replace(/\\/g, '/')}`); 
