@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, MapPin, Eye } from 'lucide-react';
+import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, MapPin, Eye, Archive, ArchiveRestore, RefreshCw } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
@@ -13,6 +13,7 @@ interface Supplier {
   phone: string | null;
   email: string | null;
   address: string | null;
+  is_archived?: boolean | number;
   created_at: string;
 }
 
@@ -25,6 +26,7 @@ export default function Suppliers() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -38,12 +40,13 @@ export default function Suppliers() {
 
   useEffect(() => {
     fetchSuppliers();
-  }, []);
+  }, [showArchived]);
 
   const fetchSuppliers = async () => {
     try {
-      const data = await fetchApi('/suppliers');
-      setSuppliers(data || []);
+      const data = await fetchApi('/suppliers?include_archived=true');
+      const filtered = (data || []).filter((s: Supplier) => showArchived ? s.is_archived : !s.is_archived);
+      setSuppliers(filtered);
     } catch (error) {
       console.error('Error fetching suppliers:', error);
     } finally {
@@ -57,12 +60,12 @@ export default function Suppliers() {
 
     try {
       if (editingSupplier) {
-        await fetchApi(`/api/suppliers/${editingSupplier.id}`, {
+        await fetchApi(`/suppliers/${editingSupplier.id}`, {
           method: 'PUT',
           body: JSON.stringify(formData)
         });
       } else {
-        await fetchApi('/api/suppliers', {
+        await fetchApi('/suppliers', {
           method: 'POST',
           body: JSON.stringify(formData)
         });
@@ -94,19 +97,36 @@ export default function Suppliers() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('confirm_archive_supplier') || "In order to keep a record of all suppliers the company has used, we archive them instead of deleting them. Do you want to archive this supplier?")) return;
+  const handleDelete = async (id: string, permanent: boolean = false) => {
+    if (!confirm(permanent ? 'Are you sure you want to permanently delete this supplier?' : (t('confirm_archive_supplier') || "Do you want to archive this supplier?"))) return;
     setSaving(true);
     try {
-      await fetchApi(`/api/suppliers/${id}`, { method: 'DELETE' });
+      if (permanent) {
+        await fetchApi(`/suppliers/${id}/permanent`, { method: 'DELETE' });
+      } else {
+        await fetchApi(`/suppliers/${id}`, { method: 'DELETE' });
+      }
       fetchSuppliers();
       await refreshStatus();
       if (isOnline) triggerSync();
-    } catch (error) {
-      console.error('Error archiving supplier:', error);
-      alert(t('error_archiving_supplier') || "Error archiving supplier");
+    } catch (error: any) {
+      console.error('Error deleting supplier:', error);
+      if (error.message?.includes('associated orders')) {
+        alert('Cannot physically delete a supplier that has associated orders. They must remain archived.');
+      } else {
+        alert(t('error_archiving_supplier') || "Error modified supplier");
+      }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      await fetchApi(`/suppliers/${id}/restore`, { method: 'PATCH' });
+      fetchSuppliers();
+    } catch (error) {
+      console.error('Error restoring supplier:', error);
     }
   };
 
@@ -138,15 +158,26 @@ export default function Suppliers() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-[#001f3f]">{t('suppliers')}</h1>
-        {canEdit && (
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            {t('add_supplier')}
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {canEdit && (
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 bg-white border border-gray-300 px-4 py-2 rounded-lg transition-colors"
+            >
+              {showArchived ? <ArchiveRestore className="w-5 h-5" /> : <Archive className="w-5 h-5" />}
+              {showArchived ? 'View Active' : 'View Archived'}
+            </button>
+          )}
+          {canEdit && !showArchived && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              {t('add_supplier')}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -159,28 +190,49 @@ export default function Suppliers() {
               <h3 className="text-xl font-semibold text-[#001f3f]">{supplier.name}</h3>
               {canEdit && (
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => handleEdit(supplier)}
-                    className="text-blue-600 hover:text-blue-800"
-                    title={t('edit')}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => navigate(`/orders?supplier_id=${supplier.id}`)}
-                    className="text-green-600 hover:text-green-800"
-                    title={t('view_orders')}
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(supplier.id)}
-                    className="text-red-600 hover:text-red-800"
-                    title={t('archive') || "Archive"}
-                    disabled={saving}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {!showArchived ? (
+                    <>
+                      <button
+                        onClick={() => handleEdit(supplier)}
+                        className="text-blue-600 hover:text-blue-800"
+                        title={t('edit')}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => navigate(`/orders?supplier_id=${supplier.id}`)}
+                        className="text-green-600 hover:text-green-800"
+                        title={t('view_orders')}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(supplier.id, false)}
+                        className="text-orange-600 hover:text-orange-800"
+                        title={t('archive') || "Archive"}
+                        disabled={saving}
+                      >
+                        <Archive className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleRestore(supplier.id)}
+                        className="text-green-600 hover:text-green-800"
+                        title="Restore"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(supplier.id, true)}
+                        className="text-red-600 hover:text-red-800"
+                        title="Permanently Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

@@ -24,10 +24,23 @@ async function isOnline() {
 router.get('/status', async (req, res) => {
   try {
     const queueCount = db.prepare("SELECT COUNT(*) as count FROM sync_queue WHERE synced = 0").get().count;
+    
+    let hasPulledBefore = false;
+    try {
+      const metaCount = db.prepare("SELECT COUNT(*) as c FROM sqlite_master WHERE type='table' AND name='sync_meta'").get().c;
+      if (metaCount > 0) {
+        const rowCount = db.prepare("SELECT COUNT(*) as c FROM sync_meta").get().c;
+        hasPulledBefore = rowCount > 0;
+      }
+    } catch(e) {
+      // Ignore
+    }
+
     res.json({
       pendingItems: queueCount,
       configured: isSupabaseConfigured(),
       online: await isOnline(),
+      hasPulledBefore
     });
   } catch (error) {
     console.error('[Sync] Status error:', error);
@@ -130,43 +143,47 @@ router.get('/pull', async (req, res) => {
   }
 
   try {
-    // sync_meta is local-only; audit_logs are push-only (avoid circular overwrite)
     const tablesToSync = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs'];
     
-    // We need a place to store "last pulled" timestamp per table.
-    // We'll create a quick meta table if we haven't.
+    const tableTimeCols = {
+      inventory: 'updated_at',
+      categories: 'created_at',
+      suppliers: 'updated_at',
+      orders: 'updated_at',
+      order_items: null, // No timestamp column, full sync
+      payments: 'created_at',
+      usage_logs: 'timestamp'
+    };
+
     db.exec(`CREATE TABLE IF NOT EXISTS sync_meta (table_name TEXT PRIMARY KEY, last_pulled DATETIME)`);
     
     let totalPulled = 0;
 
     for (const table of tablesToSync) {
-      // Find when we last pulled this table
       const meta = db.prepare("SELECT last_pulled FROM sync_meta WHERE table_name = ?").get(table);
       const lastPulled = meta ? meta.last_pulled : '1970-01-01T00:00:00.000Z';
+      const timeCol = tableTimeCols[table];
 
-      // Ask Supabase for anything newer than our last pull
-      // Note: we use updated_at, falling back to id if not available
-      const { data: remoteData, error } = await supabase
-        .from(table)
-        .select('*')
-        .gt('updated_at', lastPulled) // Assume Supabase has updated_at columns
-        .order('updated_at', { ascending: true });
+      let query = supabase.from(table).select('*');
+      
+      if (timeCol) {
+        query = query.gt(timeCol, lastPulled).order(timeCol, { ascending: true });
+      }
+
+      const { data: remoteData, error } = await query;
 
       if (error) {
         console.error(`[Sync] Pull failed for table ${table}:`, error.message);
-        continue; // Skip this table and continue with others
+        continue;
       }
 
       if (!remoteData || remoteData.length === 0) continue;
 
-      // Get the columns that actually exist in the local SQLite table
       const localColumns = new Set(
         db.prepare(`PRAGMA table_info(${table})`).all().map(col => col.name)
       );
 
-      // Upsert into local DB, filtering to only local columns
       for (const row of remoteData) {
-        // Only keep keys that exist in the local schema (avoids 'no column named updated_at' errors)
         const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
         if (filteredKeys.length === 0) continue;
 
@@ -181,10 +198,15 @@ router.get('/pull', async (req, res) => {
         }
       }
 
-      // Update our last known pulled timestamp to the newest updated_at from this batch
-      const newestDate = remoteData[remoteData.length - 1].updated_at;
-      if (newestDate) {
-        db.prepare(`INSERT OR REPLACE INTO sync_meta (table_name, last_pulled) VALUES (?, ?)`).run(table, newestDate);
+      if (timeCol) {
+        const newestDate = remoteData[remoteData.length - 1][timeCol];
+        if (newestDate) {
+          db.prepare(`INSERT OR REPLACE INTO sync_meta (table_name, last_pulled) VALUES (?, ?)`).run(table, newestDate);
+        }
+      } else {
+        // If no timestamp column, just mark current time to prevent constant full re-fetches if not needed,
+        // although next pull will fetch all anyway since there's no gt filter.
+        db.prepare(`INSERT OR REPLACE INTO sync_meta (table_name, last_pulled) VALUES (?, ?)`).run(table, new Date().toISOString());
       }
     }
 

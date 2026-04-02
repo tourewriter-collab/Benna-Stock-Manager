@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Plus, CreditCard as Edit2, Trash2, Eye } from 'lucide-react';
+import { Plus, CreditCard as Edit2, Trash2, Eye, RefreshCw, Archive, ArchiveRestore } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
@@ -10,6 +10,7 @@ interface Category {
   id: string;
   name_en: string;
   name_fr: string;
+  is_archived?: number | boolean;
   created_at: string;
 }
 
@@ -21,6 +22,7 @@ export default function Categories() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState({
     name_en: '',
@@ -31,12 +33,13 @@ export default function Categories() {
 
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [showArchived]);
 
   const fetchCategories = async () => {
     try {
-      const data = await fetchApi('/categories');
-      setCategories(data || []);
+      const data = await fetchApi(`/categories?include_archived=true`);
+      const filtered = (data || []).filter((c: Category) => showArchived ? c.is_archived : !c.is_archived);
+      setCategories(filtered);
     } catch (error) {
       console.error('Error fetching categories:', error);
     } finally {
@@ -81,11 +84,15 @@ export default function Categories() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('confirm_delete_category'))) return;
+  const handleDelete = async (id: string, permanent: boolean = false) => {
+    if (!confirm(permanent ? 'Are you sure you want to permanently delete this category?' : t('confirm_delete_category'))) return;
 
     try {
-      await fetchApi(`/categories/${id}`, { method: 'DELETE' });
+      if (permanent) {
+        await fetchApi(`/categories/${id}/permanent`, { method: 'DELETE' });
+      } else {
+        await fetchApi(`/categories/${id}`, { method: 'DELETE' });
+      }
       fetchCategories();
       await refreshStatus();
       if (isOnline) triggerSync();
@@ -96,6 +103,15 @@ export default function Categories() {
       } else {
         alert(t('error_deleting_category'));
       }
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      await fetchApi(`/categories/${id}/restore`, { method: 'PATCH' });
+      fetchCategories();
+    } catch (error) {
+      console.error('Error restoring category:', error);
     }
   };
 
@@ -132,13 +148,24 @@ export default function Categories() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-[#001f3f]">{t('categories')}</h1>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          {t('add_category')}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowArchived(!showArchived)}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 bg-white border border-gray-300 px-4 py-2 rounded-lg transition-colors"
+          >
+            {showArchived ? <ArchiveRestore className="w-5 h-5" /> : <Archive className="w-5 h-5" />}
+            {showArchived ? 'View Active' : 'View Archived'}
+          </button>
+          {!showArchived && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              {t('add_category')}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -167,26 +194,48 @@ export default function Categories() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <div className="flex gap-3">
-                    <button
-                      onClick={() => navigate(`/inventory?category_id=${category.id}`)}
-                      className="text-green-600 hover:text-green-800"
-                      title={t('view_inventory')}
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleEdit(category)}
-                      className="text-blue-600 hover:text-blue-800"
-                      title={t('edit')}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(category.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!showArchived ? (
+                      <>
+                        <button
+                          onClick={() => navigate(`/inventory?category_id=${category.id}`)}
+                          className="text-green-600 hover:text-green-800"
+                          title={t('view_inventory')}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEdit(category)}
+                          className="text-blue-600 hover:text-blue-800"
+                          title={t('edit')}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(category.id, false)}
+                          className="text-orange-600 hover:text-orange-800"
+                          title="Archive"
+                        >
+                          <Archive className="w-4 h-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleRestore(category.id)}
+                          className="text-green-600 hover:text-green-800"
+                          title="Restore"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(category.id, true)}
+                          className="text-red-600 hover:text-red-800"
+                          title="Permanently Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -196,7 +245,7 @@ export default function Categories() {
 
         {categories.length === 0 && (
           <div className="text-center py-12 text-gray-500">
-            {t('no_categories_found')}
+            {showArchived ? 'No archived categories found' : t('no_categories_found')}
           </div>
         )}
       </div>

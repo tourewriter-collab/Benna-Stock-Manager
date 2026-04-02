@@ -27,6 +27,16 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const data = await fetchApi('/sync/status');
       setPendingCount(data.pendingItems);
+
+      // Instantly trigger full pull on fresh installations
+      if (data.configured && data.online && data.hasPulledBefore === false) {
+        // Prevent infinite loop if trigger fails
+        if (syncStatus !== 'syncing') {
+           triggerSync();
+        }
+        return;
+      }
+
       // If there are pending items but we are online, it's 'pending'
       // If offline, it's 'offline'
       if (!data.online || !navigator.onLine) {

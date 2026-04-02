@@ -39,4 +39,33 @@ router.post('/', authenticateToken, requireRole('admin'), (req, res) => {
   }
 });
 
+// Factory Reset (Admin only) - Clears all local synchronized data
+router.delete('/factory-reset', authenticateToken, requireRole('admin'), (req, res) => {
+  try {
+    const tablesToClear = [
+      'inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 
+      'usage_logs', 'audit_logs', 'sync_queue', 'sync_meta'
+    ];
+    
+    const transaction = db.transaction(() => {
+      db.prepare('PRAGMA foreign_keys = OFF').run();
+      
+      for (const table of tablesToClear) {
+        try {
+          db.prepare(`DELETE FROM ${table}`).run();
+        } catch(e) {}
+      }
+      
+      db.prepare('PRAGMA foreign_keys = ON').run();
+    });
+    
+    transaction();
+    res.json({ message: 'Factory reset successful. All local data cleared.' });
+  } catch (error) {
+    console.error('Error during factory reset:', error);
+    db.prepare('PRAGMA foreign_keys = ON').run();
+    res.status(500).json({ error: 'Internal server error during factory reset' });
+  }
+});
+
 export default router;

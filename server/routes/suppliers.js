@@ -22,7 +22,12 @@ const logAudit = (userId, action, recordId, oldValues, newValues, ipAddress) => 
 // Get all active suppliers
 router.get('/', authenticateToken, (req, res) => {
   try {
-    const suppliers = db.prepare("SELECT * FROM suppliers WHERE status = 'active' ORDER BY name").all();
+    const includeArchived = req.query.include_archived === 'true';
+    const query = includeArchived 
+      ? 'SELECT * FROM suppliers ORDER BY name'
+      : 'SELECT * FROM suppliers WHERE is_archived = 0 ORDER BY name';
+
+    const suppliers = db.prepare(query).all();
     res.json(suppliers);
   } catch (error) {
     console.error('Error fetching suppliers:', error);
@@ -62,7 +67,7 @@ router.post('/', authenticateToken, (req, res) => {
     const id = crypto.randomUUID();
 
     db.prepare(
-      'INSERT INTO suppliers (id, name, contact, phone, email, address, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO suppliers (id, name, contact, phone, email, address, sync_status, is_archived) VALUES (?, ?, ?, ?, ?, ?, ?, 0)'
     ).run(id, name, contact || null, phone || null, email || null, address || null, 'pending');
 
     const newSupplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
@@ -122,7 +127,7 @@ router.put('/:id', authenticateToken, (req, res) => {
   }
 });
 
-// Delete supplier
+// Soft Delete supplier
 router.delete('/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
@@ -131,16 +136,13 @@ router.delete('/:id', authenticateToken, (req, res) => {
       return res.status(403).json({ message: 'Users cannot delete suppliers' });
     }
 
-    // Check if supplier has orders (optional now since archiving doesn't break relationships, but we'll leave it as you requested archiving instead of deletion explicitly)
-    // Actually, if we archive, having orders is fine. We just hide them from the dropdown.
-
     const supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
 
     if (!supplier) {
       return res.status(404).json({ message: 'Supplier not found' });
     }
 
-    db.prepare("UPDATE suppliers SET status = 'archived', sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+    db.prepare("UPDATE suppliers SET is_archived = 1, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
 
     const updatedSupplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
 
@@ -151,11 +153,84 @@ router.delete('/:id', authenticateToken, (req, res) => {
       JSON.stringify(updatedSupplier)
     );
 
-    logAudit(req.user.id, 'deleted', id, supplier, null, req.ip);
+    logAudit(req.user.id, 'archived', id, supplier, updatedSupplier, req.ip);
 
-    res.json({ message: 'Supplier deleted successfully' });
+    res.json({ message: 'Supplier archived successfully' });
   } catch (error) {
-    console.error('Error deleting supplier:', error);
+    console.error('Error archiving supplier:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Restore supplier
+router.patch('/:id/restore', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (req.user.role === 'user') {
+      return res.status(403).json({ message: 'Users cannot restore suppliers' });
+    }
+
+    const supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
+
+    if (!supplier) {
+      return res.status(404).json({ message: 'Supplier not found' });
+    }
+
+    db.prepare("UPDATE suppliers SET is_archived = 0, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+
+    const updatedSupplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
+
+    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+      'suppliers',
+      id,
+      'UPDATE',
+      JSON.stringify(updatedSupplier)
+    );
+
+    logAudit(req.user.id, 'restored', id, supplier, updatedSupplier, req.ip);
+
+    res.json({ message: 'Supplier restored successfully', supplier: updatedSupplier });
+  } catch (error) {
+    console.error('Error restoring supplier:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Permanent Delete supplier
+router.delete('/:id/permanent', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (req.user.role === 'user') {
+      return res.status(403).json({ message: 'Users cannot permanently delete suppliers' });
+    }
+
+    const orderCheck = db.prepare('SELECT id FROM orders WHERE supplier_id = ? LIMIT 1').get(id);
+    if (orderCheck) {
+      return res.status(400).json({ message: 'Cannot delete supplier that has associated orders' });
+    }
+
+    const supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
+
+    if (!supplier) {
+      return res.status(404).json({ message: 'Supplier not found' });
+    }
+
+    db.prepare('DELETE FROM suppliers WHERE id = ?').run(id);
+
+    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+      'suppliers',
+      id,
+      'DELETE',
+      JSON.stringify(supplier)
+    );
+
+    logAudit(req.user.id, 'deleted_permanently', id, supplier, null, req.ip);
+
+    res.json({ message: 'Supplier permanently deleted successfully' });
+  } catch (error) {
+    console.error('Error permanently deleting supplier:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

@@ -196,9 +196,8 @@ try {
   console.warn('[Database] Failed to create secondary indexes:', e.message);
 }
 
-// Ensure record_id columns are correctly handled (if they were INTEGER, they might still work, but TEXT is safer for UUIDs)
-// Note: ALTER TABLE in SQLite doesn't easily change column type, but SQLite's flexibility should allow UUID strings in INTEGER cols.
-
+try { db.exec(`ALTER TABLE categories ADD COLUMN is_archived BOOLEAN DEFAULT 0`); } catch (e) {}
+try { db.exec(`ALTER TABLE suppliers ADD COLUMN is_archived BOOLEAN DEFAULT 0`); } catch (e) {}
 
 // Seed default admin user if not present
 const checkAdmin = db.prepare('SELECT * FROM users WHERE email = ?').get('cheickahmedt@gmail.com');
@@ -224,6 +223,59 @@ for (const setting of seedSettings) {
   const exists = db.prepare('SELECT * FROM settings WHERE key = ?').get(setting.key);
   if (!exists) {
     db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(setting.key, setting.value);
+  }
+}
+
+// Seed Default Categories
+const defaultCategories = [
+  { en: 'Engine Parts', fr: 'Pièces moteur' },
+  { en: 'Lubricants & Fluids', fr: 'Lubrifiants et fluides' },
+  { en: 'Tools & Equipment', fr: 'Outils et équipement' },
+  { en: 'Tires & Wheels', fr: 'Pneus et roues' },
+  { en: 'Brake & Clutch System', fr: 'Système de frein et embrayage' },
+  { en: 'Transmission & Drivetrain', fr: 'Transmission et chaîne cinématique' },
+  { en: 'Suspension & Steering', fr: 'Suspension et direction' },
+  { en: 'Electrical & Electronics', fr: 'Électrique et électronique' },
+  { en: 'Cooling System', fr: 'Système de refroidissement' },
+  { en: 'Fuel System', fr: "Système d'alimentation en carburant" },
+  { en: 'Body & Cab Parts', fr: 'Carrosserie et cabine' },
+  { en: 'Hardware & Fasteners', fr: 'Quincaillerie et fixations' },
+  { en: 'Safety Gear (PPE)', fr: 'Équipement de sécurité (EPI)' },
+  { en: 'Filters', fr: 'Filtres' },
+  { en: 'Hydraulics', fr: 'Hydraulique' }
+];
+
+for (const cat of defaultCategories) {
+  const exists = db.prepare('SELECT * FROM categories WHERE name_en = ?').get(cat.en);
+  if (!exists) {
+    const fallbackId = 'cat_' + cat.en.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    db.prepare('INSERT INTO categories (id, name_en, name_fr, is_archived, sync_status) VALUES (?, ?, ?, 0, ?)')
+      .run(fallbackId, cat.en, cat.fr, 'pending');
+  }
+}
+
+// Seed Default Suppliers
+const defaultSuppliers = [
+  'AMMARS SARL',
+  'ERA SHACMAN TRUCK SARLU',
+  'ABOUBACAR CAMARA',
+  'LAYE DIARRA KOUROUMA',
+  'MOHAMED KANTE',
+  'KOLABOUI',
+  'KALLO SARL',
+  'ABDOULAYE KABA & FRERE',
+  'ALCOTEX',
+  'BELT WAY SARLU',
+  'ABDOULAYE DIABY',
+  'SÉKOUBA TOURE'
+];
+
+for (const supName of defaultSuppliers) {
+  const exists = db.prepare('SELECT * FROM suppliers WHERE name = ?').get(supName);
+  if (!exists) {
+    const fallbackId = 'sup_' + supName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
+      .run(fallbackId, supName, 'pending');
   }
 }
 
