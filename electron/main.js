@@ -67,6 +67,7 @@ function waitForServer(port, maxAttempts = 40) {
 async function startServer() {
   const portsToTry = [5000, 5001, 5002, 5003];
   let success = false;
+  let lastError = null;
 
   for (const port of portsToTry) {
     try {
@@ -94,18 +95,22 @@ async function startServer() {
         break;
       }
     } catch (err) {
+      lastError = err;
       log.error(`[Server] Failed to start on port ${port}:`, err.message);
+      if (err.stack) log.error(err.stack);
       // Continue to next port
     }
   }
 
   if (!success) {
     log.error('[Server] Fatal: Could not start backend on any attempted port.');
+    const errorDetails = lastError ? `\n\nTechnical Error: ${lastError.message}` : '';
     dialog.showErrorBox(
       'Backend Server Error',
-      'The Benna Stock Manager backend failed to start.\n\n' +
-      'Reason: No available ports or internal crash.\n\n' +
-      'Please ensure no other application is using ports 5000-5003 and try running "npm run electron:rebuild" if this is a new device.'
+      'The Benna Stock Manager backend failed to start.\n' +
+      'Reason: No available ports or internal crash.' +
+      errorDetails +
+      '\n\nPlease ensure no other application is using ports 5000-5003 and try running "npm run electron:rebuild" if this is a new device.'
     );
   }
 }
