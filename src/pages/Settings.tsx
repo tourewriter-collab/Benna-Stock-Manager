@@ -234,12 +234,12 @@ const Settings: React.FC = () => {
 
         {isElectron && (
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Software Updates</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('software_updates')}</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Current Version</p>
-                  <p className="text-lg font-semibold text-gray-900">{appVersion || 'Loading...'}</p>
+                  <p className="text-sm text-gray-600">{t('current_version')}</p>
+                  <p className="text-lg font-semibold text-gray-900">{appVersion || t('loading')}</p>
                 </div>
 
                 <button
@@ -247,25 +247,25 @@ const Settings: React.FC = () => {
                   disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
                   className="px-4 py-2 bg-navy text-white rounded-md hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {updateStatus === 'checking' ? 'Checking...' : 'Check for Updates'}
+                  {updateStatus === 'checking' ? t('checking') : t('check_for_updates')}
                 </button>
               </div>
 
-              <div className="text-xs text-gray-500 italic mt-2">
-                Note: In order for the updater to detect a new version, a formal "Release" containing the built installer must be published on GitHub by the CI pipeline. Standard code commits will not trigger an update.
-              </div>
+                <div className="text-xs text-gray-500 italic mt-2">
+                  {t('update_note')}
+                </div>
 
               {updateStatus === 'checking' && (
                 <div className="text-blue-600">
-                  <span>Checking for updates...</span>
+                  <span>{t('checking_for_updates')}</span>
                 </div>
               )}
 
               {updateStatus === 'available' && updateInfo && (
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                  <h3 className="font-semibold text-blue-900">Update Available</h3>
+                  <h3 className="font-semibold text-blue-900">{t('update_available')}</h3>
                   <p className="text-sm text-blue-700 mt-1">
-                    Version {updateInfo.version} is available for download.
+                    {t('update_version_available', { version: updateInfo.version })}
                   </p>
                   {updateInfo.releaseNotes && (
                     <p className="text-sm text-blue-600 mt-2 whitespace-pre-line">
@@ -276,14 +276,14 @@ const Settings: React.FC = () => {
                     onClick={handleDownloadUpdate}
                     className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                   >
-                    Download Update
+                    {t('download_update')}
                   </button>
                 </div>
               )}
 
               {updateStatus === 'downloading' && (
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                  <h3 className="font-semibold text-blue-900">Downloading Update</h3>
+                  <h3 className="font-semibold text-blue-900">{t('downloading_update')}</h3>
                   <div className="mt-2">
                     <div className="w-full bg-blue-200 rounded-full h-2.5">
                       <div
@@ -291,35 +291,35 @@ const Settings: React.FC = () => {
                         style={{ width: `${downloadProgress}%` }}
                       ></div>
                     </div>
-                    <p className="text-sm text-blue-700 mt-1">{downloadProgress}% complete</p>
+                    <p className="text-sm text-blue-700 mt-1">{downloadProgress}{t('percent_complete')}</p>
                   </div>
                 </div>
               )}
 
               {updateStatus === 'downloaded' && updateInfo && (
                 <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                  <h3 className="font-semibold text-green-900">Update Ready</h3>
+                  <h3 className="font-semibold text-green-900">{t('update_ready')}</h3>
                   <p className="text-sm text-green-700 mt-1">
-                    Version {updateInfo.version} has been downloaded and is ready to install.
+                    {t('update_ready_message', { version: updateInfo.version })}
                   </p>
                   <button
                     onClick={handleInstallUpdate}
                     className="mt-3 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
                   >
-                    Restart and Install
+                    {t('restart_and_install')}
                   </button>
                 </div>
               )}
 
               {updateStatus === 'not-available' && (
                 <div className="text-green-600">
-                  <span>You are running the latest version</span>
+                  <span>{t('up_to_date')}</span>
                 </div>
               )}
 
               {updateStatus === 'error' && errorMessage && (
                 <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                  <h3 className="font-semibold text-red-900">Update Error</h3>
+                  <h3 className="font-semibold text-red-900">{t('update_error')}</h3>
                   <p className="text-sm text-red-700 mt-1">{errorMessage}</p>
                 </div>
               )}
@@ -330,7 +330,7 @@ const Settings: React.FC = () => {
         {canExport && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold mb-4">{t('export_audit_logs')}</h2>
-            <p className="text-gray-600 mb-4">Export audit logs to Excel for analysis</p>
+            <p className="text-gray-600 mb-4">{t('export_audit_logs_description')}</p>
             <button
               onClick={() => setShowExportModal(true)}
               className="px-4 py-2 bg-navy text-white rounded-md hover:bg-opacity-90"
@@ -342,7 +342,7 @@ const Settings: React.FC = () => {
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4">{t('sync_google_drive')}</h2>
-          <p className="text-gray-600 mb-4">Google Drive sync is not yet configured</p>
+          <p className="text-gray-600 mb-4">{t('google_drive_not_configured')}</p>
           <div className="flex space-x-4">
             <button
               onClick={() => alert('Google Drive OAuth flow would be initiated here')}

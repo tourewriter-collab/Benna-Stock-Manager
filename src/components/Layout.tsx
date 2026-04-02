@@ -124,11 +124,11 @@ const Layout: React.FC = () => {
                 {syncStatus === 'offline' && <CloudOff size={18} className="text-gray-400" />}
                 {syncStatus === 'error' && <AlertCircle size={18} className="text-red-400" />}
                 <span className="hidden sm:inline-block">
-                  {syncStatus === 'synced' && 'Synced'}
-                  {syncStatus === 'syncing' && 'Syncing...'}
-                  {syncStatus === 'pending' && `${pendingCount} pending`}
-                  {syncStatus === 'offline' && 'Offline'}
-                  {syncStatus === 'error' && 'Sync Error'}
+                  {syncStatus === 'synced' && t('synced')}
+                  {syncStatus === 'syncing' && t('syncing')}
+                  {syncStatus === 'pending' && `${pendingCount} ${t('pending')}`}
+                  {syncStatus === 'offline' && t('offline')}
+                  {syncStatus === 'error' && t('sync_error')}
                 </span>
               </button>
 
@@ -152,7 +152,7 @@ const Layout: React.FC = () => {
             </div>
             <div className="ml-3">
               <p className="text-sm text-yellow-700">
-                You are currently offline. Changes will be saved locally and synced automatically when your connection is restored.
+                  {t('offline_warning')}
               </p>
             </div>
           </div>
@@ -166,7 +166,7 @@ const Layout: React.FC = () => {
       <footer className="bg-white border-t border-gray-200 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <p className="text-center text-sm text-gray-600">
-            © {new Date().getFullYear()} Ikiké Collective SARL. All rights reserved. Version 1.0.0
+            © {new Date().getFullYear()} Ikiké Collective SARL. All rights reserved. Version 1.0.2
           </p>
         </div>
       </footer>

@@ -130,7 +130,8 @@ router.get('/pull', async (req, res) => {
   }
 
   try {
-    const tablesToSync = ['inventory', 'users', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs', 'audit_logs', 'sync_meta']; // Define synced tables
+    // sync_meta is local-only; audit_logs are push-only (avoid circular overwrite)
+    const tablesToSync = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs'];
     
     // We need a place to store "last pulled" timestamp per table.
     // We'll create a quick meta table if we haven't.
@@ -158,19 +159,22 @@ router.get('/pull', async (req, res) => {
 
       if (!remoteData || remoteData.length === 0) continue;
 
-      // Upsert into local DB
+      // Get the columns that actually exist in the local SQLite table
+      const localColumns = new Set(
+        db.prepare(`PRAGMA table_info(${table})`).all().map(col => col.name)
+      );
+
+      // Upsert into local DB, filtering to only local columns
       for (const row of remoteData) {
-        // Construct naive INSERT OR REPLACE statement based on row keys
-        // SQLite will replace the row if the ID exists (requires id to be PRIMARY KEY)
-        const keys = Object.keys(row);
-        
-        // Remove 'updated_at' if local table doesn't have it, or map correctly
-        // We'll just map raw row directly.
-        const placeholders = keys.map(() => '?').join(', ');
-        const values = Object.values(row);
+        // Only keep keys that exist in the local schema (avoids 'no column named updated_at' errors)
+        const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
+        if (filteredKeys.length === 0) continue;
+
+        const placeholders = filteredKeys.map(() => '?').join(', ');
+        const values = filteredKeys.map(k => row[k]);
 
         try {
-          db.prepare(`INSERT OR REPLACE INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`).run(...values);
+          db.prepare(`INSERT OR REPLACE INTO ${table} (${filteredKeys.join(', ')}) VALUES (${placeholders})`).run(...values);
           totalPulled++;
         } catch (e) {
           console.error(`[Sync] Local upsert failed for ${table} row ${row.id}:`, e.message);
