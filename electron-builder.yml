@@ -18,9 +18,7 @@ files:
 # loaded at runtime (native modules cannot be dlopen'd from inside ASAR).
 asarUnpack:
   - "**/*.node"
-  - "node_modules/better-sqlite3/**/*"
-  - "node_modules/bindings/**/*"
-  - "node_modules/node-gyp-build/**/*"
+  - "node_modules/**/*"
   - "server/**/*"
 
 extraResources:
