@@ -1,3 +1,24 @@
+let cachedPort: number | null = null;
+
+async function getApiRoot() {
+  if (cachedPort) return `http://localhost:${cachedPort}`;
+  
+  if (window.electron?.updates?.getAppVersion) {
+    try {
+      const info = await window.electron.updates.getAppVersion();
+      if (info.serverPort) {
+        cachedPort = info.serverPort;
+        return `http://localhost:${cachedPort}`;
+      }
+    } catch (err) {
+      console.error('[API] Failed to get server port from Electron:', err);
+    }
+  }
+  
+  // Fallback to default
+  return 'http://localhost:5000';
+}
+
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const token = localStorage.getItem('token');
   const headers = new Headers(options.headers || {});
@@ -7,8 +28,8 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const API_BASE = 'http://localhost:5000/api';
-  const API_ROOT = 'http://localhost:5000';
+  const API_ROOT = await getApiRoot();
+  const API_BASE = `${API_ROOT}/api`;
   
   const url = endpoint.startsWith('/api') 
     ? `${API_ROOT}${endpoint}` 

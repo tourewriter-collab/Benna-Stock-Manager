@@ -19,6 +19,7 @@ autoUpdater.logger = log;
 
 let mainWindow;
 let updateCheckInProgress = false;
+let serverPort = 5000;
 
 // ---------------------------------------------------------------------------
 // App configuration
@@ -42,39 +43,65 @@ function waitForServer(port, maxAttempts = 40) {
     let attempts = 0;
     const check = () => {
       const req = http.get(`http://localhost:${port}/api/health`, (res) => {
-        log.info(`[Server] Ready on port ${port}`);
-        resolve();
+        log.info(`[Server] Health check passed on port ${port}`);
+        resolve(true);
       });
       req.on('error', () => {
         attempts++;
         if (attempts < maxAttempts) {
           setTimeout(check, 500);
         } else {
-          log.warn(`[Server] Not ready after ${maxAttempts} attempts — proceeding anyway`);
-          resolve();
+          log.warn(`[Server] Health check failed on port ${port} after ${maxAttempts} attempts`);
+          resolve(false);
         }
       });
       req.end();
     };
-    // Give the server a brief head-start before first check
     setTimeout(check, 300);
   });
 }
 
 /**
  * Import the Express server module in-process (same Electron Node context).
- * This avoids all child-process / ASAR / ABI complications with native modules.
  */
 async function startServer() {
-  try {
-    log.info('[Server] Loading Express server module in-process…');
-    await import('../server/index.js');
-    log.info('[Server] Module loaded, waiting for HTTP server…');
-    await waitForServer(5000);
-  } catch (err) {
-    log.error('[Server] Failed to start:', err);
-    // Don't rethrow — let the window open even if the server fails,
-    // so the user can see an error rather than a permanent blank screen.
+  const portsToTry = [5000, 5001, 5002, 5003];
+  let success = false;
+
+  for (const port of portsToTry) {
+    try {
+      log.info(`[Server] Attempting to start on port ${port}…`);
+      process.env.PORT = port.toString();
+      
+      // Load the server module. 
+      // Note: we use a dynamic import. If the module is already loaded (on retry), 
+      // it won't re-execute everything unless we handle it, but server/index.js 
+      // is designed to listen when imported.
+      await import(`../server/index.js?update=${Date.now()}`); 
+      
+      log.info(`[Server] Module loaded for port ${port}, waiting for HTTP health check…`);
+      const ready = await waitForServer(port, 10); // Faster check for each port
+      
+      if (ready) {
+        serverPort = port;
+        success = true;
+        log.info(`[Server] Successfully started and verified on port ${serverPort}`);
+        break;
+      }
+    } catch (err) {
+      log.error(`[Server] Failed to start on port ${port}:`, err.message);
+      // Continue to next port
+    }
+  }
+
+  if (!success) {
+    log.error('[Server] Fatal: Could not start backend on any attempted port.');
+    dialog.showErrorBox(
+      'Backend Server Error',
+      'The Benna Stock Manager backend failed to start.\n\n' +
+      'Reason: No available ports or internal crash.\n\n' +
+      'Please ensure no other application is using ports 5000-5003 and try running "npm run electron:rebuild" if this is a new device.'
+    );
   }
 }
 
@@ -256,6 +283,7 @@ function setupIpcHandlers() {
   ipcMain.handle('get-app-version', async () => ({
     version: app.getVersion(),
     isPackaged: app.isPackaged,
+    serverPort: serverPort,
   }));
 }
 

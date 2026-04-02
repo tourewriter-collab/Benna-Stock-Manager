@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { fetchApi } from '../lib/api';
 
 interface User {
   id: string;
@@ -59,20 +60,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (cached && token) {
         try {
           // Verify with server
-          const res = await fetch('http://localhost:5000/api/auth/me', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-
-          if (res.ok) {
-            const serverUser = await res.json();
-            setUser(serverUser);
-            setIsAuthenticated(true);
-            console.log('[Auth] Restored and verified cached user:', serverUser.email);
-          } else {
-            // Token invalid or user not found
-            console.warn('[Auth] Cached token invalid, clearing state');
-            logout();
-          }
+          const serverUser = await fetchApi('/auth/me');
+          setUser(serverUser);
+          setIsAuthenticated(true);
+          console.log('[Auth] Restored and verified cached user:', serverUser.email);
         } catch (error) {
           console.error('[Auth] Token verification failed:', error);
           // Don't log out on network error, keep current state (offline support)
@@ -91,18 +82,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('[Auth] Login attempt against local API:', email);
 
-      const res = await fetch('http://localhost:5000/api/auth/login', {
+      const data = await fetchApi('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Invalid credentials');
-      }
-
-      const data = await res.json();
       
       setUser(data.user);
       setIsAuthenticated(true);

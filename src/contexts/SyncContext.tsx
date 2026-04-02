@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
+import { fetchApi } from '../lib/api';
 
 export type SyncStatus = 'synced' | 'syncing' | 'pending' | 'offline' | 'error';
 
@@ -24,23 +25,16 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchStatus = async () => {
     if (!isAuthenticated) return;
     try {
-      const res = await fetch('http://localhost:5000/api/sync/status', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}` // use token if stored
-        }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPendingCount(data.pendingItems);
-        // If there are pending items but we are online, it's 'pending'
-        // If offline, it's 'offline'
-        if (!data.online || !navigator.onLine) {
-          setSyncStatus('offline');
-        } else if (data.pendingItems > 0 && syncStatus !== 'syncing' && syncStatus !== 'error') {
-          setSyncStatus('pending');
-        } else if (syncStatus !== 'syncing' && syncStatus !== 'error') {
-          setSyncStatus('synced');
-        }
+      const data = await fetchApi('/sync/status');
+      setPendingCount(data.pendingItems);
+      // If there are pending items but we are online, it's 'pending'
+      // If offline, it's 'offline'
+      if (!data.online || !navigator.onLine) {
+        setSyncStatus('offline');
+      } else if (data.pendingItems > 0 && syncStatus !== 'syncing' && syncStatus !== 'error') {
+        setSyncStatus('pending');
+      } else if (syncStatus !== 'syncing' && syncStatus !== 'error') {
+        setSyncStatus('synced');
       }
     } catch (err) {
       if (!navigator.onLine) setSyncStatus('offline');
@@ -52,16 +46,11 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     setSyncStatus('syncing');
     try {
-      // Allow passing auth headers
-      const headers: Record<string, string> = {};
-      const token = localStorage.getItem('token');
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
       // 1. Push pending changes
-      await fetch('http://localhost:5000/api/sync/push', { method: 'POST', headers });
+      await fetchApi('/sync/push', { method: 'POST' });
       
       // 2. Pull remote changes
-      await fetch('http://localhost:5000/api/sync/pull', { method: 'GET', headers });
+      await fetchApi('/sync/pull', { method: 'GET' });
 
       setLastSyncedAt(new Date());
       setSyncStatus('synced');
