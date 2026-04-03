@@ -319,6 +319,10 @@ app.on('ready', async () => {
     : path.join(__dirname, '..', 'database.sqlite');
   log.info('[App] DB_PATH set to:', process.env.DB_PATH);
 
+  // 3. Pass resources path to server so it can locate the .env in production
+  process.env.RESOURCES_PATH = process.resourcesPath;
+  log.info('[App] RESOURCES_PATH set to:', process.resourcesPath);
+
   setupIpcHandlers();
 
   // 3. Start the Express + SQLite server in-process

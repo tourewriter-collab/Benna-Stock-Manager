@@ -1,6 +1,6 @@
 {
   "name": "benna-stock-manager",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Benna Stock Manager - Full-stack inventory management system",
   "main": "electron/main.js",
   "type": "module",

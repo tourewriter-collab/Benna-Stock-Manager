@@ -1,3 +1,8 @@
+// IMPORTANT: dotenv must be loaded before any other server module reads process.env.
+// Because ES module `import` statements are hoisted, we cannot rely on top-level dotenv.config
+// running before route modules are evaluated. Instead, electron/main.js sets RESOURCES_PATH
+// and calls dotenvConfig BEFORE dynamic-importing this server module.
+// This file does a best-effort secondary load in case it is run standalone (e.g. `node server/index.js`).
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -5,8 +10,13 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Explicitly load .env from the project root (one level up from server/)
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
+// This secondary dotenv load is for standalone/dev use ($node server/index.js).
+// When run via Electron, env vars are already set by main.js before this module loads.
+const envPath = process.env.RESOURCES_PATH
+  ? path.join(process.env.RESOURCES_PATH, '.env')
+  : path.join(__dirname, '..', '.env');
+
+dotenv.config({ path: envPath, override: false }); // override:false never clobbers vars already set
 
 import express from 'express';
 import cors from 'cors';
@@ -65,8 +75,14 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/settings', settingsRoutes);
 
+import { getSupabaseDiagnostics } from './supabaseClient.js';
+
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    supabase: getSupabaseDiagnostics(),
+  });
 });
 
 // ---------------------------------------------------------------------------
