@@ -137,6 +137,7 @@
   "payment_method": "Payment Method",
   "cash": "Cash",
   "bank": "Bank Transfer",
+  "check": "Check",
   "credit": "Credit",
   "other": "Other",
   "reference": "Reference",

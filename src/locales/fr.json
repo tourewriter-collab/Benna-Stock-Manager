@@ -137,6 +137,7 @@
   "payment_method": "Méthode de paiement",
   "cash": "Espèces",
   "bank": "Virement bancaire",
+  "check": "Chèque",
   "credit": "Crédit",
   "other": "Autre",
   "reference": "Référence",

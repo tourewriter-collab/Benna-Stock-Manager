@@ -612,6 +612,7 @@ export default function OrderDetail() {
                 >
                   <option value="cash">{t('cash')}</option>
                   <option value="bank">{t('bank')}</option>
+                  <option value="check">{t('check')}</option>
                   <option value="credit">{t('credit')}</option>
                   <option value="other">{t('other')}</option>
                 </select>
