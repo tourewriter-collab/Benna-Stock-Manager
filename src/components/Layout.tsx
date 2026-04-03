@@ -35,11 +35,11 @@ const Layout: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-navy text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-3">
+          <div className="flex justify-between min-h-[4rem] py-2">
+            <div className="flex items-center space-x-8 flex-1">
+              <div className="flex items-center space-x-3 flex-shrink-0">
                 {logo && <img src={logo} alt="Logo" className="h-8 w-8 object-contain bg-white rounded-sm p-0.5" />}
-                <h1 className="text-xl font-bold">{t('app_title')}</h1>
+                <h1 className="text-xl font-bold whitespace-nowrap">{t('app_title')}</h1>
               </div>
               <div className="hidden md:flex space-x-4">
                 <Link
