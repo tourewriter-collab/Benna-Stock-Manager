@@ -167,6 +167,7 @@
   "usage": "Usage",
   "usage_rate": "Usage Rate",
   "units": "units",
+  "to": "to",
   "no_usage_data_found": "No usage data found for the selected period",
   "insights": "Insights",
   "current_stock": "Current Stock",

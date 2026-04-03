@@ -66,6 +66,10 @@ export default function OrderDetail() {
     reference: '',
     notes: ''
   });
+  const [deliveryModal, setDeliveryModal] = useState<{
+    item: OrderItem;
+    newQty: number;
+  } | null>(null);
 
   const canEdit = user?.role === 'admin' || user?.role === 'audit_manager';
   const balance = order ? order.total_amount - order.paid_amount : 0;
@@ -97,21 +101,23 @@ export default function OrderDetail() {
     }
   };
 
-  const handleUpdateDelivery = async (itemId: string, current: number, max: number) => {
-    const newVal = prompt(`${t('delivered_quantity')} (Max: ${max})`, current.toString());
-    if (newVal === null) return;
-    
-    const quantity = parseInt(newVal);
-    if (isNaN(quantity) || quantity < 0 || quantity > max) {
+  const handleUpdateDelivery = async (item: OrderItem) => {
+    setDeliveryModal({ item, newQty: item.delivered_quantity });
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!deliveryModal) return;
+    const { item, newQty } = deliveryModal;
+    if (isNaN(newQty) || newQty < 0 || newQty > item.quantity) {
       alert(t('error'));
       return;
     }
-
     try {
-      await fetchApi(`/api/orders/${id}/items/${itemId}/delivery`, {
+      await fetchApi(`/api/orders/${id}/items/${item.id}/delivery`, {
         method: 'PUT',
-        body: JSON.stringify({ delivered_quantity: quantity })
+        body: JSON.stringify({ delivered_quantity: newQty })
       });
+      setDeliveryModal(null);
       fetchOrder();
     } catch (error) {
       console.error('Error updating delivery:', error);
@@ -379,11 +385,12 @@ export default function OrderDetail() {
                           {item.delivered_quantity}
                           {canEdit && (
                             <button 
-                              onClick={() => handleUpdateDelivery(item.id, item.delivered_quantity, item.quantity)}
-                              className="text-navy hover:text-opacity-70"
+                              onClick={() => handleUpdateDelivery(item)}
+                              className="ml-1 flex items-center gap-1 text-xs bg-navy text-white px-2 py-0.5 rounded hover:bg-opacity-80 transition-colors"
                               title={t('update')}
                             >
                               <Edit2 className="w-3 h-3" />
+                              {t('update')}
                             </button>
                           )}
                         </div>
@@ -661,6 +668,69 @@ export default function OrderDetail() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {deliveryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-sm w-full p-6 space-y-4">
+            <h2 className="text-xl font-bold text-[#001f3f]">{t('delivered_quantity')}</h2>
+            <p className="text-sm text-gray-600 font-medium truncate">{deliveryModal.item.description}</p>
+
+            <div className="grid grid-cols-3 gap-3 text-center text-sm">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-gray-500 text-xs mb-1">{t('ordered')}</div>
+                <div className="font-bold text-lg text-gray-900">{deliveryModal.item.quantity}</div>
+              </div>
+              <div className="bg-orange-50 rounded-lg p-3">
+                <div className="text-orange-600 text-xs mb-1">{t('delivered')}</div>
+                <div className="font-bold text-lg text-orange-700">{deliveryModal.item.delivered_quantity}</div>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-3">
+                <div className="text-blue-600 text-xs mb-1">{t('remaining_quantity')}</div>
+                <div className="font-bold text-lg text-blue-700">{deliveryModal.item.quantity - deliveryModal.item.delivered_quantity}</div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('delivered_quantity')} * (0 – {deliveryModal.item.quantity})
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={deliveryModal.item.quantity}
+                value={deliveryModal.newQty}
+                onChange={(e) => setDeliveryModal({ ...deliveryModal, newQty: parseInt(e.target.value) || 0 })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent text-lg font-semibold"
+                autoFocus
+              />
+            </div>
+
+            {deliveryModal.item.inventory_item_id ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-700">
+                ✓ {t('inventory')} {t('update')} — {deliveryModal.newQty - deliveryModal.item.delivered_quantity > 0 ? '+' : ''}{deliveryModal.newQty - deliveryModal.item.delivered_quantity} {t('units')} {t('to')} {t('current_stock')}
+              </div>
+            ) : (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-700">
+                ⚠ This item is not linked to an inventory product — stock won't auto-update.
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleConfirmDelivery}
+                className="flex-1 bg-[#001f3f] text-white py-2 rounded-lg hover:bg-[#003366] transition-colors font-medium"
+              >
+                {t('save')}
+              </button>
+              <button
+                onClick={() => setDeliveryModal(null)}
+                className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                {t('cancel')}
+              </button>
+            </div>
           </div>
         </div>
       )}
