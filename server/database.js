@@ -227,57 +227,102 @@ for (const setting of seedSettings) {
   }
 }
 
-// Seed Default Categories
-const defaultCategories = [
-  { en: 'Engine Parts', fr: 'Pièces moteur' },
-  { en: 'Lubricants & Fluids', fr: 'Lubrifiants et fluides' },
-  { en: 'Tools & Equipment', fr: 'Outils et équipement' },
-  { en: 'Tires & Wheels', fr: 'Pneus et roues' },
-  { en: 'Brake & Clutch System', fr: 'Système de frein et embrayage' },
-  { en: 'Transmission & Drivetrain', fr: 'Transmission et chaîne cinématique' },
-  { en: 'Suspension & Steering', fr: 'Suspension et direction' },
-  { en: 'Electrical & Electronics', fr: 'Électrique et électronique' },
-  { en: 'Cooling System', fr: 'Système de refroidissement' },
-  { en: 'Fuel System', fr: "Système d'alimentation en carburant" },
-  { en: 'Body & Cab Parts', fr: 'Carrosserie et cabine' },
-  { en: 'Hardware & Fasteners', fr: 'Quincaillerie et fixations' },
-  { en: 'Safety Gear (PPE)', fr: 'Équipement de sécurité (EPI)' },
-  { en: 'Filters', fr: 'Filtres' },
-  { en: 'Hydraulics', fr: 'Hydraulique' }
-];
+// Stamp the DB creation time and app version if not already present.
+// This lets us detect stale databases from old installs.
+const dbCreatedAt = db.prepare("SELECT * FROM settings WHERE key = 'db_created_at'").get();
+if (!dbCreatedAt) {
+  db.prepare("INSERT INTO settings (key, value) VALUES ('db_created_at', datetime('now'))").run();
+}
 
-for (const cat of defaultCategories) {
-  const exists = db.prepare('SELECT * FROM categories WHERE name_en = ?').get(cat.en);
-  if (!exists) {
-    const fallbackId = 'cat_' + cat.en.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    db.prepare('INSERT INTO categories (id, name_en, name_fr, is_archived, sync_status) VALUES (?, ?, ?, 0, ?)')
-      .run(fallbackId, cat.en, cat.fr, 'pending');
+// ---------------------------------------------------------------------------
+// CONDITIONAL SEEDING
+// CRITICAL: Only seed default categories/suppliers if Supabase is NOT configured.
+// When Supabase IS configured, the app will pull real UUID-based data from the cloud.
+// Seeding with hardcoded fallback IDs (like 'cat_engine_parts') when cloud data exists
+// creates DUPLICATES after every factory reset, inflating totals and breaking references.
+// ---------------------------------------------------------------------------
+const hasSupabaseConfig = !!(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) &&
+  !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
+const supplierCount = db.prepare('SELECT COUNT(*) as c FROM suppliers').get().c;
+
+if (!hasSupabaseConfig && categoryCount === 0) {
+  console.log('[Database] No Supabase config detected — seeding default categories.');
+  // seed happens below
+} else if (hasSupabaseConfig) {
+  console.log('[Database] Supabase configured — skipping default category/supplier seeding (will pull from cloud).');
+}
+
+if (!hasSupabaseConfig && categoryCount === 0) {
+  const defaultCategories = [
+    { en: 'Engine Parts', fr: 'Pièces moteur' },
+    { en: 'Lubricants & Fluids', fr: 'Lubrifiants et fluides' },
+    { en: 'Tools & Equipment', fr: 'Outils et équipement' },
+    { en: 'Tires & Wheels', fr: 'Pneus et roues' },
+    { en: 'Brake & Clutch System', fr: 'Système de frein et embrayage' },
+    { en: 'Transmission & Drivetrain', fr: 'Transmission et chaîne cinématique' },
+    { en: 'Suspension & Steering', fr: 'Suspension et direction' },
+    { en: 'Electrical & Electronics', fr: 'Électrique et électronique' },
+    { en: 'Cooling System', fr: 'Système de refroidissement' },
+    { en: 'Fuel System', fr: "Système d'alimentation en carburant" },
+    { en: 'Body & Cab Parts', fr: 'Carrosserie et cabine' },
+    { en: 'Hardware & Fasteners', fr: 'Quincaillerie et fixations' },
+    { en: 'Safety Gear (PPE)', fr: 'Équipement de sécurité (EPI)' },
+    { en: 'Filters', fr: 'Filtres' },
+    { en: 'Hydraulics', fr: 'Hydraulique' }
+  ];
+
+  for (const cat of defaultCategories) {
+    const exists = db.prepare('SELECT * FROM categories WHERE name_en = ?').get(cat.en);
+    if (!exists) {
+      const fallbackId = 'cat_' + cat.en.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      db.prepare('INSERT INTO categories (id, name_en, name_fr, is_archived, sync_status) VALUES (?, ?, ?, 0, ?)')
+        .run(fallbackId, cat.en, cat.fr, 'synced'); // 'synced' so they don't push to cloud
+    }
   }
 }
 
-// Seed Default Suppliers
-const defaultSuppliers = [
-  'AMMARS SARL',
-  'ERA SHACMAN TRUCK SARLU',
-  'ABOUBACAR CAMARA',
-  'LAYE DIARRA KOUROUMA',
-  'MOHAMED KANTE',
-  'KOLABOUI',
-  'KALLO SARL',
-  'ABDOULAYE KABA & FRERE',
-  'ALCOTEX',
-  'BELT WAY SARLU',
-  'ABDOULAYE DIABY',
-  'SÉKOUBA TOURE'
-];
+if (!hasSupabaseConfig && supplierCount === 0) {
+  const defaultSuppliers = [
+    'AMMARS SARL',
+    'ERA SHACMAN TRUCK SARLU',
+    'ABOUBACAR CAMARA',
+    'LAYE DIARRA KOUROUMA',
+    'MOHAMED KANTE',
+    'KOLABOUI',
+    'KALLO SARL',
+    'ABDOULAYE KABA & FRERE',
+    'ALCOTEX',
+    'BELT WAY SARLU',
+    'ABDOULAYE DIABY',
+    'SÉKOUBA TOURE'
+  ];
 
-for (const supName of defaultSuppliers) {
-  const exists = db.prepare('SELECT * FROM suppliers WHERE name = ?').get(supName);
-  if (!exists) {
-    const fallbackId = 'sup_' + supName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
-      .run(fallbackId, supName, 'pending');
+  for (const supName of defaultSuppliers) {
+    const exists = db.prepare('SELECT * FROM suppliers WHERE name = ?').get(supName);
+    if (!exists) {
+      const fallbackId = 'sup_' + supName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
+        .run(fallbackId, supName, 'synced'); // 'synced' so they don't push to cloud
+    }
   }
+}
+
+// ---------------------------------------------------------------------------
+// STARTUP INTEGRITY CHECK — clean up orphaned order_items
+// These can accumulate if an order was deleted on another device but items remain locally
+// ---------------------------------------------------------------------------
+try {
+  const orphanCleanup = db.prepare(`
+    DELETE FROM order_items 
+    WHERE order_id NOT IN (SELECT id FROM orders)
+  `).run();
+  if (orphanCleanup.changes > 0) {
+    console.log(`[Database] Cleaned up ${orphanCleanup.changes} orphaned order item(s) on startup.`);
+  }
+} catch (e) {
+  console.warn('[Database] Orphan cleanup failed:', e.message);
 }
 
 export default db;
