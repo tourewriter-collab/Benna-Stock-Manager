@@ -118,7 +118,7 @@ const Login: React.FC = () => {
         </div>
 
         <footer className="text-center text-sm text-gray-600">
-          © {new Date().getFullYear()} Ikiké Collective SARL. All rights reserved. Version 1.0.12
+          © {new Date().getFullYear()} Ikiké Collective SARL. All rights reserved. Version 1.0.13
         </footer>
       </div>
     </div>
