@@ -22,7 +22,7 @@ const logAudit = (userId, action, recordId, oldValues, newValues, ipAddress) => 
 // Get all orders with filters
 router.get('/', authenticateToken, (req, res) => {
   try {
-    const { supplier_id, status, start_date, end_date, unpaid } = req.query;
+    const { supplier_id, status, start_date, end_date, unpaid, archived } = req.query;
 
     let sql = `
       SELECT o.*, s.id as supp_id, s.name as supp_name
@@ -31,6 +31,10 @@ router.get('/', authenticateToken, (req, res) => {
       WHERE 1=1
     `;
     const params = [];
+
+    const isArchived = archived === 'true' ? 1 : 0;
+    sql += ` AND o.is_archived = ?`;
+    params.push(isArchived);
 
     if (supplier_id) {
       sql += ` AND o.supplier_id = ?`;
@@ -451,7 +455,14 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
       newDeliveryStatus = 'partial';
     }
 
-    db.prepare('UPDATE orders SET delivery_status = ?, sync_status = \'pending\', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newDeliveryStatus, orderId);
+    // Check for auto-archive: if delivered AND fully paid
+    const currentOrder = db.prepare('SELECT status FROM orders WHERE id = ?').get(orderId);
+    let finalArchived = 0;
+    if (newDeliveryStatus === 'delivered' && currentOrder.status === 'paid') {
+      finalArchived = 1;
+    }
+
+    db.prepare('UPDATE orders SET delivery_status = ?, is_archived = ?, sync_status = \'pending\', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newDeliveryStatus, finalArchived, orderId);
     const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
     db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
       'orders', orderId, 'UPDATE', JSON.stringify(updatedOrder)

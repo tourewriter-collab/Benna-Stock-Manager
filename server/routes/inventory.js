@@ -45,7 +45,7 @@ const isEditingFrozen = (userRole) => {
 
 router.get('/', authenticateToken, (req, res) => {
   try {
-    const { limit = 50, offset = 0, search = '', category_id } = req.query;
+    const { limit = 50, offset = 0, search = '', category_id, archived } = req.query;
     
     let sql = `
       SELECT i.*, c.name_en, c.name_fr, s.name as supplier_name
@@ -55,6 +55,10 @@ router.get('/', authenticateToken, (req, res) => {
       WHERE 1=1
     `;
     const params = [];
+
+    const isArchived = archived === 'true' ? 1 : 0;
+    sql += ` AND i.is_archived = ?`;
+    params.push(isArchived);
 
     if (search) {
       sql += ` AND (i.name LIKE ? OR i.location LIKE ? OR s.name LIKE ? OR c.name_en LIKE ? OR c.name_fr LIKE ?)`;
@@ -262,10 +266,10 @@ router.delete('/:id', authenticateToken, (req, res) => {
 
 router.get('/stats/summary', authenticateToken, (req, res) => {
   try {
-    const totalItems = db.prepare('SELECT COUNT(*) as count FROM inventory').get().count;
-    const lowStockItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE quantity <= min_stock AND quantity > 0').get().count;
-    const outOfStockItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE quantity = 0').get().count;
-    const totalValue = db.prepare('SELECT SUM(quantity * price) as value FROM inventory').get().value || 0;
+    const totalItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE is_archived = 0').get().count;
+    const lowStockItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE quantity <= min_stock AND quantity > 0 AND is_archived = 0').get().count;
+    const outOfStockItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE quantity = 0 AND is_archived = 0').get().count;
+    const totalValue = db.prepare('SELECT SUM(quantity * price) as value FROM inventory WHERE is_archived = 0').get().value || 0;
 
     res.json({
       totalItems,
@@ -275,6 +279,40 @@ router.get('/stats/summary', authenticateToken, (req, res) => {
     });
   } catch (error) {
     console.error('Get stats error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+router.put('/:id/archive', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  try {
+    const item = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    db.prepare('UPDATE inventory SET is_archived = 1, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('pending', id);
+    const updated = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
+    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run('inventory', id, 'UPDATE', JSON.stringify(updated));
+
+    logAudit(req.user.id, 'archived', id, item, updated, req.ip);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+router.put('/:id/restore', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  try {
+    const item = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    db.prepare('UPDATE inventory SET is_archived = 0, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('pending', id);
+    const updated = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
+    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run('inventory', id, 'UPDATE', JSON.stringify(updated));
+
+    logAudit(req.user.id, 'restored', id, item, updated, req.ip);
+    res.json(updated);
+  } catch (error) {
     res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 });

@@ -204,9 +204,33 @@ router.get('/pull', async (req, res) => {
           db.prepare(`INSERT OR REPLACE INTO sync_meta (table_name, last_pulled) VALUES (?, ?)`).run(table, newestDate);
         }
       } else {
-        // If no timestamp column, just mark current time to prevent constant full re-fetches if not needed,
-        // although next pull will fetch all anyway since there's no gt filter.
         db.prepare(`INSERT OR REPLACE INTO sync_meta (table_name, last_pulled) VALUES (?, ?)`).run(table, new Date().toISOString());
+      }
+    }
+
+    // --- GHOST RECOVERY (Clean up deletions) ---
+    // For critical tables, ensure local matches cloud IDs. 
+    // If it's missing from cloud, we archive it locally.
+    const cleanupTables = ['inventory', 'orders', 'categories', 'suppliers'];
+    for (const table of cleanupTables) {
+      try {
+        const { data: cloudIds, error } = await supabase.from(table).select('id');
+        if (error) throw error;
+
+        if (cloudIds) {
+          const cloudIdSet = new Set(cloudIds.map(row => row.id));
+          const localItems = db.prepare(`SELECT id, is_archived FROM ${table}`).all();
+          
+          for (const local of localItems) {
+            // If local item is NOT in cloud AND it's NOT already archived locally
+            if (!cloudIdSet.has(local.id) && local.is_archived === 0) {
+              console.log(`[Sync] Ghost Recovery: Archiving ${table} id=${local.id} (missing from cloud)`);
+              db.prepare(`UPDATE ${table} SET is_archived = 1, sync_status = 'synced' WHERE id = ?`).run(local.id);
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[Sync] Cleanup failed for ${table}:`, e.message);
       }
     }
 

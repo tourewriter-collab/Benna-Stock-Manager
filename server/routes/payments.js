@@ -31,20 +31,26 @@ router.get('/order/:orderId', authenticateToken, (req, res) => {
 });
 
 function recalculateOrderPaymentStatus(orderId) {
-  const order = db.prepare('SELECT total_amount FROM orders WHERE id = ?').get(orderId);
+  const order = db.prepare('SELECT total_amount, delivery_status FROM orders WHERE id = ?').get(orderId);
   if (!order) return;
 
   const payments = db.prepare('SELECT sum(amount) as val FROM payments WHERE order_id = ?').get(orderId);
   const totalPaid = payments.val || 0;
 
   let newStatus = 'partial';
+  let isArchived = 0;
+
   if (totalPaid >= order.total_amount) {
     newStatus = 'paid';
+    // Auto-archive only if it's ALSO fully delivered
+    if (order.delivery_status === 'delivered') {
+      isArchived = 1;
+    }
   } else if (totalPaid === 0) {
     newStatus = 'pending';
   }
 
-  db.prepare('UPDATE orders SET paid_amount = ?, status = ? WHERE id = ?').run(totalPaid, newStatus, orderId);
+  db.prepare('UPDATE orders SET paid_amount = ?, status = ?, is_archived = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(totalPaid, newStatus, isArchived, orderId);
   
   const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(

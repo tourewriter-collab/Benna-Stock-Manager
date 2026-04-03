@@ -34,6 +34,7 @@ const Inventory: React.FC = () => {
   const { refreshStatus, triggerSync, isOnline } = useSync();
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryFilter = searchParams.get('category_id') || '';
+  const showArchived = searchParams.get('archived') === 'true';
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +70,7 @@ const Inventory: React.FC = () => {
 
   useEffect(() => {
     fetchItems();
-  }, [debouncedSearch, categoryFilter, currentPage]);
+  }, [debouncedSearch, categoryFilter, showArchived, currentPage]);
 
   const fetchSuppliers = async () => {
     try {
@@ -98,6 +99,7 @@ const Inventory: React.FC = () => {
       params.append('offset', offset.toString());
       if (debouncedSearch) params.append('search', debouncedSearch);
       if (categoryFilter) params.append('category_id', categoryFilter);
+      if (showArchived) params.append('archived', 'true');
 
       const data = await fetchApi(`/inventory?${params.toString()}`);
       if (data && data.items) {
@@ -118,8 +120,31 @@ const Inventory: React.FC = () => {
     return i18n.language === 'fr' ? category.name_fr : category.name_en;
   };
 
+  const handleArchive = async (id: string) => {
+    if (!confirm(t('confirm_archive') || 'Are you sure you want to archive this item?')) return;
+    try {
+      await fetchApi(`/inventory/${id}/archive`, { method: 'PUT' });
+      fetchItems();
+      await refreshStatus();
+      if (isOnline) triggerSync();
+    } catch (error) {
+      console.error('Error archiving item:', error);
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      await fetchApi(`/inventory/${id}/restore`, { method: 'PUT' });
+      fetchItems();
+      await refreshStatus();
+      if (isOnline) triggerSync();
+    } catch (error) {
+      console.error('Error restoring item:', error);
+    }
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm(t('confirm_delete'))) return;
+    if (!confirm(t('confirm_delete') || 'Permanently delete from database? (Cannot be undone)')) return;
     try {
       await fetchApi(`/inventory/${id}`, { method: 'DELETE' });
       fetchItems();
@@ -232,7 +257,7 @@ const Inventory: React.FC = () => {
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
           />
         </div>
-        <div className="w-full md:w-64">
+        <div className="w-full md:w-48">
           <select
             value={categoryFilter}
             onChange={(e) => {
@@ -255,6 +280,31 @@ const Inventory: React.FC = () => {
             ))}
           </select>
         </div>
+        <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 rounded-md px-3">
+          <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+            {showArchived ? t('viewing_archived') || 'Showing Archived' : t('viewing_active') || 'Showing Active'}
+          </label>
+          <button
+            onClick={() => {
+              if (showArchived) {
+                searchParams.delete('archived');
+              } else {
+                searchParams.set('archived', 'true');
+              }
+              setSearchParams(searchParams);
+              setCurrentPage(1);
+            }}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              showArchived ? 'bg-orange-500' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                showArchived ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -263,7 +313,7 @@ const Inventory: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className={`bg-gray-50 ${showArchived ? 'border-t-4 border-orange-400' : ''}`}>
                 <tr>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700">{t('name')}</th>
                   <th className="text-left py-3 px-4 font-semibold text-gray-700">{t('category')}</th>
@@ -279,20 +329,18 @@ const Inventory: React.FC = () => {
                 {items.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-8 text-center text-gray-500">
-                      {t('no_data')}
+                      {showArchived ? t('no_archived_data') || 'No archived items found' : t('no_data')}
                     </td>
                   </tr>
                 ) : (
                   items.map((item: InventoryItem) => {
                     const status = getStatus(item);
                     return (
-                      <tr key={item.id} className="border-t hover:bg-gray-50">
-                        <td className="py-3 px-4">{item.name}</td>
+                      <tr key={item.id} className={`border-t hover:bg-gray-50 ${showArchived ? 'bg-orange-50/20' : ''}`}>
+                        <td className="py-3 px-4 font-medium">{item.name}</td>
                         <td className="py-3 px-4">{getCategoryName(item.category)}</td>
                         <td className="py-3 px-4">
-                          {typeof item.supplier_name === 'object' && item.supplier_name !== null 
-                            ? (item.supplier_name as any).name || 'N/A'
-                            : (item.supplier_name || 'N/A')}
+                          {item.supplier_name || 'N/A'}
                         </td>
                         <td className="py-3 px-4 text-center">{item.quantity}</td>
                         <td className="py-3 px-4">{formatPrice(item.price)}</td>
@@ -319,33 +367,55 @@ const Inventory: React.FC = () => {
                             >
                               <History className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => setUsageItem(item)}
-                              disabled={frozen || item.quantity <= 0}
-                              className="text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
-                              title={t('record_usage') || 'Record Usage'}
-                            >
-                              <MinusCircle className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingItem(item);
-                                setIsModalOpen(true);
-                              }}
-                              disabled={frozen}
-                              className="text-yellow-600 hover:text-yellow-800 disabled:opacity-50"
-                              title={t('edit')}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item.id)}
-                              disabled={frozen}
-                              className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                              title={t('delete')}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {!showArchived ? (
+                              <>
+                                <button
+                                  onClick={() => setUsageItem(item)}
+                                  disabled={frozen || item.quantity <= 0}
+                                  className="text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+                                  title={t('record_usage') || 'Record Usage'}
+                                >
+                                  <MinusCircle className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingItem(item);
+                                    setIsModalOpen(true);
+                                  }}
+                                  disabled={frozen}
+                                  className="text-yellow-600 hover:text-yellow-800 disabled:opacity-50"
+                                  title={t('edit')}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleArchive(item.id)}
+                                  disabled={frozen}
+                                  className="text-orange-600 hover:text-orange-800 disabled:opacity-50"
+                                  title={t('archive') || 'Archive'}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleRestore(item.id)}
+                                  className="text-green-600 hover:text-green-800"
+                                  title={t('restore') || 'Restore'}
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(item.id)}
+                                  disabled={user?.role !== 'admin'}
+                                  className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                                  title={t('delete_permanently') || 'Delete Permanently'}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>

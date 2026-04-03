@@ -34,7 +34,8 @@ export default function Orders() {
     status: searchParams.get('status') || '',
     start_date: '',
     end_date: '',
-    unpaid: searchParams.get('unpaid') === 'true'
+    unpaid: searchParams.get('unpaid') === 'true',
+    archived: searchParams.get('archived') === 'true'
   });
   const [threshold, setThreshold] = useState(100000);
 
@@ -78,6 +79,7 @@ export default function Orders() {
       if (filters.start_date) queryParams.append('start_date', filters.start_date);
       if (filters.end_date) queryParams.append('end_date', filters.end_date);
       if (filters.unpaid) queryParams.append('unpaid', 'true');
+      if (filters.archived) queryParams.append('archived', 'true');
 
       const data = await fetchApi(`/api/orders?${queryParams.toString()}`);
       setOrders(data || []);
@@ -123,15 +125,34 @@ export default function Orders() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-[#001f3f]">{t('orders')}</h1>
-        {canEdit && (
-          <button
-            onClick={handleCreateOrder}
-            className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            {t('create_order')}
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
+             <span className="text-sm font-medium text-gray-600">
+               {filters.archived ? t('viewing_archived') || 'Archived' : t('viewing_active') || 'Active'}
+             </span>
+             <button
+                onClick={() => setFilters({ ...filters, archived: !filters.archived })}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  filters.archived ? 'bg-orange-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    filters.archived ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+          </div>
+          {canEdit && (
+            <button
+              onClick={handleCreateOrder}
+              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              {t('create_order')}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -200,7 +221,7 @@ export default function Orders() {
             />
           </div>
 
-          <div className="flex items-end">
+          <div className="flex items-end flex-wrap gap-4">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -214,7 +235,7 @@ export default function Orders() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      <div className={`bg-white rounded-lg shadow-md overflow-hidden ${filters.archived ? 'border-t-4 border-orange-400' : ''}`}>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>

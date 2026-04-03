@@ -176,6 +176,7 @@ const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 
 for (const table of tables) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT DEFAULT 'synced'`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
+  try { db.exec(`ALTER TABLE ${table} ADD COLUMN is_archived BOOLEAN DEFAULT 0`); } catch (e) {}
 }
 try { db.exec(`ALTER TABLE inventory ADD COLUMN category_id TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE order_items ADD COLUMN delivered_quantity INTEGER DEFAULT 0`); } catch (e) {}
