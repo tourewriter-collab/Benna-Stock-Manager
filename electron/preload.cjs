@@ -1,4 +1,4 @@
-// preload.cjs — must be CommonJS (.cjs) because Electron preload scripts
+// preload.cjs -- must be CommonJS (.cjs) because Electron preload scripts
 // cannot use ES module syntax, and package.json has "type":"module".
 console.log('[Preload] Script execution started');
 

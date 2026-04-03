@@ -71,7 +71,7 @@ async function startServer() {
 
   for (const port of portsToTry) {
     try {
-      log.info(`[Server] Attempting to start on port ${port}…`);
+      log.info(`[Server] Attempting to start on port ${port}...`);
       process.env.PORT = port.toString();
       
       // Load the server module. Use absolute path for reliability in packaged mode.
@@ -85,7 +85,7 @@ async function startServer() {
       
       await import(`file://${serverFile.replace(/\\/g, '/')}`); 
       
-      log.info(`[Server] Module loaded for port ${port}, waiting for HTTP health check…`);
+      log.info(`[Server] Module loaded for port ${port}, waiting for HTTP health check...`);
       const ready = await waitForServer(port, 10); // Faster check for each port
       
       if (ready) {
@@ -126,7 +126,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // Must be .cjs — Electron preload scripts cannot use ESM
+      // Must be .cjs - Electron preload scripts cannot use ESM
       preload: path.join(__dirname, 'preload.cjs'),
     },
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
@@ -186,7 +186,7 @@ function setupAutoUpdater() {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('checking-for-update', () => {
-    log.info('[Updater] Checking…');
+    log.info('[Updater] Checking...');
     if (mainWindow) mainWindow.webContents.send('update-checking');
   });
 
@@ -302,9 +302,9 @@ function setupIpcHandlers() {
 // ---------------------------------------------------------------------------
 
 app.on('ready', async () => {
-  log.info('[App] Ready — Electron', process.versions.electron, '/ Node', process.versions.node);
+  log.info('[App] Ready - Electron', process.versions.electron, '/ Node', process.versions.node);
 
-  // 1. Load .env — must happen BEFORE importing the server module
+  // 1. Load .env - must happen BEFORE importing the server module
   const envPath = app.isPackaged
     ? path.join(process.resourcesPath, '.env')
     : path.join(__dirname, '..', '.env');

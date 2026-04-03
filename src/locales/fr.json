@@ -210,7 +210,7 @@
   "check_for_updates": "Vérifier les mises à jour",
   "checking": "Vérification...",
   "checking_for_updates": "Vérification des mises à jour...",
-  "update_note": "Remarque : Pour que le programme de mise à jour détecte une nouvelle version, une \"Release\" officielle doit être publiée sur GitHub. Les commits standard ne déclenchent pas de mise à jour.",
+  "update_note": "Remarque : Pour que le programme de mise à jour détecte une nouvelle version, une \"Release\" officielle doit être publiée au sein du pipeline administratif. Les commits standard ne déclenchent pas de mise à jour.",
   "update_available": "Mise à jour disponible",
   "update_version_available": "La version {{version}} est disponible au téléchargement.",
   "download_update": "Télécharger la mise à jour",
@@ -229,5 +229,17 @@
   "syncing": "Synchronisation...",
   "offline": "Hors ligne",
   "sync_error": "Erreur de sync",
-  "offline_warning": "Vous êtes actuellement hors ligne. Les modifications seront enregistrées localement et synchronisées automatiquement dès que votre connexion sera rétablie."
+  "offline_warning": "Vous êtes actuellement hors ligne. Les modifications seront enregistrées localement et synchronisées automatiquement dès que votre connexion sera rétablie.",
+  "viewing_archived": "Affichage des articles archivés",
+  "viewing_active": "Affichage des articles actifs",
+  "no_archived_data": "Aucun article archivé trouvé",
+  "record_usage": "Enregistrer l'utilisation",
+  "restore": "Restaurer",
+  "delete_permanently": "Supprimer définitivement",
+  "factory_reset": "Réinitialisation d'usine et suppression de la sync",
+  "factory_reset_description": "Supprimez toutes les données locales sur cet ordinateur spécifique pour simuler une installation propre. Cela ne supprimera PAS les données stockées dans le Cloud (Supabase). Faites cela si vous souhaitez forcer l'application à tout extraire à nouveau du cloud.",
+  "confirm_factory_reset": "AVERTISSEMENT : Cela supprimera TOUTES les données d'inventaire locales sur cet ordinateur pour simuler une installation propre. Êtes-vous absolument sûr ?",
+  "factory_reset_success": "Base de données locale effacée avec succès. Redirection vers l'écran de connexion pour initialiser une nouvelle synchronisation cloud.",
+  "factory_reset_error": "Erreur lors de l'effacement de la base de données locale",
+  "execute_factory_reset": "Réinitialisation matérielle des données de l'application"
 }

@@ -211,7 +211,7 @@
   "check_for_updates": "Check for Updates",
   "checking": "Checking...",
   "checking_for_updates": "Checking for updates...",
-  "update_note": "Note: In order for the updater to detect a new version, a formal \"Release\" containing the built installer must be published on GitHub by the CI pipeline. Standard code commits will not trigger an update.",
+  "update_note": "Note: For the updater to detect a new version, a formal \"Release\" must be published by the administrative pipeline. Standard code commits will not trigger an update.",
   "update_available": "Update Available",
   "update_version_available": "Version {{version}} is available for download.",
   "download_update": "Download Update",
@@ -230,5 +230,17 @@
   "syncing": "Syncing...",
   "offline": "Offline",
   "sync_error": "Sync Error",
-  "offline_warning": "You are currently offline. Changes will be saved locally and synced automatically when your connection is restored."
+  "offline_warning": "You are currently offline. Changes will be saved locally and synced automatically when your connection is restored.",
+  "viewing_archived": "Showing Archived Items",
+  "viewing_active": "Showing Active Items",
+  "no_archived_data": "No archived items found",
+  "record_usage": "Record Usage",
+  "restore": "Restore",
+  "delete_permanently": "Delete Permanently",
+  "factory_reset": "Factory Reset & Sync Wipe",
+  "factory_reset_description": "Wipe all local data on this specific computer to simulate a clean installation. It will NOT delete data stored in the Cloud (Supabase). Do this if you want to force the application to freshly pull everything from the cloud.",
+  "confirm_factory_reset": "WARNING: This will delete ALL local inventory data on this computer to simulate a clean installation. Are you absolutely sure?",
+  "factory_reset_success": "Local database wiped successfully. Flowing to login screen to initialize fresh cloud sync.",
+  "factory_reset_error": "Error wiping local database",
+  "execute_factory_reset": "Hard Reset Application Data"
 }

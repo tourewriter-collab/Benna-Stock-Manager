@@ -342,27 +342,27 @@ const Settings: React.FC = () => {
 
         {user?.role === 'admin' && (
           <div className="bg-white rounded-lg shadow-md p-6 border border-red-200">
-            <h2 className="text-xl font-semibold mb-4 text-red-700">{t('factory_reset') || 'Factory Reset & Sync Wipe'}</h2>
+            <h2 className="text-xl font-semibold mb-4 text-red-700">{t('factory_reset')}</h2>
             <p className="text-gray-600 mb-4 bg-red-50 p-3 rounded text-sm text-red-800 border border-red-100">
-              {t('factory_reset_description') || 'Wipe all local data on this specific computer to simulate a clean installation. It will NOT delete data stored in the Cloud (Supabase). Do this if you want to force the application to freshly pull everything from the cloud.'}
+              {t('factory_reset_description')}
             </p>
             <div className="flex space-x-4">
               <button
                 onClick={async () => {
-                  if (!confirm(t('confirm_factory_reset') || 'WARNING: This will delete ALL local inventory data on this computer to simulate a clean installation. Are you absolute sure?')) return;
+                  if (!confirm(t('confirm_factory_reset'))) return;
                   
                   try {
                     await fetchApi('/settings/factory-reset', { method: 'DELETE' });
-                    alert(t('factory_reset_success') || 'Local database wiped successfully. Flowing to login screen to initialize fresh cloud sync.');
+                    alert(t('factory_reset_success'));
                     window.location.href = '/';
                   } catch (error) {
                     console.error('Error during factory reset:', error);
-                    alert(t('factory_reset_error') || 'Error wiping local database');
+                    alert(t('factory_reset_error'));
                   }
                 }}
                 className="px-4 py-2 bg-red-600 text-white font-bold rounded-md hover:bg-red-700"
               >
-                {t('execute_factory_reset') || 'Hard Reset Application Data'}
+                {t('execute_factory_reset')}
               </button>
             </div>
           </div>

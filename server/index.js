@@ -37,8 +37,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ---------------------------------------------------------------------------
-// CORS — accept requests from localhost dev servers AND from the packaged
-// Electron app (which uses file:// → origin is null/undefined).
+// CORS -- accept requests from localhost dev servers AND from the packaged
+// Electron app (which uses file://  origin is null/undefined).
 // ---------------------------------------------------------------------------
 app.use(cors({
   origin: (origin, callback) => {
@@ -48,7 +48,7 @@ app.use(cors({
       'http://localhost:5173',
       'http://127.0.0.1:5173',
     ];
-    // No origin means same-origin or Electron file:// request — allow it
+    // No origin means same-origin or Electron file:// request -- allow it
     if (!origin || allowed.includes(origin)) {
       callback(null, true);
     } else {
@@ -106,8 +106,8 @@ const server = app.listen(PORT, '127.0.0.1', () => {
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    // Another instance is already running — that's fine, the window will use it
-    console.warn(`[Server] Port ${PORT} already in use — assuming server already running`);
+    // Another instance is already running -- that's fine, the window will use it
+    console.warn(`[Server] Port ${PORT} already in use -- assuming server already running`);
   } else {
     console.error('[Server] Fatal error:', err);
   }

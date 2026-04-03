@@ -282,7 +282,7 @@ const Inventory: React.FC = () => {
         </div>
         <div className="flex items-center space-x-2 bg-gray-50 border border-gray-300 rounded-md px-3">
           <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-            {showArchived ? t('viewing_archived') || 'Showing Archived' : t('viewing_active') || 'Showing Active'}
+            {showArchived ? t('viewing_archived') : t('viewing_active')}
           </label>
           <button
             onClick={() => {
@@ -329,7 +329,7 @@ const Inventory: React.FC = () => {
                 {items.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-8 text-center text-gray-500">
-                      {showArchived ? t('no_archived_data') || 'No archived items found' : t('no_data')}
+                      {showArchived ? t('no_archived_data') : t('no_data')}
                     </td>
                   </tr>
                 ) : (
@@ -373,7 +373,7 @@ const Inventory: React.FC = () => {
                                   onClick={() => setUsageItem(item)}
                                   disabled={frozen || item.quantity <= 0}
                                   className="text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
-                                  title={t('record_usage') || 'Record Usage'}
+                                  title={t('record_usage')}
                                 >
                                   <MinusCircle className="w-4 h-4" />
                                 </button>
@@ -392,7 +392,7 @@ const Inventory: React.FC = () => {
                                   onClick={() => handleArchive(item.id)}
                                   disabled={frozen}
                                   className="text-orange-600 hover:text-orange-800 disabled:opacity-50"
-                                  title={t('archive') || 'Archive'}
+                                  title={t('archive')}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -402,7 +402,7 @@ const Inventory: React.FC = () => {
                                 <button
                                   onClick={() => handleRestore(item.id)}
                                   className="text-green-600 hover:text-green-800"
-                                  title={t('restore') || 'Restore'}
+                                  title={t('restore')}
                                 >
                                   <Plus className="w-4 h-4" />
                                 </button>
@@ -410,7 +410,7 @@ const Inventory: React.FC = () => {
                                   onClick={() => handleDelete(item.id)}
                                   disabled={user?.role !== 'admin'}
                                   className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                                  title={t('delete_permanently') || 'Delete Permanently'}
+                                  title={t('delete_permanently')}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -756,7 +756,7 @@ const UsageRecordModal: React.FC<{
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-md w-full p-6">
-        <h2 className="text-2xl font-bold mb-4">{t('record_usage') || 'Record Usage'}</h2>
+        <h2 className="text-2xl font-bold mb-4">{t('record_usage')}</h2>
         
         <div className="bg-gray-50 border rounded-lg p-4 mb-6">
           <p className="font-semibold text-gray-800">{item.name}</p>

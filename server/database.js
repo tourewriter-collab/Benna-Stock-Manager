@@ -259,27 +259,27 @@ const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c
 const supplierCount = db.prepare('SELECT COUNT(*) as c FROM suppliers').get().c;
 
 if (!hasSupabaseConfig && categoryCount === 0) {
-  console.log('[Database] No Supabase config detected — seeding default categories.');
+  console.log('[Database] No Supabase config detected -- seeding default categories.');
   // seed happens below
 } else if (hasSupabaseConfig) {
-  console.log('[Database] Supabase configured — skipping default category/supplier seeding (will pull from cloud).');
+  console.log('[Database] Supabase configured -- skipping default category/supplier seeding (will pull from cloud).');
 }
 
 if (!hasSupabaseConfig && categoryCount === 0) {
   const defaultCategories = [
-    { en: 'Engine Parts', fr: 'Pièces moteur' },
+    { en: 'Engine Parts', fr: 'Pices moteur' },
     { en: 'Lubricants & Fluids', fr: 'Lubrifiants et fluides' },
-    { en: 'Tools & Equipment', fr: 'Outils et équipement' },
+    { en: 'Tools & Equipment', fr: 'Outils et quipement' },
     { en: 'Tires & Wheels', fr: 'Pneus et roues' },
-    { en: 'Brake & Clutch System', fr: 'Système de frein et embrayage' },
-    { en: 'Transmission & Drivetrain', fr: 'Transmission et chaîne cinématique' },
+    { en: 'Brake & Clutch System', fr: 'Systme de frein et embrayage' },
+    { en: 'Transmission & Drivetrain', fr: 'Transmission et chane cinmatique' },
     { en: 'Suspension & Steering', fr: 'Suspension et direction' },
-    { en: 'Electrical & Electronics', fr: 'Électrique et électronique' },
-    { en: 'Cooling System', fr: 'Système de refroidissement' },
-    { en: 'Fuel System', fr: "Système d'alimentation en carburant" },
+    { en: 'Electrical & Electronics', fr: 'lectrique et lectronique' },
+    { en: 'Cooling System', fr: 'Systme de refroidissement' },
+    { en: 'Fuel System', fr: "Systme d'alimentation en carburant" },
     { en: 'Body & Cab Parts', fr: 'Carrosserie et cabine' },
     { en: 'Hardware & Fasteners', fr: 'Quincaillerie et fixations' },
-    { en: 'Safety Gear (PPE)', fr: 'Équipement de sécurité (EPI)' },
+    { en: 'Safety Gear (PPE)', fr: 'quipement de scurit (EPI)' },
     { en: 'Filters', fr: 'Filtres' },
     { en: 'Hydraulics', fr: 'Hydraulique' }
   ];
@@ -307,7 +307,7 @@ if (!hasSupabaseConfig && supplierCount === 0) {
     'ALCOTEX',
     'BELT WAY SARLU',
     'ABDOULAYE DIABY',
-    'SÉKOUBA TOURE'
+    'SKOUBA TOURE'
   ];
 
   for (const supName of defaultSuppliers) {
@@ -321,7 +321,7 @@ if (!hasSupabaseConfig && supplierCount === 0) {
 }
 
 // ---------------------------------------------------------------------------
-// STARTUP INTEGRITY CHECK — clean up orphaned order_items
+// STARTUP INTEGRITY CHECK -- clean up orphaned order_items
 // These can accumulate if an order was deleted on another device but items remain locally
 // ---------------------------------------------------------------------------
 try {
