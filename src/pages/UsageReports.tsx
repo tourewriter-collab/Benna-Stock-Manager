@@ -11,6 +11,7 @@ interface UsageEvent {
   new_quantity: number;
   user_name: string;
   user_email: string;
+  transaction_type: 'IN' | 'OUT';
   timestamp: string;
 }
 
@@ -151,7 +152,10 @@ export default function UsageReports() {
                   {t('new_stock') || 'New Stock'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('user') || 'User'}
+                  {t('type') || 'Type'}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {t('approved_by') || 'Approved By'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('timestamp')}
@@ -164,14 +168,25 @@ export default function UsageReports() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {event.item_name}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-bold">
-                    -{event.quantity_changed}
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${
+                    event.transaction_type === 'IN' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {event.transaction_type === 'IN' ? '+' : '-'}{event.quantity_changed}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {event.previous_quantity}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {event.new_quantity}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 text-xs font-bold rounded-full ${
+                      event.transaction_type === 'IN' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {event.transaction_type === 'IN' ? t('inflow') || 'IN' : t('usage') || 'OUT'}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {event.user_name || event.user_email}

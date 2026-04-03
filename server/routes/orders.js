@@ -1,6 +1,7 @@
 import express from 'express';
 import db from '../database.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { logUsage } from './inventory.js';
 import crypto from 'crypto';
 
 const router = express.Router();
@@ -418,7 +419,7 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
 
     // If linked to an inventory item, update the physical stock
     if (delta !== 0 && oldItem.inventory_item_id) {
-      db.prepare(
+      const result = db.prepare(
         'UPDATE inventory SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?'
       ).run(delta, oldItem.inventory_item_id);
 
@@ -426,6 +427,9 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
       db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
         'inventory', oldItem.inventory_item_id, 'UPDATE', JSON.stringify(updatedInv)
       );
+
+      // Log the inflow in usage_logs
+      logUsage(req.user.id, oldItem.inventory_item_id, updatedInv.name, updatedInv.quantity - delta, updatedInv.quantity, 'IN');
     }
 
     const updatedItem = db.prepare('SELECT * FROM order_items WHERE id = ?').get(itemId);

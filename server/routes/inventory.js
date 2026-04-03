@@ -18,13 +18,13 @@ const logAudit = (userId, action, recordId, oldValues, newValues, ipAddress) => 
   );
 };
 
-const logUsage = (userId, inventoryId, itemName, oldQty, newQty) => {
-  const quantityChanged = oldQty - newQty;
-  if (quantityChanged <= 0) return; // Only log stock reduction as usage
+export const logUsage = (userId, inventoryId, itemName, oldQty, newQty, transactionType = 'OUT') => {
+  const quantityChanged = Math.abs(oldQty - newQty);
+  if (quantityChanged === 0) return;
 
   const result = db.prepare(
-    'INSERT INTO usage_logs (inventory_item_id, item_name, quantity_changed, previous_quantity, new_quantity, user_id) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(inventoryId, itemName, quantityChanged, oldQty, newQty, userId);
+    'INSERT INTO usage_logs (inventory_item_id, item_name, quantity_changed, previous_quantity, new_quantity, user_id, transaction_type) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(inventoryId, itemName, quantityChanged, oldQty, newQty, userId, transactionType);
 
   const usageLog = db.prepare('SELECT * FROM usage_logs WHERE id = ?').get(result.lastInsertRowid);
 

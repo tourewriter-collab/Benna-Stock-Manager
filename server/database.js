@@ -73,6 +73,7 @@ db.exec(`
     previous_quantity INTEGER NOT NULL,
     new_quantity INTEGER NOT NULL,
     user_id INTEGER,
+    transaction_type TEXT DEFAULT 'OUT', -- 'IN' for delivery, 'OUT' for usage
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     sync_status TEXT DEFAULT 'synced',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -183,6 +184,7 @@ try { db.exec(`ALTER TABLE order_items ADD COLUMN delivered_quantity INTEGER DEF
 try { db.exec(`ALTER TABLE orders ADD COLUMN delivery_status TEXT DEFAULT 'pending'`); } catch (e) {}
 try { db.exec(`ALTER TABLE sync_queue ADD COLUMN synced BOOLEAN DEFAULT 0`); } catch (e) {}
 try { db.exec(`ALTER TABLE suppliers ADD COLUMN status TEXT DEFAULT 'active'`); } catch (e) {}
+try { db.exec(`ALTER TABLE usage_logs ADD COLUMN transaction_type TEXT DEFAULT 'OUT'`); } catch (e) {}
 
 // Add functional indexes for performance
 try {
