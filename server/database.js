@@ -142,7 +142,7 @@ db.exec(`
     order_id TEXT NOT NULL,
     amount REAL NOT NULL CHECK(amount > 0),
     payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    method TEXT CHECK(method IN ('cash', 'bank', 'credit', 'other')) DEFAULT 'cash',
+    method TEXT CHECK(method IN ('cash', 'bank', 'check', 'credit', 'other')) DEFAULT 'cash',
     reference TEXT,
     notes TEXT,
     created_by TEXT,
@@ -232,6 +232,15 @@ for (const setting of seedSettings) {
 const dbCreatedAt = db.prepare("SELECT * FROM settings WHERE key = 'db_created_at'").get();
 if (!dbCreatedAt) {
   db.prepare("INSERT INTO settings (key, value) VALUES ('db_created_at', datetime('now'))").run();
+}
+
+// Track the current application version that last touched this DB.
+const appVersion = process.env.APP_VERSION || '1.0.14';
+const dbAppVersion = db.prepare("SELECT * FROM settings WHERE key = 'db_app_version'").get();
+if (!dbAppVersion) {
+  db.prepare("INSERT INTO settings (key, value) VALUES ('db_app_version', ?)").run(appVersion);
+} else if (dbAppVersion.value !== appVersion) {
+  db.prepare("UPDATE settings SET value = ? WHERE key = 'db_app_version'").run(appVersion);
 }
 
 // ---------------------------------------------------------------------------
