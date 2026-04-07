@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf';
+import i18n from '../i18n';
 import autoTable from 'jspdf-autotable';
 import { formatCurrency } from './currency';
+import { numberToWords } from './numberToWords';
 
 interface OrderItem {
   description: string;
@@ -105,6 +107,21 @@ export const generateOrderPDF = (order: OrderData, settings: Settings, t: (key: 
   doc.line(totalsLabelX - 30, finalY + 11, totalsValueX, finalY + 11); // separator line
   doc.text(`${t('balance')}:`, totalsLabelX, finalY + 17, { align: 'right' });
   doc.text(formatCurrency(order.balance), totalsValueX, finalY + 17, { align: 'right' });
+
+  // Amount in words
+  const wordsY = finalY + 30;
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(9);
+  doc.setTextColor(0);
+  const lang = i18n.language === 'fr' ? 'fr' : 'en';
+  const amountInWords = numberToWords(Math.round(order.total_amount), lang);
+  const fullText = lang === 'fr' 
+    ? `Arrêtée la présente commande à la somme de : ${amountInWords}`
+    : `The total amount of this order is set at: ${amountInWords}`;
+  
+  // Split text if too long
+  const splitTitle = doc.splitTextToSize(fullText, pageWidth - LEFT_MARGIN - 15);
+  doc.text(splitTitle, LEFT_MARGIN, wordsY);
 
   // Signature section
   const sigY = finalY + 45;

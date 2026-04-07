@@ -267,5 +267,9 @@
   "execute_purge": "Effectuer une Re-synchro Propre",
   "purge_success": "Données locales purgées. Récupération des données fraîches du cloud...",
   "connection_stable": "La connexion au cloud est stable.",
-  "credentials_missing": "Identifiants Supabase introuvables dans le fichier .env"
+  "credentials_missing": "Identifiants Supabase introuvables dans le fichier .env",
+  "authorized_by": "Autorisé par",
+  "authorized_by_name": "Autorisé par (Nom)",
+  "authorized_by_title": "Autorisé par (Titre/Fonction)",
+  "title": "Titre/Fonction"
 }

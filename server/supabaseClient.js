@@ -12,19 +12,35 @@ function getSupabaseClient() {
   if (_supabase) return _supabase;
 
   // Check multiple possible env var names for URL and key
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Prioritize VITE_ prefixed to match frontend env for consistency
+  const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)?.trim();
+  const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY)?.trim();
 
   if (supabaseUrl && supabaseServiceKey) {
-    _supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const maskedKey = supabaseServiceKey.substring(0, 10) + '...';
-    console.log(`[Supabase] Client initialized. URL: ${supabaseUrl}, Key: ${maskedKey}`);
+    // Validate basics
+    if (!supabaseUrl.startsWith('http')) {
+      console.error(`[Supabase] Invalid URL format: ${supabaseUrl}`);
+      return null;
+    }
+
+    try {
+      _supabase = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      });
+      const maskedKey = supabaseServiceKey.substring(0, 8) + '...';
+      console.log(`[Supabase] Client initialized successfully. URL: ${supabaseUrl}, Role: Service`);
+    } catch (err) {
+      console.error('[Supabase] Client creation failed:', err.message);
+      return null;
+    }
   } else {
-    // Log which specific vars are missing to aid debugging
-    console.warn('[Supabase] Cannot initialize — missing credentials:');
-    if (!supabaseUrl) console.warn('  VITE_SUPABASE_URL =', process.env.VITE_SUPABASE_URL, '| SUPABASE_URL =', process.env.SUPABASE_URL);
-    if (!supabaseServiceKey) console.warn('  SUPABASE_SERVICE_ROLE_KEY =', process.env.SUPABASE_SERVICE_ROLE_KEY ? '[SET]' : '[MISSING]');
-    // Do NOT cache null — allow retry on next request
+    // Log helpful troubleshooting notes
+    console.warn('[Supabase] Missing credentials for cloud sync:');
+    if (!supabaseUrl) console.warn('  -> URL: Missing (Set VITE_SUPABASE_URL or SUPABASE_URL)');
+    if (!supabaseServiceKey) console.warn('  -> Key: Missing (Set SUPABASE_SERVICE_ROLE_KEY)');
     return null;
   }
 

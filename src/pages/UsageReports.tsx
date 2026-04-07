@@ -12,6 +12,8 @@ interface UsageEvent {
   user_name: string;
   user_email: string;
   transaction_type: 'IN' | 'OUT';
+  authorized_by_name?: string;
+  authorized_by_title?: string;
   timestamp: string;
 }
 
@@ -155,7 +157,7 @@ export default function UsageReports() {
                   {t('type') || 'Type'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('approved_by') || 'Approved By'}
+                  {t('authorized_by') || 'Authorized By'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('timestamp')}
@@ -189,7 +191,14 @@ export default function UsageReports() {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {event.user_name || event.user_email}
+                    {event.authorized_by_name ? (
+                      <div>
+                        <div className="font-medium text-gray-900">{event.authorized_by_name}</div>
+                        <div className="text-xs text-gray-500">{event.authorized_by_title}</div>
+                      </div>
+                    ) : (
+                      event.user_name || event.user_email
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(event.timestamp).toLocaleString()}

@@ -450,7 +450,38 @@ const Settings: React.FC = () => {
                       </span>
                     )}
                   </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg md:col-span-2">
+                    <span className="text-sm font-medium text-gray-600">Pending Sync Items</span>
+                    <span className={`text-sm font-bold ${diagnostics.pendingItems > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                      {diagnostics.pendingItems} {t('items')}
+                    </span>
+                  </div>
                 </div>
+
+                {diagnostics.pendingItems > 0 && diagnostics.configured && diagnostics.isOnline && (
+                  <div className="flex justify-center">
+                    <button
+                      onClick={async () => {
+                        setDiagLoading(true);
+                        try {
+                          await fetchApi('/sync/push', { method: 'POST' });
+                          await fetchApi('/sync/pull', { method: 'GET' });
+                          fetchDiagnostics();
+                        } catch (err) {
+                           console.error("Manual sync failed:", err);
+                        } finally {
+                          setDiagLoading(false);
+                        }
+                      }}
+                      disabled={diagLoading}
+                      className="flex items-center px-4 py-2 bg-navy text-white rounded-md hover:bg-opacity-90 transition disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-2 ${diagLoading ? 'animate-spin' : ''}`} />
+                      Sync Now
+                    </button>
+                  </div>
+                )}
 
                 {!diagnostics.configured && (
                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-start">

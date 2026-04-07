@@ -67,10 +67,13 @@ router.get('/diagnostics', async (req, res) => {
     const diag = getSupabaseDiagnostics();
     const online = await isOnline();
     
+    const queueCount = db.prepare("SELECT COUNT(*) as count FROM sync_queue WHERE synced = 0").get().count;
+    
     res.json({
       ...diag,
       isOnline: online,
-      navigatorOnline: req.headers['x-navigator-online'] === 'true', // Optional hint from browser
+      pendingItems: queueCount,
+      navigatorOnline: req.headers['x-navigator-online'] === 'true',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -99,63 +102,72 @@ router.post('/push', async (req, res) => {
       return res.json({ success: true, message: 'Nothing to push', pushed: 0 });
     }
 
-    let successCount = 0;
+    // 2. Group items by Table and Action to enable batching
+    const groups = {};
+    pendingItems.forEach(item => {
+      const key = `${item.table_name}:${item.action}`;
+      if (!groups[key]) groups[key] = { table: item.table_name, action: item.action, items: [] };
+      groups[key].items.push(item);
+    });
 
-    // 2. Process each item (super naive loop for demonstration — production would batch)
-    for (const item of pendingItems) {
-      const data = JSON.parse(item.data);
-      const tableName = item.table_name;
+    let successTotal = 0;
+
+    // 3. Process groups
+    for (const key of Object.keys(groups)) {
+      const { table, action, items } = groups[key];
       
-      let pushError = null;
-
       try {
-        if (item.action === 'INSERT' || item.action === 'UPDATE') {
-          // Both are handled via upset in Supabase to maintain id consistency
-          // Note: ensuring SQLite IDs match Supabase IDs requires care, but we trust local DB
-          const { error } = await supabase
-            .from(tableName)
-            .upsert(data, { onConflict: 'id' });
-          pushError = error;
+        if (action === 'INSERT' || action === 'UPDATE') {
+          // Supabase upsert works with an array of objects
+          const payloads = items.map(it => JSON.parse(it.data));
           
-        } else if (item.action === 'DELETE') {
           const { error } = await supabase
-            .from(tableName)
-            .delete()
-            .eq('id', item.record_id);
-          pushError = error;
-        }
+            .from(table)
+            .upsert(payloads, { onConflict: 'id' });
 
-        if (pushError) {
-          console.error(`[Sync] Push failed for ${tableName} id=${item.record_id}:`, pushError.message);
-          // Update queue entry with error note
-          db.prepare("UPDATE sync_queue SET data = ? WHERE id = ?").run(
-            JSON.stringify({ ...data, _sync_error: pushError.message }),
-            item.id
-          );
-        } else {
-          // Success: mark as synced in queue
-          db.prepare("UPDATE sync_queue SET synced = 1 WHERE id = ?").run(item.id);
-          
-          // Also mark the actual record as 'synced' in its home table (if it wasn't deleted)
-          if (item.action !== 'DELETE') {
+          if (error) {
+            console.error(`[Sync] Batch Push failed for ${table}:`, error.message);
+            // Mark individual errors
+            items.forEach(it => {
+               db.prepare("UPDATE sync_queue SET synced = 0, data = ? WHERE id = ?").run(
+                 JSON.stringify({ ...JSON.parse(it.data), _sync_error: error.message }),
+                 it.id
+               );
+            });
+          } else {
+            // Success: mark all in this batch as synced
+            const itemIds = items.map(it => it.id);
+            const placeholders = itemIds.map(() => '?').join(',');
+            db.prepare(`UPDATE sync_queue SET synced = 1 WHERE id IN (${placeholders})`).run(...itemIds);
+            
+            // Mark local records as synced
+            const recordIds = items.map(it => it.record_id);
+            const recPlaceholders = recordIds.map(() => '?').join(',');
             try {
-              db.prepare(`UPDATE ${tableName} SET sync_status = 'synced' WHERE id = ?`).run(item.record_id);
-            } catch (e) {
-              // Ignore if table lacks sync_status column
+              db.prepare(`UPDATE ${table} SET sync_status = 'synced' WHERE id IN (${recPlaceholders})`).run(...recordIds);
+            } catch (e) { /* Ignore if no sync_status column */ }
+            
+            successTotal += items.length;
+          }
+        } else if (action === 'DELETE') {
+          // Process deletes sequentially but quickly (Supabase doesn't have a batch 'IN' delete via simple JS client yet)
+          for (const it of items) {
+            const { error } = await supabase.from(table).delete().eq('id', it.record_id);
+            if (!error) {
+              db.prepare("UPDATE sync_queue SET synced = 1 WHERE id = ?").run(it.id);
+              successTotal++;
             }
           }
-          
-          successCount++;
         }
       } catch (err) {
-        console.error(`[Sync] Exceptional error processing item ${item.id}:`, err);
+        console.error(`[Sync] Critical failure in batch ${key}:`, err);
       }
     }
 
-    res.json({ success: true, pushed: successCount, total: pendingItems.length });
+    res.json({ success: true, pushed: successTotal, total: pendingItems.length });
   } catch (error) {
-    console.error('[Sync] Push error:', error);
-    res.status(500).json({ error: 'Failed to push changes to Supabase', message: error.message });
+    console.error('[Sync] General Push error:', error);
+    res.status(500).json({ error: 'Sync Push failed', message: error.message });
   }
 });
 

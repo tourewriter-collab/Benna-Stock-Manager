@@ -110,6 +110,7 @@ app.whenReady().then(async () => {
   });
 
   if (app.isPackaged) {
+    autoUpdater.autoDownload = false;
     autoUpdater.checkForUpdatesAndNotify();
   }
 });

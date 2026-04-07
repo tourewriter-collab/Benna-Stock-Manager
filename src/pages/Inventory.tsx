@@ -45,6 +45,7 @@ const Inventory: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [historyItemId, setHistoryItemId] = useState<string | null>(null);
   const [usageItem, setUsageItem] = useState<InventoryItem | null>(null);
+  const [usageAuth, setUsageAuth] = useState({ name: '', title: '' });
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -115,8 +116,9 @@ const Inventory: React.FC = () => {
     setLoading(false);
   };
 
-  const getCategoryName = (category: Category | undefined) => {
+  const getCategoryName = (category: Category | string | undefined) => {
     if (!category) return t('uncategorized');
+    if (typeof category === 'string') return category;
     return i18n.language === 'fr' ? category.name_fr : category.name_en;
   };
 
@@ -199,7 +201,9 @@ const Inventory: React.FC = () => {
         supplier: typeof item.supplier === 'object' && item.supplier !== null ? (item.supplier as any).id : (item.supplier || ''),
         location: item.location,
         min_stock: item.min_stock,
-        max_stock: item.max_stock
+        max_stock: item.max_stock,
+        authorized_by_name: usageAuth.name,
+        authorized_by_title: usageAuth.title
       };
 
       await fetchApi(`/inventory/${item.id}`, {
@@ -479,7 +483,10 @@ const Inventory: React.FC = () => {
         <UsageRecordModal
           item={usageItem}
           onClose={() => setUsageItem(null)}
-          onSave={handleRecordUsage}
+          onSave={(item, usageAmount, authName, authTitle) => {
+            setUsageAuth({ name: authName, title: authTitle });
+            return handleRecordUsage(item, usageAmount);
+          }}
         />
       )}
     </div>
@@ -740,16 +747,22 @@ const HistoryModal: React.FC<{ itemId: string; onClose: () => void }> = ({ itemI
 const UsageRecordModal: React.FC<{
   item: InventoryItem;
   onClose: () => void;
-  onSave: (item: InventoryItem, usageAmount: number) => Promise<void>;
+  onSave: (item: InventoryItem, usageAmount: number, authName: string, authTitle: string) => Promise<void>;
 }> = ({ item, onClose, onSave }) => {
   const { t } = useTranslation();
   const [usageAmount, setUsageAmount] = useState(1);
+  const [authName, setAuthName] = useState('');
+  const [authTitle, setAuthTitle] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!authName || !authTitle) {
+      alert("Name and Title are required");
+      return;
+    }
     setLoading(true);
-    await onSave(item, usageAmount);
+    await onSave(item, usageAmount, authName, authTitle);
     setLoading(false);
   };
 
@@ -780,6 +793,35 @@ const UsageRecordModal: React.FC<{
             {usageAmount > item.quantity && (
               <p className="text-sm text-red-600 mt-1">Cannot deduct more than current stock.</p>
             )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('authorized_by_name')} *
+              </label>
+              <input
+                type="text"
+                value={authName}
+                onChange={(e) => setAuthName(e.target.value)}
+                placeholder="Manager Name"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('authorized_by_title')} *
+              </label>
+              <input
+                type="text"
+                value={authTitle}
+                onChange={(e) => setAuthTitle(e.target.value)}
+                placeholder="Position/Role"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
+                required
+              />
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3 mt-6">

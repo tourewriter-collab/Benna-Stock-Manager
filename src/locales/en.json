@@ -268,5 +268,9 @@
   "execute_purge": "Perform Clean Re-Sync",
   "purge_success": "Local data purged. Pulling fresh data from cloud...",
   "connection_stable": "Cloud connection is stable.",
-  "credentials_missing": "Supabase credentials not found in .env"
+  "credentials_missing": "Supabase credentials not found in .env",
+  "authorized_by": "Authorized By",
+  "authorized_by_name": "Authorized By (Name)",
+  "authorized_by_title": "Authorized By (Title)",
+  "title": "Title"
 }

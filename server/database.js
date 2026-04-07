@@ -32,7 +32,7 @@ db.exec(`
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS inventory (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     category TEXT NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 0,
@@ -73,6 +73,8 @@ db.exec(`
     previous_quantity INTEGER NOT NULL,
     new_quantity INTEGER NOT NULL,
     user_id INTEGER,
+    authorized_by_name TEXT,
+    authorized_by_title TEXT,
     transaction_type TEXT DEFAULT 'OUT', -- 'IN' for delivery, 'OUT' for usage
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     sync_status TEXT DEFAULT 'synced',
@@ -186,6 +188,8 @@ try { db.exec(`ALTER TABLE orders ADD COLUMN delivery_status TEXT DEFAULT 'pendi
 try { db.exec(`ALTER TABLE sync_queue ADD COLUMN synced BOOLEAN DEFAULT 0`); } catch (e) {}
 try { db.exec(`ALTER TABLE suppliers ADD COLUMN status TEXT DEFAULT 'active'`); } catch (e) {}
 try { db.exec(`ALTER TABLE usage_logs ADD COLUMN transaction_type TEXT DEFAULT 'OUT'`); } catch (e) {}
+try { db.exec(`ALTER TABLE usage_logs ADD COLUMN authorized_by_name TEXT`); } catch (e) {}
+try { db.exec(`ALTER TABLE usage_logs ADD COLUMN authorized_by_title TEXT`); } catch (e) {}
 
 // Add functional indexes for performance
 try {
