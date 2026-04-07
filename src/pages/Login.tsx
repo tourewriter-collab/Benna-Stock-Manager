@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Languages, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import pkg from '../../package.json';
 
 const Login: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -118,7 +119,7 @@ const Login: React.FC = () => {
         </div>
 
         <footer className="text-center text-sm text-gray-600">
-          © {new Date().getFullYear()} Ikiké Collective SARL. All rights reserved. Version 1.0.17
+          © {new Date().getFullYear()} Ikiké Collective SARL. All rights reserved. Version {pkg.version}
         </footer>
       </div>
     </div>

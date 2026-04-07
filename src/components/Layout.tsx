@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
+import pkg from '../../package.json';
 import { Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 
@@ -103,8 +104,8 @@ const Layout: React.FC = () => {
               >
                 {i18n.language === 'en' ? 'FR' : 'EN'}
               </button>
-              
-              <button 
+
+              <button
                 onClick={() => triggerSync()}
                 disabled={syncStatus === 'syncing' || !isOnline}
                 className="flex items-center space-x-1 px-3 py-2 rounded-md hover:bg-navy hover:bg-opacity-20 transition text-sm disabled:opacity-50"
@@ -152,7 +153,7 @@ const Layout: React.FC = () => {
             </div>
             <div className="ml-3">
               <p className="text-sm text-yellow-700">
-                  {t('offline_warning')}
+                {t('offline_warning')}
               </p>
             </div>
           </div>
@@ -166,7 +167,7 @@ const Layout: React.FC = () => {
       <footer className="bg-white border-t border-gray-200 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <p className="text-center text-sm text-gray-600">
-            © {new Date().getFullYear()} Ikiké Collective SARL. All rights reserved. Version 1.0.17
+            © {new Date().getFullYear()} Ikiké Collective SARL. All rights reserved. Version {pkg.version}
           </p>
         </div>
       </footer>
