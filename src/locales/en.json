@@ -73,7 +73,6 @@
   "inStock": "In Stock",
   "lowStock": "Low Stock",
   "outOfStock": "Out of Stock",
-  "search_inventory": "Search inventory...",
   "view_history": "View History",
   "edit": "Edit",
   "delete": "Delete",
@@ -258,5 +257,15 @@
   "search_inventory": "Search inventory...",
   "unlinked": "Unlinked",
   "link": "Link",
-  "linked": "Linked"
+  "linked": "Linked",
+  "cloud_connectivity": "Cloud & Connectivity",
+  "internet_status": "Internet Status",
+  "supabase_config": "Supabase Configuration",
+  "test_connection": "Test Connection",
+  "purge_local_data": "Purge Local Data",
+  "purge_description": "Clears local stock and orders to fix data corruption without affecting the cloud. Forces a full re-sync.",
+  "execute_purge": "Perform Clean Re-Sync",
+  "purge_success": "Local data purged. Pulling fresh data from cloud...",
+  "connection_stable": "Cloud connection is stable.",
+  "credentials_missing": "Supabase credentials not found in .env"
 }

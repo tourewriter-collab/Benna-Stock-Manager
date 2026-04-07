@@ -50,9 +50,7 @@ app.whenReady().then(async () => {
   // Start the internal API server (both dev and production)
   try {
     const { fork } = require('child_process');
-    let serverPath;
-    let envPath;
-
+    const fs = require('fs');
     if (app.isPackaged) {
       // In production, server files are unpacked outside the main ASAR archive
       serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'server', 'index.js');
@@ -62,8 +60,18 @@ app.whenReady().then(async () => {
       envPath = path.join(process.cwd(), '.env');
     }
 
-    // Force dotenv to read the exact path depending on environment and overwrite
-    require('dotenv').config({ path: envPath, override: true });
+    log.info('Checking for .env at:', envPath);
+    if (fs.existsSync(envPath)) {
+      log.info('.env file found.');
+      const envConfig = require('dotenv').config({ path: envPath, override: true });
+      if (envConfig.error) {
+        log.error('Error parsing .env file:', envConfig.error);
+      } else {
+        log.info('.env variables loaded successfully.');
+      }
+    } else {
+      log.warn('.env file NOT found at expected path!');
+    }
 
     log.info('Starting internal server from:', serverPath);
 

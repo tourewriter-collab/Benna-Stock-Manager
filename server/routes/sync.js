@@ -8,13 +8,23 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 const resolveDns = promisify(dns.resolve);
 
-/** Determine if we have internet connection by pinging supabase.co */
+/** Determine if we have internet connection by trying to reach multiple endpoints */
 async function isOnline() {
   try {
+    // Try primary DNS lookup first
     await resolveDns('supabase.co');
     return true;
   } catch (e) {
-    return false;
+    // Fallback: ping a public API if DNS fails (may be blocked in some envs)
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch('https://www.google.com/favicon.ico', { signal: controller.signal });
+      clearTimeout(timeout);
+      return res.ok;
+    } catch (err) {
+      return false;
+    }
   }
 }
 
@@ -45,6 +55,26 @@ router.get('/status', async (req, res) => {
   } catch (error) {
     console.error('[Sync] Status error:', error);
     res.status(500).json({ error: 'Failed to get sync status', message: error.message });
+  }
+});
+
+/** 
+ * Extended diagnostics for troubleshooting 
+ */
+router.get('/diagnostics', async (req, res) => {
+  try {
+    const { getSupabaseDiagnostics } = await import('../supabaseClient.js');
+    const diag = getSupabaseDiagnostics();
+    const online = await isOnline();
+    
+    res.json({
+      ...diag,
+      isOnline: online,
+      navigatorOnline: req.headers['x-navigator-online'] === 'true', // Optional hint from browser
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Diagnostics failed', message: error.message });
   }
 });
 

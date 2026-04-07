@@ -38,17 +38,31 @@ export const supabase = {
     if (!client) throw new Error('Supabase is not configured');
     return client.from(...args);
   },
-  auth: {}
+  auth: {
+    signInWithPassword: (...args) => {
+      const client = getSupabaseClient();
+      if (!client) throw new Error('Supabase is not configured');
+      return client.auth.signInWithPassword(...args);
+    }
+  }
 };
 
 /** Returns true if the Supabase client is configured and available */
 export const isSupabaseConfigured = () => getSupabaseClient() !== null;
 
 /** Diagnostic info (safe to expose — no secrets) */
-export const getSupabaseDiagnostics = () => ({
-  configured: isSupabaseConfigured(),
-  hasUrl: !!(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL),
-  hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-  resourcesPath: process.env.RESOURCES_PATH || '(not set)',
-  urlPrefix: (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').substring(0, 20) || '(missing)',
-});
+export const getSupabaseDiagnostics = () => {
+  const url = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  
+  return {
+    configured: isSupabaseConfigured(),
+    hasUrl: !!url,
+    hasServiceKey: !!key,
+    urlValid: url.startsWith('http'),
+    keyLength: key.length,
+    resourcesPath: process.env.RESOURCES_PATH || '(not set)',
+    urlPrefix: url.substring(0, 20) || '(missing)',
+    errorMessage: !url ? 'Missing SUPABASE_URL' : (!key ? 'Missing SUPABASE_SERVICE_ROLE_KEY' : null)
+  };
+};

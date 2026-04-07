@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchApi } from '../lib/api';
 import { formatPrice } from '../utils/currency';
+import { Cloud, CloudOff, RefreshCw, AlertCircle, ShieldAlert, CheckCircle2, XCircle } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -23,6 +24,9 @@ const Settings: React.FC = () => {
     company_logo: ''
   });
   const [saving, setSaving] = useState(false);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<any>(null);
+  const [isPurging, setIsPurging] = useState(false);
 
   const canExport = user?.role === 'admin' || user?.role === 'audit_manager';
 
@@ -65,7 +69,24 @@ const Settings: React.FC = () => {
       });
     }
     fetchSettings();
+    if (user?.role === 'admin') {
+      fetchDiagnostics();
+    }
   }, []);
+
+  const fetchDiagnostics = async () => {
+    setDiagLoading(true);
+    try {
+      const data = await fetchApi('/sync/diagnostics', {
+        headers: { 'x-navigator-online': String(navigator.onLine) }
+      });
+      setDiagnostics(data);
+    } catch (err) {
+      console.error('Failed to fetch diagnostics:', err);
+    } finally {
+      setDiagLoading(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -137,6 +158,21 @@ const Settings: React.FC = () => {
     if (!window.electron) return;
 
     await window.electron.updates.installUpdate();
+  };
+
+  const handlePurgeLocal = async () => {
+    if (!confirm(t('confirm_factory_reset'))) return;
+    setIsPurging(true);
+    try {
+      await fetchApi('/settings/purge-local', { method: 'POST' });
+      alert(t('purge_success'));
+      // Trigger a sync immediately after purge
+      window.location.reload();
+    } catch (err) {
+      alert(t('error'));
+    } finally {
+      setIsPurging(false);
+    }
   };
 
   const handleLanguageChange = (lang: string) => {
@@ -367,6 +403,90 @@ const Settings: React.FC = () => {
                 {t('execute_factory_reset')}
               </button>
             </div>
+          </div>
+        )}
+
+        {user?.role === 'admin' && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center">
+                <Cloud className="w-5 h-5 mr-2 text-navy" />
+                {t('cloud_connectivity')}
+              </h2>
+              <button 
+                onClick={fetchDiagnostics}
+                disabled={diagLoading}
+                className="text-navy hover:text-opacity-80 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-5 h-5 ${diagLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {diagnostics ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-600">{t('internet_status')}</span>
+                    {diagnostics.isOnline ? (
+                      <span className="flex items-center text-green-600 text-sm font-bold">
+                        <CheckCircle2 className="w-4 h-4 mr-1" /> Online
+                      </span>
+                    ) : (
+                      <span className="flex items-center text-red-600 text-sm font-bold">
+                        <XCircle className="w-4 h-4 mr-1" /> Offline
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-600">{t('supabase_config')}</span>
+                    {diagnostics.hasUrl && diagnostics.hasServiceKey ? (
+                      <span className="flex items-center text-green-600 text-sm font-bold">
+                        <CheckCircle2 className="w-4 h-4 mr-1" /> Configured
+                      </span>
+                    ) : (
+                      <span className="flex items-center text-red-600 text-sm font-bold">
+                        <ShieldAlert className="w-4 h-4 mr-1" /> {t('credentials_missing')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {!diagnostics.configured && (
+                   <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-start">
+                     <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                     <div>
+                       <p className="font-bold">Connection Failed</p>
+                       <p>{diagnostics.errorMessage || "The application cannot reach Supabase. Check your .env file and internet connection."}</p>
+                     </div>
+                   </div>
+                )}
+
+                {diagnostics.configured && diagnostics.isOnline && (
+                   <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-start">
+                     <CheckCircle2 className="w-5 h-5 mr-2 flex-shrink-0" />
+                     <p>{t('connection_stable')}</p>
+                   </div>
+                )}
+
+                <div className="pt-4 border-t border-gray-100">
+                  <h3 className="text-sm font-bold text-gray-900 mb-2">{t('purge_local_data')}</h3>
+                  <p className="text-xs text-gray-500 mb-4">{t('purge_description')}</p>
+                  <button 
+                    onClick={handlePurgeLocal}
+                    disabled={isPurging}
+                    className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm font-bold transition disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isPurging ? 'animate-spin' : ''}`} />
+                    {isPurging ? t('loading') : t('execute_purge')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="py-4 text-center text-gray-500 text-sm italic">
+                {diagLoading ? t('loading') : "Failed to load cloud diagnostics."}
+              </div>
+            )}
           </div>
         )}
 

@@ -73,7 +73,6 @@
   "inStock": "En stock",
   "lowStock": "Stock faible",
   "outOfStock": "Rupture de stock",
-  "search_inventory": "Rechercher dans l'inventaire...",
   "view_history": "Voir l'historique",
   "edit": "Modifier",
   "delete": "Supprimer",
@@ -257,5 +256,15 @@
   "search_inventory": "Rechercher dans l'inventaire...",
   "unlinked": "Non lié",
   "link": "Lier",
-  "linked": "Lié"
+  "linked": "Lié",
+  "cloud_connectivity": "Cloud et Connectivité",
+  "internet_status": "État de l'Internet",
+  "supabase_config": "Configuration Supabase",
+  "test_connection": "Tester la Connexion",
+  "purge_local_data": "Purger les Données Locales",
+  "purge_description": "Efface les stocks et commandes locaux pour corriger la corruption sans affecter le cloud. Force une re-synchronisation complète.",
+  "execute_purge": "Effectuer une Re-synchro Propre",
+  "purge_success": "Données locales purgées. Récupération des données fraîches du cloud...",
+  "connection_stable": "La connexion au cloud est stable.",
+  "credentials_missing": "Identifiants Supabase introuvables dans le fichier .env"
 }
