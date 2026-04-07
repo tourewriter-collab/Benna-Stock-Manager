@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchApi } from '../lib/api';
 import { formatPrice } from '../utils/currency';
-import { Cloud, CloudOff, RefreshCw, AlertCircle, ShieldAlert, CheckCircle2, XCircle } from 'lucide-react';
+import { Cloud, RefreshCw, AlertCircle, ShieldAlert, CheckCircle2, XCircle } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { t, i18n } = useTranslation();
