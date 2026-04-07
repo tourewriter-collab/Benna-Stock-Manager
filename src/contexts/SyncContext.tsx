@@ -72,18 +72,9 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Poll every 15 seconds to catch any pending items quickly
   useEffect(() => {
     if (!isAuthenticated) return;
-
     fetchStatus();
-
-    // Quick poll to detect pending queue items and push them
-    const statusInterval = setInterval(fetchStatus, 15 * 1000); // 15 secs
-
-    return () => {
-      clearInterval(statusInterval);
-    };
   }, [isAuthenticated, syncStatus]);
 
   // Handle explicit online/offline browser events

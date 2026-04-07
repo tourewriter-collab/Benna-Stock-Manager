@@ -110,6 +110,8 @@ export default function Categories() {
     try {
       await fetchApi(`/categories/${id}/restore`, { method: 'PATCH' });
       fetchCategories();
+      await refreshStatus();
+      if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error restoring category:', error);
     }

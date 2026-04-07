@@ -45,7 +45,6 @@ const Inventory: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [historyItemId, setHistoryItemId] = useState<string | null>(null);
   const [usageItem, setUsageItem] = useState<InventoryItem | null>(null);
-  const [usageAuth, setUsageAuth] = useState({ name: '', title: '' });
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -188,7 +187,7 @@ const Inventory: React.FC = () => {
     }
   };
 
-  const handleRecordUsage = async (item: InventoryItem, usageAmount: number) => {
+  const handleRecordUsage = async (item: InventoryItem, usageAmount: number, authName: string, authTitle: string, truckId: string) => {
     try {
       if (usageAmount <= 0) return;
       
@@ -202,8 +201,9 @@ const Inventory: React.FC = () => {
         location: item.location,
         min_stock: item.min_stock,
         max_stock: item.max_stock,
-        authorized_by_name: usageAuth.name,
-        authorized_by_title: usageAuth.title
+        authorized_by_name: authName,
+        authorized_by_title: authTitle,
+        truck_id: truckId
       };
 
       await fetchApi(`/inventory/${item.id}`, {
@@ -483,10 +483,7 @@ const Inventory: React.FC = () => {
         <UsageRecordModal
           item={usageItem}
           onClose={() => setUsageItem(null)}
-          onSave={(item, usageAmount, authName, authTitle) => {
-            setUsageAuth({ name: authName, title: authTitle });
-            return handleRecordUsage(item, usageAmount);
-          }}
+          onSave={handleRecordUsage}
         />
       )}
     </div>
@@ -747,22 +744,23 @@ const HistoryModal: React.FC<{ itemId: string; onClose: () => void }> = ({ itemI
 const UsageRecordModal: React.FC<{
   item: InventoryItem;
   onClose: () => void;
-  onSave: (item: InventoryItem, usageAmount: number, authName: string, authTitle: string) => Promise<void>;
+  onSave: (item: InventoryItem, usageAmount: number, authName: string, authTitle: string, truckId: string) => Promise<void>;
 }> = ({ item, onClose, onSave }) => {
   const { t } = useTranslation();
   const [usageAmount, setUsageAmount] = useState(1);
   const [authName, setAuthName] = useState('');
   const [authTitle, setAuthTitle] = useState('');
+  const [truckId, setTruckId] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authName || !authTitle) {
-      alert("Name and Title are required");
+    if (!authName || !authTitle || !truckId) {
+      alert("Name, Title, and Truck Number are required");
       return;
     }
     setLoading(true);
-    await onSave(item, usageAmount, authName, authTitle);
+    await onSave(item, usageAmount, authName, authTitle, truckId);
     setLoading(false);
   };
 
@@ -805,7 +803,7 @@ const UsageRecordModal: React.FC<{
                 value={authName}
                 onChange={(e) => setAuthName(e.target.value)}
                 placeholder="Manager Name"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy text-sm"
                 required
               />
             </div>
@@ -818,10 +816,24 @@ const UsageRecordModal: React.FC<{
                 value={authTitle}
                 onChange={(e) => setAuthTitle(e.target.value)}
                 placeholder="Position/Role"
-                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy text-sm"
                 required
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Truck ID / Number *
+            </label>
+            <input
+              type="text"
+              value={truckId}
+              onChange={(e) => setTruckId(e.target.value)}
+              placeholder="e.g. TRK-001 or ABC-123"
+              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
+              required
+            />
           </div>
 
           <div className="flex justify-end space-x-3 mt-6">

@@ -18,13 +18,13 @@ const logAudit = (userId, action, recordId, oldValues, newValues, ipAddress) => 
   );
 };
 
-export const logUsage = (userId, inventoryId, itemName, oldQty, newQty, transactionType = 'OUT', authName = null, authTitle = null) => {
+export const logUsage = (userId, inventoryId, itemName, oldQty, newQty, transactionType = 'OUT', authName = null, authTitle = null, truckId = null) => {
   const quantityChanged = Math.abs(oldQty - newQty);
   if (quantityChanged === 0) return;
 
   const result = db.prepare(
-    'INSERT INTO usage_logs (inventory_item_id, item_name, quantity_changed, previous_quantity, new_quantity, user_id, transaction_type, authorized_by_name, authorized_by_title) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(inventoryId, itemName, quantityChanged, oldQty, newQty, userId, transactionType, authName, authTitle);
+    'INSERT INTO usage_logs (inventory_item_id, item_name, quantity_changed, previous_quantity, new_quantity, user_id, transaction_type, authorized_by_name, authorized_by_title, truck_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(inventoryId, itemName, quantityChanged, oldQty, newQty, userId, transactionType, authName, authTitle, truckId);
 
   const usageLog = db.prepare('SELECT * FROM usage_logs WHERE id = ?').get(result.lastInsertRowid);
 
@@ -221,8 +221,8 @@ router.put('/:id', authenticateToken, (req, res) => {
 
     // Explicitly log usage if quantity decreased
     if (oldItem.quantity > updatedItem.quantity) {
-      const { authorized_by_name, authorized_by_title } = req.body;
-      logUsage(req.user.id, id, updatedItem.name, oldItem.quantity, updatedItem.quantity, 'OUT', authorized_by_name, authorized_by_title);
+      const { authorized_by_name, authorized_by_title, truck_id } = req.body;
+      logUsage(req.user.id, id, updatedItem.name, oldItem.quantity, updatedItem.quantity, 'OUT', authorized_by_name, authorized_by_title, truck_id);
     }
 
     res.json(updatedItem);

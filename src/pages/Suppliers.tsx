@@ -125,6 +125,8 @@ export default function Suppliers() {
     try {
       await fetchApi(`/suppliers/${id}/restore`, { method: 'PATCH' });
       fetchSuppliers();
+      await refreshStatus();
+      if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error restoring supplier:', error);
     }

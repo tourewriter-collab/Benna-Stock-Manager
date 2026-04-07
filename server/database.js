@@ -75,6 +75,7 @@ db.exec(`
     user_id INTEGER,
     authorized_by_name TEXT,
     authorized_by_title TEXT,
+    truck_id TEXT, -- Truck attribution for usage
     transaction_type TEXT DEFAULT 'OUT', -- 'IN' for delivery, 'OUT' for usage
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     sync_status TEXT DEFAULT 'synced',
@@ -190,6 +191,7 @@ try { db.exec(`ALTER TABLE suppliers ADD COLUMN status TEXT DEFAULT 'active'`); 
 try { db.exec(`ALTER TABLE usage_logs ADD COLUMN transaction_type TEXT DEFAULT 'OUT'`); } catch (e) {}
 try { db.exec(`ALTER TABLE usage_logs ADD COLUMN authorized_by_name TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE usage_logs ADD COLUMN authorized_by_title TEXT`); } catch (e) {}
+try { db.exec(`ALTER TABLE usage_logs ADD COLUMN truck_id TEXT`); } catch (e) {}
 
 // Add functional indexes for performance
 try {

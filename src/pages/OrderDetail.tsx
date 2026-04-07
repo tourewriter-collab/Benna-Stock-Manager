@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, CreditCard as Edit2, Trash2, DollarSign, Printer, CheckCircle } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useSync } from '../contexts/SyncContext';
 import { formatCurrency } from '../utils/currency';
 import { generateOrderPDF } from '../utils/pdfExport';
 
@@ -48,6 +49,7 @@ export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { isOnline, triggerSync } = useSync();
   const navigate = useNavigate();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,6 +121,7 @@ export default function OrderDetail() {
       });
       setDeliveryModal(null);
       fetchOrder();
+      if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error updating delivery:', error);
     }
@@ -144,6 +147,7 @@ export default function OrderDetail() {
       setEditingItem(null);
       resetItemForm();
       fetchOrder();
+      if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error saving item:', error);
       alert(t('error_saving_item'));
@@ -168,6 +172,7 @@ export default function OrderDetail() {
         method: 'DELETE'
       });
       fetchOrder();
+      if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error deleting item:', error);
       alert(t('error_deleting_item'));
@@ -197,6 +202,7 @@ export default function OrderDetail() {
       setShowPaymentModal(false);
       resetPaymentForm();
       fetchOrder();
+      if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error adding payment:', error);
       alert(t('error_adding_payment'));
@@ -211,6 +217,7 @@ export default function OrderDetail() {
         method: 'DELETE'
       });
       fetchOrder();
+      if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error deleting payment:', error);
       alert(t('error_deleting_payment'));
@@ -224,6 +231,7 @@ export default function OrderDetail() {
       await fetchApi(`/api/orders/${id}`, {
         method: 'DELETE'
       });
+      if (isOnline) triggerSync();
       navigate('/orders');
     } catch (error) {
       console.error('Error deleting order:', error);
