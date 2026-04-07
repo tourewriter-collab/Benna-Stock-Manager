@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, CreditCard as Edit2, Trash2, DollarSign, Printer, CheckCircle, Link2 } from 'lucide-react';
+import { ArrowLeft, Plus, CreditCard as Edit2, Trash2, DollarSign, Printer, CheckCircle } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../utils/currency';
@@ -57,21 +57,7 @@ export default function OrderDetail() {
   const [itemForm, setItemForm] = useState({
     description: '',
     quantity: 1,
-    unit_price: 0,
-    inventory_item_id: null as string | null
-  });
-  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [linkModal, setLinkModal] = useState<{ item: OrderItem | null; mode: 'select' | 'create' }>({
-    item: null,
-    mode: 'select'
-  });
-  const [linkForm, setLinkForm] = useState({ inventory_item_id: '' });
-  const [newInvForm, setNewInvForm] = useState({
-    name: '',
-    category_id: '',
-    price: 0,
-    location: 'Warehouse'
+    unit_price: 0
   });
   const [paymentForm, setPaymentForm] = useState({
     amount: 0,
@@ -92,21 +78,7 @@ export default function OrderDetail() {
     if (id) {
       fetchOrder();
     }
-    fetchInventoryAndCategories();
   }, [id]);
-
-  const fetchInventoryAndCategories = async () => {
-    try {
-      const [invData, catData] = await Promise.all([
-        fetchApi('/api/inventory?limit=1000'),
-        fetchApi('/api/categories')
-      ]);
-      setInventoryItems(invData?.items || []);
-      setCategories(catData || []);
-    } catch (e) {
-      console.error('Error fetching inventory mapping data:', e);
-    }
-  };
 
   const fetchOrder = async () => {
     try {
@@ -176,6 +148,16 @@ export default function OrderDetail() {
       console.error('Error saving item:', error);
       alert(t('error_saving_item'));
     }
+  };
+
+  const handleEditItem = (item: OrderItem) => {
+    setEditingItem(item);
+    setItemForm({
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unit_price
+    });
+    setShowItemModal(true);
   };
 
   const handleDeleteItem = async (itemId: string) => {
@@ -253,8 +235,7 @@ export default function OrderDetail() {
     setItemForm({
       description: '',
       quantity: 1,
-      unit_price: 0,
-      inventory_item_id: null
+      unit_price: 0
     });
   };
 
@@ -268,17 +249,6 @@ export default function OrderDetail() {
     });
   };
 
-  const handleEditItem = (item: OrderItem) => {
-    setEditingItem(item);
-    setItemForm({
-      description: item.description,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      inventory_item_id: item.inventory_item_id
-    });
-    setShowItemModal(true);
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -286,51 +256,6 @@ export default function OrderDetail() {
       </div>
     );
   }
-
-  const handleLinkInventory = async () => {
-    if (!linkModal.item || !linkForm.inventory_item_id) return;
-    try {
-      await fetchApi(`/api/orders/${id}/items/${linkModal.item.id}/link`, {
-        method: 'POST',
-        body: JSON.stringify({ inventory_item_id: linkForm.inventory_item_id })
-      });
-      setLinkModal({ item: null, mode: 'select' });
-      fetchOrder();
-    } catch (e) {
-      console.error(e);
-      alert('Error linking item');
-    }
-  };
-
-  const handleCreateAndLinkInventory = async () => {
-    if (!linkModal.item || !newInvForm.category_id || !newInvForm.name) return;
-    try {
-      // 1. Create the inventory item
-      const newInv = await fetchApi('/api/inventory', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: newInvForm.name,
-          category_id: newInvForm.category_id,
-          price: newInvForm.price,
-          quantity: 0,
-          location: newInvForm.location
-        })
-      });
-
-      // 2. Link it
-      await fetchApi(`/api/orders/${id}/items/${linkModal.item.id}/link`, {
-        method: 'POST',
-        body: JSON.stringify({ inventory_item_id: newInv.id })
-      });
-
-      setLinkModal({ item: null, mode: 'select' });
-      fetchOrder();
-      fetchInventoryAndCategories();
-    } catch (e) {
-      console.error(e);
-      alert('Error creating and linking inventory item');
-    }
-  };
 
   if (!order) {
     return (
@@ -455,36 +380,6 @@ export default function OrderDetail() {
                     <tr key={item.id}>
                       <td className="px-4 py-2 text-sm text-gray-900">
                         <div className="font-medium">{item.description}</div>
-                        <div className="mt-1">
-                          {item.inventory_item_id ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              {t('linked')}
-                            </span>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                                {t('unlinked')}
-                              </span>
-                              {canEdit && (
-                                <button
-                                  onClick={() => {
-                                    setLinkModal({ item, mode: 'select' });
-                                    setNewInvForm({
-                                      ...newInvForm,
-                                      name: item.description,
-                                      price: item.unit_price
-                                    });
-                                  }}
-                                  className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
-                                >
-                                  <Link2 className="w-3 h-3 mr-0.5" />
-                                  {t('link')}
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-900">{item.quantity}</td>
                       <td className="px-4 py-2 text-sm text-gray-900">
@@ -613,35 +508,6 @@ export default function OrderDetail() {
             </h2>
 
             <form onSubmit={handleAddItem} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('link_to_inventory')}
-                </label>
-                <select
-                  value={itemForm.inventory_item_id || ''}
-                  onChange={(e) => {
-                    const val = e.target.value || null;
-                    setItemForm({ ...itemForm, inventory_item_id: val });
-                    if (val) {
-                      const selectedInv = inventoryItems.find(i => i.id === val);
-                      if (selectedInv && !itemForm.description) {
-                        setItemForm(prev => ({
-                          ...prev,
-                          description: selectedInv.name,
-                          unit_price: selectedInv.price
-                        }));
-                      }
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
-                >
-                  <option value="">-- {t('unlinked')} --</option>
-                  {inventoryItems.map((inv) => (
-                    <option key={inv.id} value={inv.id}>{inv.name}</option>
-                  ))}
-                </select>
-              </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('description')} *
@@ -867,117 +733,6 @@ export default function OrderDetail() {
                 {t('cancel')}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Link Inventory Modal */}
-      {linkModal.item && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-xl font-bold text-[#001f3f] mb-4">
-              {t('link_to_inventory')}
-            </h2>
-            <p className="text-sm text-gray-600 mb-4 items-center">
-              Linking <strong>{linkModal.item.description}</strong> will map all delivered stock directly into the inventory system.
-            </p>
-
-            <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
-              <button
-                className={`flex-1 py-1.5 text-sm font-medium rounded-md ${linkModal.mode === 'select' ? 'bg-white shadow' : 'text-gray-500'}`}
-                onClick={() => setLinkModal({ ...linkModal, mode: 'select' })}
-              >
-                {t('select_existing_product')}
-              </button>
-              <button
-                className={`flex-1 py-1.5 text-sm font-medium rounded-md ${linkModal.mode === 'create' ? 'bg-white shadow' : 'text-gray-500'}`}
-                onClick={() => setLinkModal({ ...linkModal, mode: 'create' })}
-              >
-                {t('create_new_inventory')}
-              </button>
-            </div>
-
-            {linkModal.mode === 'select' ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('search_inventory')}</label>
-                  <select
-                    value={linkForm.inventory_item_id}
-                    onChange={(e) => setLinkForm({ ...linkForm, inventory_item_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f]"
-                  >
-                    <option value="">-- Select --</option>
-                    {inventoryItems.map(inv => (
-                      <option key={inv.id} value={inv.id}>{inv.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={handleLinkInventory}
-                    disabled={!linkForm.inventory_item_id}
-                    className="flex-1 bg-[#001f3f] text-white py-2 rounded-lg hover:bg-[#003366] disabled:opacity-50"
-                  >
-                    {t('link')}
-                  </button>
-                  <button
-                    onClick={() => setLinkModal({ item: null, mode: 'select' })}
-                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300"
-                  >
-                    {t('cancel')}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={newInvForm.name}
-                    onChange={(e) => setNewInvForm({ ...newInvForm, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select
-                    value={newInvForm.category_id}
-                    onChange={(e) => setNewInvForm({ ...newInvForm, category_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f]"
-                  >
-                    <option value="">-- Select --</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name_en}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price</label>
-                  <input
-                    type="number"
-                    value={newInvForm.price}
-                    onChange={(e) => setNewInvForm({ ...newInvForm, price: parseFloat(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f]"
-                  />
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={handleCreateAndLinkInventory}
-                    disabled={!newInvForm.name || !newInvForm.category_id}
-                    className="flex-1 bg-[#001f3f] text-white py-2 rounded-lg hover:bg-[#003366] disabled:opacity-50"
-                  >
-                    {t('create_new_inventory')} & {t('link')}
-                  </button>
-                  <button
-                    onClick={() => setLinkModal({ item: null, mode: 'select' })}
-                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300"
-                  >
-                    {t('cancel')}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}

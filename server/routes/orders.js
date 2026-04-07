@@ -203,10 +203,38 @@ router.post('/', authenticateToken, (req, res) => {
     const orderItems = items.map(item => {
       const itemId = crypto.randomUUID();
       const total = item.quantity * item.unit_price;
+      
+      // AUTO-LINK: Search for an inventory item with the exact same name
+      let inventoryId = null;
+      const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(item.description);
+      
+      if (existingInv) {
+        inventoryId = existingInv.id;
+        // Optionally update the cost price if it's different? (User didn't specify, keeping it for now)
+        db.prepare('UPDATE inventory SET last_updated = CURRENT_TIMESTAMP WHERE id = ?').run(inventoryId);
+      } else {
+        // AUTO-CREATE: Use the default "General" category
+        const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
+        const catId = generalCat ? generalCat.id : 'cat_general';
+        const newInvId = crypto.randomUUID();
+        
+        db.prepare(`
+          INSERT INTO inventory (id, name, category_id, category, quantity, price, location, sync_status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(newInvId, item.description, catId, 'General', 0, item.unit_price, 'Main Store', 'pending');
+        
+        inventoryId = newInvId;
+        
+        const newInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(newInvId);
+        db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+          'inventory', newInvId, 'INSERT', JSON.stringify(newInv)
+        );
+      }
+
       db.prepare(`
         INSERT INTO order_items (id, order_id, inventory_item_id, description, quantity, unit_price, total, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(itemId, orderId, item.inventory_item_id || null, item.description, item.quantity, item.unit_price, total, 'pending');
+      `).run(itemId, orderId, inventoryId, item.description, item.quantity, item.unit_price, total, 'pending');
       
       const inserted = db.prepare('SELECT * FROM order_items WHERE id = ?').get(itemId);
       db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -324,10 +352,30 @@ router.post('/:id/items', authenticateToken, (req, res) => {
     const itemId = crypto.randomUUID();
     const total = quantity * unit_price;
 
+    // AUTO-LINK/CREATE
+    let inventoryId = null;
+    const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(description);
+    if (existingInv) {
+      inventoryId = existingInv.id;
+    } else {
+      const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
+      const catId = generalCat ? generalCat.id : 'cat_general';
+      const newInvId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO inventory (id, name, category_id, category, quantity, price, location, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(newInvId, description, catId, 'General', 0, unit_price, 'Main Store', 'pending');
+      inventoryId = newInvId;
+      const newInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(newInvId);
+      db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+        'inventory', newInvId, 'INSERT', JSON.stringify(newInv)
+      );
+    }
+
     db.prepare(`
       INSERT INTO order_items (id, order_id, inventory_item_id, description, quantity, unit_price, total, sync_status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(itemId, req.params.id, inventory_item_id || null, description, quantity, unit_price, total, 'pending');
+    `).run(itemId, req.params.id, inventoryId, description, quantity, unit_price, total, 'pending');
 
     const item = db.prepare('SELECT * FROM order_items WHERE id = ?').get(itemId);
     db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -349,13 +397,31 @@ router.post('/:id/items', authenticateToken, (req, res) => {
 router.put('/:orderId/items/:itemId', authenticateToken, (req, res) => {
   try {
     const { inventory_item_id, description, quantity, unit_price } = req.body;
-    const total = quantity * unit_price;
+    // AUTO-LINK/CREATE on UPDATE as well
+    let inventoryId = null;
+    const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(description);
+    if (existingInv) {
+      inventoryId = existingInv.id;
+    } else {
+      const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
+      const catId = generalCat ? generalCat.id : 'cat_general';
+      const newInvId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO inventory (id, name, category_id, category, quantity, price, location, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(newInvId, description, catId, 'General', 0, unit_price, 'Main Store', 'pending');
+      inventoryId = newInvId;
+      const newInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(newInvId);
+      db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+        'inventory', newInvId, 'INSERT', JSON.stringify(newInv)
+      );
+    }
 
     db.prepare(`
       UPDATE order_items 
       SET inventory_item_id = ?, description = ?, quantity = ?, unit_price = ?, total = ?, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND order_id = ?
-    `).run(inventory_item_id || null, description, quantity, unit_price, total, 'pending', req.params.itemId, req.params.orderId);
+    `).run(inventoryId, description, quantity, unit_price, total, 'pending', req.params.itemId, req.params.orderId);
 
     const item = db.prepare('SELECT * FROM order_items WHERE id = ?').get(req.params.itemId);
     db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(

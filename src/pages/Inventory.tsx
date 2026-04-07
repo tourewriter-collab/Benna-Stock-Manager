@@ -530,7 +530,7 @@ const InventoryFormModal: React.FC<{
               <input
                 id="name"
                 type="text"
-                placeholder="Enter product name"
+                placeholder={t('item_name')}
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
@@ -563,7 +563,7 @@ const InventoryFormModal: React.FC<{
               <input
                 id="quantity"
                 type="number"
-                placeholder="Enter quantity (units)"
+                placeholder={t('quantity')}
                 value={formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: Number(e.target.value) })}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
@@ -579,7 +579,7 @@ const InventoryFormModal: React.FC<{
                   id="price"
                   type="text"
                   inputMode="numeric"
-                  placeholder="0"
+                  placeholder={t('price')}
                   value={formData.price}
                   onChange={(e) => {
                     const value = e.target.value;
@@ -622,7 +622,7 @@ const InventoryFormModal: React.FC<{
               <input
                 id="location"
                 type="text"
-                placeholder="Enter location"
+                placeholder={t('location')}
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"

@@ -265,7 +265,8 @@ if (categoryCount === 0) {
 
 if (categoryCount === 0) {
   const defaultCategories = [
-    { en: 'Engine Parts', fr: 'Pices moteur' },
+    { en: 'General', fr: 'Général' },
+    { en: 'Engine Parts', fr: 'Pièces moteur' },
     { en: 'Lubricants & Fluids', fr: 'Lubrifiants et fluides' },
     { en: 'Tools & Equipment', fr: 'Outils et quipement' },
     { en: 'Tires & Wheels', fr: 'Pneus et roues' },
