@@ -241,5 +241,13 @@
   "confirm_factory_reset": "AVERTISSEMENT : Cela supprimera TOUTES les données d'inventaire locales sur cet ordinateur pour simuler une installation propre. Êtes-vous absolument sûr ?",
   "factory_reset_success": "Base de données locale effacée avec succès. Redirection vers l'écran de connexion pour initialiser une nouvelle synchronisation cloud.",
   "factory_reset_error": "Erreur lors de l'effacement de la base de données locale",
-  "execute_factory_reset": "Réinitialisation matérielle des données de l'application"
+  "execute_factory_reset": "Réinitialisation matérielle des données de l'application",
+  "breakdown_by_category": "Répartition par catégorie",
+  "item_types": "Types d'articles",
+  "total_units": "Unités totales",
+  "level": "Niveau",
+  "detail": "Détail",
+  "no_low_stock": "Tous les articles sont bien approvisionnés",
+  "no_out_of_stock": "Aucun article en rupture de stock",
+  "items": "articles"
 }

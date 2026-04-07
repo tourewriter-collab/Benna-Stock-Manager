@@ -178,6 +178,7 @@ for (const table of tables) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT DEFAULT 'synced'`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN is_archived BOOLEAN DEFAULT 0`); } catch (e) {}
+  try { db.exec(`ALTER TABLE ${table} ADD COLUMN _sync_error TEXT`); } catch (e) {}
 }
 try { db.exec(`ALTER TABLE inventory ADD COLUMN category_id TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE order_items ADD COLUMN delivered_quantity INTEGER DEFAULT 0`); } catch (e) {}
@@ -237,7 +238,7 @@ if (!dbCreatedAt) {
 }
 
 // Track the current application version that last touched this DB.
-const appVersion = process.env.APP_VERSION || '1.0.14';
+const appVersion = process.env.APP_VERSION || '1.0.18';
 const dbAppVersion = db.prepare("SELECT * FROM settings WHERE key = 'db_app_version'").get();
 if (!dbAppVersion) {
   db.prepare("INSERT INTO settings (key, value) VALUES ('db_app_version', ?)").run(appVersion);
@@ -258,14 +259,11 @@ const hasSupabaseConfig = !!(process.env.VITE_SUPABASE_URL || process.env.SUPABA
 const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
 const supplierCount = db.prepare('SELECT COUNT(*) as c FROM suppliers').get().c;
 
-if (!hasSupabaseConfig && categoryCount === 0) {
-  console.log('[Database] No Supabase config detected -- seeding default categories.');
-  // seed happens below
-} else if (hasSupabaseConfig) {
-  console.log('[Database] Supabase configured -- skipping default category/supplier seeding (will pull from cloud).');
+if (categoryCount === 0) {
+  console.log('[Database] No categories found -- seeding defaults.');
 }
 
-if (!hasSupabaseConfig && categoryCount === 0) {
+if (categoryCount === 0) {
   const defaultCategories = [
     { en: 'Engine Parts', fr: 'Pices moteur' },
     { en: 'Lubricants & Fluids', fr: 'Lubrifiants et fluides' },
@@ -294,29 +292,31 @@ if (!hasSupabaseConfig && categoryCount === 0) {
   }
 }
 
-if (!hasSupabaseConfig && supplierCount === 0) {
-  const defaultSuppliers = [
-    'AMMARS SARL',
-    'ERA SHACMAN TRUCK SARLU',
-    'ABOUBACAR CAMARA',
-    'LAYE DIARRA KOUROUMA',
-    'MOHAMED KANTE',
-    'KOLABOUI',
-    'KALLO SARL',
-    'ABDOULAYE KABA & FRERE',
-    'ALCOTEX',
-    'BELT WAY SARLU',
-    'ABDOULAYE DIABY',
-    'SKOUBA TOURE'
-  ];
+// Always ensure every default supplier exists — idempotent check by name.
+// This runs on every startup so missing suppliers are restored even if the
+// user's DB already has some entries (not gated on supplierCount === 0).
+const defaultSuppliers = [
+  'AMMARS SARL',
+  'ERA SHACMAN TRUCK SARLU',
+  'ABOUBACAR CAMARA',
+  'LAYE DIARRA KOUROUMA',
+  'MOHAMED KANTE',
+  'KOLABOUI',
+  'KALLO SARL',
+  'ABDOULAYE KABA & FRERE',
+  'ALCOTEX',
+  'BELT WAY SARLU',
+  'ABDOULAYE DIABY',
+  'SKOUBA TOURE'
+];
 
-  for (const supName of defaultSuppliers) {
-    const exists = db.prepare('SELECT * FROM suppliers WHERE name = ?').get(supName);
-    if (!exists) {
-      const fallbackId = 'sup_' + supName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-      db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
-        .run(fallbackId, supName, 'synced'); // 'synced' so they don't push to cloud
-    }
+for (const supName of defaultSuppliers) {
+  const exists = db.prepare('SELECT * FROM suppliers WHERE name = ?').get(supName);
+  if (!exists) {
+    const fallbackId = 'sup_' + supName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
+      .run(fallbackId, supName, 'synced'); // 'synced' so they don't push to cloud
+    console.log('[Database] Restored default supplier:', supName);
   }
 }
 

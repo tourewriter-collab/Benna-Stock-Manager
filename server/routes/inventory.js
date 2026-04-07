@@ -283,6 +283,68 @@ router.get('/stats/summary', authenticateToken, (req, res) => {
   }
 });
 
+// Breakdown by category: item count + total units per category
+router.get('/stats/by-category', authenticateToken, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        COALESCE(c.name_en, 'Uncategorized') AS category_en,
+        COALESCE(c.name_fr, 'Non classé')    AS category_fr,
+        COUNT(i.id)                           AS item_count,
+        COALESCE(SUM(i.quantity), 0)          AS total_units
+      FROM inventory i
+      LEFT JOIN categories c ON i.category_id = c.id
+      WHERE i.is_archived = 0
+      GROUP BY COALESCE(c.name_en, 'Uncategorized')
+      ORDER BY item_count DESC
+    `).all();
+    res.json(rows);
+  } catch (error) {
+    console.error('Stats by-category error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+// Low-stock items: quantity > 0 but at or below min_stock threshold
+router.get('/stats/low-stock', authenticateToken, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        i.id, i.name, i.quantity, i.min_stock,
+        COALESCE(c.name_en, 'Uncategorized') AS category_en,
+        COALESCE(c.name_fr, 'Non classé')    AS category_fr
+      FROM inventory i
+      LEFT JOIN categories c ON i.category_id = c.id
+      WHERE i.quantity <= i.min_stock AND i.quantity > 0 AND i.is_archived = 0
+      ORDER BY (i.quantity * 1.0 / NULLIF(i.min_stock, 0)) ASC
+    `).all();
+    res.json(rows);
+  } catch (error) {
+    console.error('Stats low-stock error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+// Out-of-stock items: quantity = 0
+router.get('/stats/out-of-stock', authenticateToken, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        i.id, i.name, i.quantity, i.min_stock,
+        COALESCE(c.name_en, 'Uncategorized') AS category_en,
+        COALESCE(c.name_fr, 'Non classé')    AS category_fr
+      FROM inventory i
+      LEFT JOIN categories c ON i.category_id = c.id
+      WHERE i.quantity = 0 AND i.is_archived = 0
+      ORDER BY i.name ASC
+    `).all();
+    res.json(rows);
+  } catch (error) {
+    console.error('Stats out-of-stock error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
 router.put('/:id/archive', authenticateToken, (req, res) => {
   const { id } = req.params;
   try {

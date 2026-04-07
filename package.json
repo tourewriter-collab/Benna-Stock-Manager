@@ -1,8 +1,8 @@
 {
   "name": "benna-stock-manager",
-  "version": "1.0.17",
+  "version": "1.0.19",
   "description": "Benna Stock Manager - Full-stack inventory management system",
-  "main": "electron/main.js",
+  "main": "electron/main.cjs",
   "type": "module",
   "author": "Ikikecollective",
   "repository": {
@@ -20,7 +20,8 @@
     "electron:build": "npm run build && electron-builder",
     "electron:build:win": "npm run build && electron-builder --win",
     "electron:build:mac": "npm run build && electron-builder --mac",
-    "electron:build:linux": "npm run build && electron-builder --linux"
+    "electron:build:linux": "npm run build && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",

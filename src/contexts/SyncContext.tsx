@@ -37,12 +37,13 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // If there are pending items but we are online, it's 'pending'
-      // If offline, it's 'offline'
+      // If offline, mark as such. If there are pending items and we ARE online,
+      // trigger a sync immediately rather than waiting for the next interval.
       if (!data.online || !navigator.onLine) {
         setSyncStatus('offline');
-      } else if (data.pendingItems > 0 && syncStatus !== 'syncing' && syncStatus !== 'error') {
-        setSyncStatus('pending');
+      } else if (data.pendingItems > 0 && syncStatus !== 'syncing') {
+        // Fire-and-forget: push right now instead of waiting up to 5 minutes
+        triggerSync();
       } else if (syncStatus !== 'syncing' && syncStatus !== 'error') {
         setSyncStatus('synced');
       }
@@ -53,41 +54,34 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const triggerSync = async () => {
     if (!isAuthenticated || !navigator.onLine) return;
-    
+
     setSyncStatus('syncing');
     try {
-      // 1. Push pending changes
+      // 1. Push pending local changes to Supabase
       await fetchApi('/sync/push', { method: 'POST' });
-      
-      // 2. Pull remote changes
+
+      // 2. Pull any remote changes made on other devices
       await fetchApi('/sync/pull', { method: 'GET' });
 
       setLastSyncedAt(new Date());
       setSyncStatus('synced');
-      await fetchStatus(); // Get ground truth from server after push/pull
+      await fetchStatus(); // Reconcile ground truth from server
     } catch (error) {
       console.error('[Sync] Sync failed:', error);
       setSyncStatus('error');
     }
   };
 
-  // Poll status occasionally and sync automatically every 5 minutes if online and pending
+  // Poll every 15 seconds to catch any pending items quickly
   useEffect(() => {
     if (!isAuthenticated) return;
 
     fetchStatus();
-    const interval = setInterval(() => {
-      fetchStatus();
-      if (navigator.onLine && syncStatus === 'pending') {
-        triggerSync();
-      }
-    }, 5 * 60 * 1000); // 5 mins
 
-    // Also poll specifically for status changes (like when DB queue increments)
-    const statusInterval = setInterval(fetchStatus, 30 * 1000); // 30 secs
+    // Quick poll to detect pending queue items and push them
+    const statusInterval = setInterval(fetchStatus, 15 * 1000); // 15 secs
 
     return () => {
-      clearInterval(interval);
       clearInterval(statusInterval);
     };
   }, [isAuthenticated, syncStatus]);

@@ -242,5 +242,13 @@
   "confirm_factory_reset": "WARNING: This will delete ALL local inventory data on this computer to simulate a clean installation. Are you absolutely sure?",
   "factory_reset_success": "Local database wiped successfully. Flowing to login screen to initialize fresh cloud sync.",
   "factory_reset_error": "Error wiping local database",
-  "execute_factory_reset": "Hard Reset Application Data"
+  "execute_factory_reset": "Hard Reset Application Data",
+  "breakdown_by_category": "Breakdown by Category",
+  "item_types": "Item Types",
+  "total_units": "Total Units",
+  "level": "Level",
+  "detail": "Detail",
+  "no_low_stock": "All items are well stocked",
+  "no_out_of_stock": "No items are out of stock",
+  "items": "items"
 }
