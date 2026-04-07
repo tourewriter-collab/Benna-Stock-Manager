@@ -6,7 +6,7 @@ import { formatPrice } from '../utils/currency';
 
 const Settings: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [showExportModal, setShowExportModal] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -354,7 +354,9 @@ const Settings: React.FC = () => {
                   try {
                     await fetchApi('/settings/factory-reset', { method: 'DELETE' });
                     alert(t('factory_reset_success'));
-                    window.location.href = '/';
+                    logout();
+                    window.location.hash = '#/login';
+                    window.location.reload();
                   } catch (error) {
                     console.error('Error during factory reset:', error);
                     alert(t('factory_reset_error'));

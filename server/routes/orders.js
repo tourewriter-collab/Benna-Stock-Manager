@@ -393,6 +393,67 @@ router.delete('/:orderId/items/:itemId', authenticateToken, (req, res) => {
   }
 });
 
+// Link an unlinked order item to an inventory item
+router.post('/:orderId/items/:itemId/link', authenticateToken, (req, res) => {
+  try {
+    const { orderId, itemId } = req.params;
+    const { inventory_item_id } = req.body;
+
+    if (!inventory_item_id) {
+      return res.status(400).json({ message: 'inventory_item_id is required' });
+    }
+
+    if (req.user.role === 'user') {
+      return res.status(403).json({ message: 'Users cannot map inventory items' });
+    }
+
+    const orderItem = db.prepare('SELECT * FROM order_items WHERE id = ? AND order_id = ?').get(itemId, orderId);
+    if (!orderItem) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+
+    // Update the link
+    db.prepare(`
+      UPDATE order_items 
+      SET inventory_item_id = ?, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND order_id = ?
+    `).run(inventory_item_id, itemId, orderId);
+
+    // If there was already a delivered quantity, we need to retroactively add it to the inventory!
+    if (orderItem.delivered_quantity > 0) {
+      db.prepare(
+        'UPDATE inventory SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(orderItem.delivered_quantity, inventory_item_id);
+
+      const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(inventory_item_id);
+      db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+        'inventory', inventory_item_id, 'UPDATE', JSON.stringify(updatedInv)
+      );
+
+      // Log the inflow retroactively
+      logUsage(req.user.id, inventory_item_id, updatedInv.name, updatedInv.quantity - orderItem.delivered_quantity, updatedInv.quantity, 'IN');
+    }
+
+    const updatedItem = db.prepare('SELECT * FROM order_items WHERE id = ?').get(itemId);
+    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+      'order_items', itemId, 'UPDATE', JSON.stringify(updatedItem)
+    );
+
+    logAudit(req.user.id, 'linked_inventory', itemId, orderItem, updatedItem, req.ip);
+
+    // Recalculate order total (just in case)
+    const itemTotals = db.prepare('SELECT sum(total) as val FROM order_items WHERE order_id = ?').get(orderId);
+    db.prepare('UPDATE orders SET total_amount = ? WHERE id = ?').run(itemTotals.val || 0, orderId);
+
+    const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+
+    res.json({ item: updatedItem, order: updatedOrder, message: 'Item mapped to inventory successfully' });
+  } catch (error) {
+    console.error('Error linking order item:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Update item delivery status
 router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => {
   try {

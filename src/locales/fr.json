@@ -249,5 +249,13 @@
   "detail": "Détail",
   "no_low_stock": "Tous les articles sont bien approvisionnés",
   "no_out_of_stock": "Aucun article en rupture de stock",
-  "items": "articles"
+  "items": "articles",
+  "link_to_inventory": "Lier à l'inventaire",
+  "create_new_inventory": "Créer un nouveau produit",
+  "select_existing_product": "Sélectionner un produit existant",
+  "inventory_link_success": "Article lié à l'inventaire avec succès!",
+  "search_inventory": "Rechercher dans l'inventaire...",
+  "unlinked": "Non lié",
+  "link": "Lier",
+  "linked": "Lié"
 }

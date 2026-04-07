@@ -1,0 +1,20 @@
+﻿[2026-04-07 11:59:09.679] [error] [Server Error] [Supabase] Cannot initialize â€” missing credentials:
+  SUPABASE_SERVICE_ROLE_KEY = [MISSING]
+[2026-04-07 11:59:18.680] [error] [Server Error] [Supabase] Cannot initialize â€” missing credentials:
+  SUPABASE_SERVICE_ROLE_KEY = [MISSING]
+[2026-04-07 11:59:28.685] [error] [Server Error] [Supabase] Cannot initialize â€” missing credentials:
+  SUPABASE_SERVICE_ROLE_KEY = [MISSING]
+[2026-04-07 11:59:29.852] [error] [Server Error] [Supabase] Cannot initialize â€” missing credentials:
+  SUPABASE_SERVICE_ROLE_KEY = [MISSING]
+[2026-04-07 11:59:37.752] [error] [Server Error] [Supabase] Cannot initialize â€” missing credentials:
+  SUPABASE_SERVICE_ROLE_KEY = [MISSING]
+[2026-04-07 11:59:47.683] [error] [Server Error] [Supabase] Cannot initialize â€” missing credentials:
+  SUPABASE_SERVICE_ROLE_KEY = [MISSING]
+[2026-04-07 11:59:48.679] [error] [Server Error] [Supabase] Cannot initialize â€” missing credentials:
+  SUPABASE_SERVICE_ROLE_KEY = [MISSING]
+[2026-04-07 11:59:57.687] [error] [Server Error] [Supabase] Cannot initialize â€” missing credentials:
+  SUPABASE_SERVICE_ROLE_KEY = [MISSING]
+[2026-04-07 12:00:07.687] [error] [Server Error] [Supabase] Cannot initialize â€” missing credentials:
+  SUPABASE_SERVICE_ROLE_KEY = [MISSING]
+[2026-04-07 12:00:08.674] [error] [Server Error] [Supabase] Cannot initialize â€” missing credentials:
+  SUPABASE_SERVICE_ROLE_KEY = [MISSING]

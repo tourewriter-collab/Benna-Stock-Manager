@@ -51,20 +51,26 @@ app.whenReady().then(async () => {
   try {
     const { fork } = require('child_process');
     let serverPath;
+    let envPath;
 
     if (app.isPackaged) {
       // In production, server files are unpacked outside the main ASAR archive
       serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'server', 'index.js');
+      envPath = path.join(process.resourcesPath, '.env');
     } else {
       serverPath = path.join(process.cwd(), 'server', 'index.js');
+      envPath = path.join(process.cwd(), '.env');
     }
+
+    // Force dotenv to read the exact path depending on environment and overwrite
+    require('dotenv').config({ path: envPath, override: true });
 
     log.info('Starting internal server from:', serverPath);
 
     const serverProcess = fork(serverPath, [], {
       env: {
         ...process.env,
-        // Let the server know where to find .env
+        // Let the server know where to find .env (for completeness)
         RESOURCES_PATH: app.isPackaged ? process.resourcesPath : process.cwd(),
         // Production SQLite writes must go to an unwalkable user data dir
         DB_PATH: path.join(app.getPath('userData'), 'database.sqlite')

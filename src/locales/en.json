@@ -250,5 +250,13 @@
   "detail": "Detail",
   "no_low_stock": "All items are well stocked",
   "no_out_of_stock": "No items are out of stock",
-  "items": "items"
+  "items": "items",
+  "link_to_inventory": "Link to Inventory",
+  "create_new_inventory": "Create New Product",
+  "select_existing_product": "Select Existing Product",
+  "inventory_link_success": "Item linked to inventory successfully!",
+  "search_inventory": "Search inventory...",
+  "unlinked": "Unlinked",
+  "link": "Link",
+  "linked": "Linked"
 }

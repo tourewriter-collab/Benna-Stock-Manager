@@ -11,6 +11,7 @@ interface OrderItem {
   description: string;
   quantity: number;
   unit_price: number;
+  inventory_item_id?: string | null;
 }
 
 export default function CreateOrder() {
@@ -19,6 +20,7 @@ export default function CreateOrder() {
   const { refreshStatus, triggerSync, isOnline } = useSync();
   const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     supplier_id: '',
     expected_date: '',
@@ -32,7 +34,17 @@ export default function CreateOrder() {
 
   useEffect(() => {
     fetchSuppliers();
+    fetchInventory();
   }, []);
+
+  const fetchInventory = async () => {
+    try {
+      const data = await fetchApi('/api/inventory?limit=1000');
+      setInventoryItems(data?.items || []);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    }
+  };
 
   const fetchSuppliers = async () => {
     try {
@@ -44,7 +56,7 @@ export default function CreateOrder() {
   };
 
   const handleAddItem = () => {
-    setItems([...items, { description: '', quantity: 1, unit_price: 0 }]);
+    setItems([...items, { description: '', quantity: 1, unit_price: 0, inventory_item_id: null }]);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -56,6 +68,19 @@ export default function CreateOrder() {
   const handleItemChange = (index: number, field: keyof OrderItem, value: any) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
+    
+    // Auto-fill details if they pick an inventory item
+    if (field === 'inventory_item_id' && value) {
+      const selectedInv = inventoryItems.find(i => i.id === value);
+      if (selectedInv) {
+        newItems[index] = {
+          ...newItems[index],
+          description: selectedInv.name,
+          unit_price: selectedInv.price
+        };
+      }
+    }
+    
     setItems(newItems);
   };
 
@@ -172,7 +197,22 @@ export default function CreateOrder() {
 
           <div className="space-y-4">
             {items.map((item, index) => (
-              <div key={index} className="flex gap-4 items-start">
+              <div key={index} className="flex gap-4 items-start flex-wrap lg:flex-nowrap">
+                <div className="w-full lg:w-48">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('link_to_inventory')}
+                  </label>
+                  <select
+                    value={item.inventory_item_id || ''}
+                    onChange={(e) => handleItemChange(index, 'inventory_item_id', e.target.value || null)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                  >
+                    <option value="">-- {t('unlinked')} --</option>
+                    {inventoryItems.map((inv) => (
+                      <option key={inv.id} value={inv.id}>{inv.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('description')} *
