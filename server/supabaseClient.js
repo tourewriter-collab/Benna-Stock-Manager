@@ -9,25 +9,35 @@ const __dirname = path.dirname(__filename);
 
 let _supabase = null;
 let _envLoaded = false;
+let _diagAttempts = [];
 
 /**
  * Self-healing env loader: tries multiple locations for the .env file.
- * Called lazily only when Supabase vars are missing — handles the case where
- * ES module hoisting caused supabaseClient.js to be evaluated before
- * server/index.js ran dotenv.config(), or where fork() env passing failed.
  */
 function tryLoadEnv() {
   if (_envLoaded) return;
   _envLoaded = true;
 
-  if (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) return; // Already set
+  _diagAttempts = [];
+  const addDiag = (p, success, err) => _diagAttempts.push({ path: p, success, error: err });
+
+  if (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) {
+     addDiag("PROCESS_ENV", true);
+     return; 
+  }
 
   const candidates = [
     // 1. Electron production: resourcesPath passed by main.cjs
     process.env.RESOURCES_PATH ? path.join(process.env.RESOURCES_PATH, '.env') : null,
-    // 2. Dev / standalone: project root (server/../.env)
+    // 2. Common Electron resource root (sometimes process.cwd() is subfolder)
+    path.join(process.cwd(), 'resources', '.env'),
+    // 3. Portable mode / Subfolder execution
+    path.join(process.cwd(), '..', 'resources', '.env'),
+    path.join(process.cwd(), '..', '.env'),
+    // 4. Dev / standalone (relative to supabaseClient.js in server/)
     path.join(__dirname, '..', '.env'),
-    // 3. Fallback: wherever node's CWD is
+    path.join(__dirname, '..', '..', '.env'),
+    // 5. Fallback: current directory
     path.join(process.cwd(), '.env'),
   ].filter(Boolean);
 
@@ -36,8 +46,13 @@ function tryLoadEnv() {
       const result = dotenv.config({ path: candidate, override: true });
       if (!result.error) {
         console.log(`[Supabase] Loaded env from: ${candidate}`);
+        addDiag(candidate, true);
         return;
+      } else {
+        addDiag(candidate, false, result.error.message);
       }
+    } else {
+      addDiag(candidate, false, "File not found");
     }
   }
 
@@ -125,6 +140,13 @@ export const getSupabaseDiagnostics = () => {
     keyLength: key.length,
     resourcesPath: process.env.RESOURCES_PATH || '(not set)',
     urlPrefix: url.substring(0, 20) || '(missing)',
-    errorMessage: !url ? 'Missing SUPABASE_URL' : (!key ? 'Missing SUPABASE_SERVICE_ROLE_KEY' : null)
+    errorMessage: !url ? 'Missing SUPABASE_URL' : (!key ? 'Missing SUPABASE_SERVICE_ROLE_KEY' : null),
+    diagAttempts: _diagAttempts,
+    cwd: process.cwd(),
+    nodeVersion: process.version,
+    env: {
+       VITE_SUPABASE_URL: url ? `${url.substring(0, 15)}...` : null,
+       SUPABASE_SERVICE_ROLE_KEY: key ? "PRESENT (hidden)" : null
+    }
   };
 };

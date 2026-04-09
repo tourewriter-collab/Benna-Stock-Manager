@@ -500,6 +500,33 @@ const Settings: React.FC = () => {
                    </div>
                 )}
 
+                {diagnostics.diagAttempts && diagnostics.diagAttempts.length > 0 && (
+                  <div className="pt-4 border-t border-gray-100">
+                    <h3 className="text-sm font-bold text-gray-900 mb-2">Technical Details</h3>
+                    <div className="bg-gray-800 text-gray-300 p-3 rounded-lg text-[10px] font-mono overflow-auto max-h-48 leading-relaxed">
+                      <div className="mb-2 text-blue-400"># System Context</div>
+                      <div>CWD: {diagnostics.cwd}</div>
+                      <div>RESOURCES: {diagnostics.resourcesPath}</div>
+                      <div>NODE: {diagnostics.nodeVersion}</div>
+                      <div className="mt-2 mb-2 text-blue-400"># Env File Checks</div>
+                      {diagnostics.diagAttempts.map((attempt: any, idx: number) => (
+                        <div key={idx} className="mb-1">
+                          <span className={attempt.success ? 'text-green-400' : 'text-red-400'}>
+                            [{attempt.success ? 'PASS' : 'FAIL'}]
+                          </span>{' '}
+                          {attempt.path}
+                          {!attempt.success && attempt.error && (
+                            <span className="text-gray-500"> ({attempt.error})</span>
+                          )}
+                        </div>
+                      ))}
+                      <div className="mt-2 text-blue-400"># Supabase Identity</div>
+                      <div>URL: {diagnostics.env.VITE_SUPABASE_URL || 'NOT SET'}</div>
+                      <div>KEY: {diagnostics.env.SUPABASE_SERVICE_ROLE_KEY || 'NOT SET'}</div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="pt-4 border-t border-gray-100">
                   <h3 className="text-sm font-bold text-gray-900 mb-2">{t('purge_local_data')}</h3>
                   <p className="text-xs text-gray-500 mb-4">{t('purge_description')}</p>

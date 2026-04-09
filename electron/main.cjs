@@ -56,10 +56,15 @@ app.whenReady().then(async () => {
       // In production, server files are unpacked outside the main ASAR archive
       serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'server', 'index.js');
       envPath = path.join(process.resourcesPath, '.env');
+      log.info(`[Production] resourcesPath: ${process.resourcesPath}`);
     } else {
       serverPath = path.join(process.cwd(), 'server', 'index.js');
       envPath = path.join(process.cwd(), '.env');
+      log.info(`[Development] cwd: ${process.cwd()}`);
     }
+
+    log.info(`[Main] serverPath: ${serverPath}`);
+    log.info(`[Main] envPath: ${envPath}`);
 
     log.info('Checking for .env at:', envPath);
     let parsedEnv = {};
