@@ -250,6 +250,7 @@ router.get('/pull', async (req, res) => {
       }
     }
 
+    
     // --- GHOST RECOVERY (Clean up deletions) ---
     // For critical tables, ensure local matches cloud IDs. 
     // If it's missing from cloud, we archive it locally.
@@ -257,7 +258,18 @@ router.get('/pull', async (req, res) => {
     for (const table of cleanupTables) {
       try {
         const { data: cloudIds, error } = await supabase.from(table).select('id');
-        if (error) throw error;
+        if (error) {
+          console.error(`[Sync] Ghost Recovery lookup failed for ${table}:`, error.message);
+          continue; // Don't cleanup if we can't verify cloud state
+        }
+
+        // SAFETY CHECK: If cloud returns 0 results but local has many, 
+        // it's statistically likely to be a transient cloud loading issue or empty response.
+        const localCount = db.prepare(`SELECT COUNT(*) as c FROM ${table} WHERE is_archived = 0`).get().c;
+        if ((!cloudIds || cloudIds.length === 0) && localCount > 5) {
+          console.warn(`[Sync] Ghost Recovery SKIPPED for ${table}: Cloud returned 0 items but local has ${localCount}. Safety first!`);
+          continue;
+        }
 
         if (cloudIds) {
           const cloudIdSet = new Set(cloudIds.map(row => row.id));

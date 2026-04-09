@@ -39,7 +39,10 @@ export const generateOrderPDF = (order: OrderData, settings: Settings, t: (key: 
   // Add Logo
   if (settings.company_logo) {
     try {
-      doc.addImage(settings.company_logo, 'PNG', LEFT_MARGIN, 15, 30, 30);
+      // If the logo is a base64 string or valid PNG/JPEG, this works.
+      // We use 'auto' to detect format if possible, otherwise fall back to PNG.
+      const format = settings.company_logo.includes('jpeg') || settings.company_logo.includes('jpg') ? 'JPEG' : 'PNG';
+      doc.addImage(settings.company_logo, format, LEFT_MARGIN, 15, 30, 30);
     } catch (e) {
       console.error('Error adding logo to PDF:', e);
     }
@@ -67,10 +70,10 @@ export const generateOrderPDF = (order: OrderData, settings: Settings, t: (key: 
   // Items Table
   // formatCurrency already produces clean ASCII spaces — no .replace() needed
   const tableData = order.items.map(item => [
-    item.description,
-    item.quantity.toString(),
-    formatCurrency(item.unit_price),
-    formatCurrency(item.total)
+    item.description || 'N/A',
+    (item.quantity || 0).toString(),
+    formatCurrency(item.unit_price || 0),
+    formatCurrency((item.unit_price * item.quantity) || item.total || 0)
   ]);
 
   autoTable(doc, {
@@ -124,7 +127,7 @@ export const generateOrderPDF = (order: OrderData, settings: Settings, t: (key: 
   doc.text(splitTitle, LEFT_MARGIN, wordsY);
 
   // Signature section
-  const sigY = finalY + 45;
+  const sigY = finalY + 60; // Increased spacing as requested
   doc.setFont('helvetica', 'normal');
   doc.setDrawColor(0);
   doc.line(LEFT_MARGIN, sigY, LEFT_MARGIN + 60, sigY);

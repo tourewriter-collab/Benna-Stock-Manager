@@ -85,8 +85,13 @@ export default function CreateOrder() {
         })
       });
 
-      await refreshStatus();
-      if (isOnline) triggerSync();
+      // Background activities should not block the UI navigation if they fail
+      try {
+        await refreshStatus();
+        if (isOnline) triggerSync();
+      } catch (syncError) {
+        console.warn('Post-creation sync delayed:', syncError);
+      }
 
       navigate(`/orders/${order.id}`);
     } catch (error) {

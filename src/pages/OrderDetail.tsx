@@ -329,7 +329,7 @@ export default function OrderDetail() {
               </div>
               <div>
                 <span className="font-medium text-gray-700">{t('delivery_status')}:</span>
-                <p className="text-gray-900 font-semibold">{t(order.delivery_status || 'pending')}</p>
+                <p className="text-gray-900 font-semibold">{t(`delivery_${order.delivery_status || 'pending'}`)}</p>
               </div>
             </div>
             {order.notes && (

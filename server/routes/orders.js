@@ -190,9 +190,9 @@ router.post('/', authenticateToken, (req, res) => {
     const orderId = crypto.randomUUID();
 
     db.prepare(`
-      INSERT INTO orders (id, supplier_id, expected_date, total_amount, notes, created_by, sync_status) 
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(orderId, supplier_id, expected_date || null, total_amount, notes || null, req.user.id, 'pending');
+      INSERT INTO orders (id, supplier_id, expected_date, total_amount, notes, created_by, sync_status, delivery_status) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(orderId, supplier_id, expected_date || null, total_amount, notes || null, req.user.id, 'pending', 'pending');
 
     const newOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
 
@@ -580,7 +580,7 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
     }
 
     let newDeliveryStatus = 'pending';
-    if (allDelivered) {
+    if (allDelivered && items.length > 0) {
       newDeliveryStatus = 'delivered';
     } else if (!noneDelivered) {
       newDeliveryStatus = 'partial';
