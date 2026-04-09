@@ -65,7 +65,11 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     let errorMsg = `Server error (${res.status})`;
     try {
       const errBody = await res.json();
-      errorMsg = errBody.error || errBody.message || errBody.details ? `${errBody.error || 'Error'}: ${JSON.stringify(errBody.details)}` : (errBody.error || errBody.message || errorMsg);
+      if (errBody.details) {
+        errorMsg = `${errBody.error || 'Error'}: ${JSON.stringify(errBody.details)}`;
+      } else {
+        errorMsg = errBody.error || errBody.message || errorMsg;
+      }
     } catch (_) {}
     console.error(`[API Error] ${options.method || 'GET'} ${url}: ${errorMsg}`);
     throw new Error(errorMsg);

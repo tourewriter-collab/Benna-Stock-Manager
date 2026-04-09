@@ -51,6 +51,7 @@ app.whenReady().then(async () => {
   try {
     const { fork } = require('child_process');
     const fs = require('fs');
+    let serverPath, envPath;
     if (app.isPackaged) {
       // In production, server files are unpacked outside the main ASAR archive
       serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'server', 'index.js');
@@ -61,23 +62,37 @@ app.whenReady().then(async () => {
     }
 
     log.info('Checking for .env at:', envPath);
+    let parsedEnv = {};
     if (fs.existsSync(envPath)) {
       log.info('.env file found.');
       const envConfig = require('dotenv').config({ path: envPath, override: true });
       if (envConfig.error) {
         log.error('Error parsing .env file:', envConfig.error);
       } else {
-        log.info('.env variables loaded successfully.');
+        parsedEnv = envConfig.parsed || {};
+        log.info('.env variables loaded successfully. Keys found:', Object.keys(parsedEnv).join(', '));
       }
     } else {
       log.warn('.env file NOT found at expected path!');
     }
+
+    // Log which Supabase vars are present for diagnostics
+    log.info('[Supabase Config] VITE_SUPABASE_URL present:', !!process.env.VITE_SUPABASE_URL);
+    log.info('[Supabase Config] SUPABASE_URL present:', !!process.env.SUPABASE_URL);
+    log.info('[Supabase Config] SUPABASE_SERVICE_ROLE_KEY present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
 
     log.info('Starting internal server from:', serverPath);
 
     const serverProcess = fork(serverPath, [], {
       env: {
         ...process.env,
+        // Explicitly carry the Supabase credentials so the forked child
+        // always has them, regardless of whether its own dotenv call works.
+        ...(parsedEnv.VITE_SUPABASE_URL ? { VITE_SUPABASE_URL: parsedEnv.VITE_SUPABASE_URL } : {}),
+        ...(parsedEnv.SUPABASE_URL ? { SUPABASE_URL: parsedEnv.SUPABASE_URL } : {}),
+        ...(parsedEnv.SUPABASE_SERVICE_ROLE_KEY ? { SUPABASE_SERVICE_ROLE_KEY: parsedEnv.SUPABASE_SERVICE_ROLE_KEY } : {}),
+        ...(parsedEnv.SERVICE_ROLE_KEY ? { SERVICE_ROLE_KEY: parsedEnv.SERVICE_ROLE_KEY } : {}),
+        ...(parsedEnv.JWT_SECRET ? { JWT_SECRET: parsedEnv.JWT_SECRET } : {}),
         // Let the server know where to find .env (for completeness)
         RESOURCES_PATH: app.isPackaged ? process.resourcesPath : process.cwd(),
         // Production SQLite writes must go to an unwalkable user data dir

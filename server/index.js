@@ -18,6 +18,11 @@ const envPath = process.env.RESOURCES_PATH
 
 dotenv.config({ path: envPath, override: false }); // override:false never clobbers vars already set
 
+// Startup diagnostic — confirm which keys are available at server boot
+console.log('[Server] Env check: VITE_SUPABASE_URL =', process.env.VITE_SUPABASE_URL ? `SET (${process.env.VITE_SUPABASE_URL.substring(0, 30)}...)` : 'MISSING');
+console.log('[Server] Env check: SUPABASE_URL =', process.env.SUPABASE_URL ? 'SET' : 'MISSING');
+console.log('[Server] Env check: SUPABASE_SERVICE_ROLE_KEY =', process.env.SUPABASE_SERVICE_ROLE_KEY ? `SET (len=${process.env.SUPABASE_SERVICE_ROLE_KEY.length})` : 'MISSING');
+
 import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth.js';
