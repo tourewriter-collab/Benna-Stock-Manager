@@ -106,7 +106,13 @@ app.use((_req, res) => {
 // Start listening
 // ---------------------------------------------------------------------------
 const server = app.listen(PORT, '127.0.0.1', () => {
-  console.log(`[Server] Express listening on 127.0.0.1:${PORT}`);
+  const actualPort = server.address().port;
+  console.log(`[Server] Express listening on 127.0.0.1:${actualPort}`);
+  
+  // If run as a forked child process (Electron), report the port back to parent
+  if (process.send) {
+    process.send({ type: 'SERVER_READY', port: actualPort });
+  }
 });
 
 server.on('error', (err) => {

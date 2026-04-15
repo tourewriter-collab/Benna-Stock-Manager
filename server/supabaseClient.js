@@ -21,7 +21,10 @@ function tryLoadEnv() {
   _diagAttempts = [];
   const addDiag = (p, success, err) => _diagAttempts.push({ path: p, success, error: err });
 
-  if (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) {
+  // If already set by main.js (via fork env), don't reload .env unless necessary
+  if ((process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) && 
+      (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY)) {
+     console.log('[Supabase] Credentials already present in process.env');
      addDiag("PROCESS_ENV", true);
      return; 
   }
@@ -29,26 +32,24 @@ function tryLoadEnv() {
   const candidates = [
     // 1. Electron production: resourcesPath passed by main.cjs
     process.env.RESOURCES_PATH ? path.join(process.env.RESOURCES_PATH, '.env') : null,
-    // 2. Common Electron resource root (sometimes process.cwd() is subfolder)
+    // 2. Common Electron resource root
     path.join(process.cwd(), 'resources', '.env'),
-    // 3. Portable mode / Subfolder execution
-    path.join(process.cwd(), '..', 'resources', '.env'),
-    path.join(process.cwd(), '..', '.env'),
-    // 4. Dev / standalone (relative to supabaseClient.js in server/)
+    // 3. Fallback: current directory or repo root
+    path.join(process.cwd(), '.env'),
     path.join(__dirname, '..', '.env'),
     path.join(__dirname, '..', '..', '.env'),
-    // 5. Fallback: current directory
-    path.join(process.cwd(), '.env'),
   ].filter(Boolean);
 
+  console.log('[Supabase] Searching for .env in candidates...');
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
       const result = dotenv.config({ path: candidate, override: true });
       if (!result.error) {
-        console.log(`[Supabase] Loaded env from: ${candidate}`);
+        console.log(`[Supabase] SUCCESS: Loaded env from ${candidate}`);
         addDiag(candidate, true);
         return;
       } else {
+        console.warn(`[Supabase] FAILED to parse ${candidate}: ${result.error.message}`);
         addDiag(candidate, false, result.error.message);
       }
     } else {
@@ -56,7 +57,7 @@ function tryLoadEnv() {
     }
   }
 
-  console.warn('[Supabase] Could not find a .env file in any expected location.');
+  console.warn('[Supabase] WARNING: Could not find any .env file. Credentials must be provided via process.env.');
 }
 
 /** 

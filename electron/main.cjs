@@ -13,6 +13,7 @@ log.info('App starting...');
 dotenvConfig();
 
 let mainWindow;
+let serverPort = 5000; // Default fallback
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -91,6 +92,7 @@ app.whenReady().then(async () => {
     const serverProcess = fork(serverPath, [], {
       env: {
         ...process.env,
+        PORT: app.isPackaged ? 0 : (process.env.PORT || 5000), // Random port in prod, fixed in dev
         // Explicitly carry the Supabase credentials so the forked child
         // always has them, regardless of whether its own dotenv call works.
         ...(parsedEnv.VITE_SUPABASE_URL ? { VITE_SUPABASE_URL: parsedEnv.VITE_SUPABASE_URL } : {}),
@@ -101,9 +103,17 @@ app.whenReady().then(async () => {
         // Let the server know where to find .env (for completeness)
         RESOURCES_PATH: app.isPackaged ? process.resourcesPath : process.cwd(),
         // Production SQLite writes must go to an unwalkable user data dir
-        DB_PATH: path.join(app.getPath('userData'), 'database.sqlite')
+        DB_PATH: path.join(app.getPath('userData'), 'database.sqlite'),
+        APP_VERSION: app.getVersion()
       },
-      stdio: 'pipe'
+      stdio: ['pipe', 'pipe', 'pipe', 'ipc']
+    });
+
+    serverProcess.on('message', (msg) => {
+      if (msg.type === 'SERVER_READY') {
+        serverPort = msg.port;
+        log.info(`[Main] Server reported port: ${serverPort}`);
+      }
     });
 
     serverProcess.stdout.on('data', (data) => log.info(`[Server] ${data.toString().trim()}`));
@@ -145,7 +155,10 @@ app.on('window-all-closed', () => {
 // IPC HANDLERS
 // ---------------------------------------------------------------------------
 ipcMain.handle('get-app-version', () => {
-  return { version: app.getVersion() };
+  return { 
+    version: app.getVersion(),
+    serverPort: serverPort
+  };
 });
 
 ipcMain.handle('check-for-updates', async () => {

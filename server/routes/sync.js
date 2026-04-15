@@ -15,7 +15,17 @@ async function isOnline() {
     await resolveDns('supabase.co');
     return true;
   } catch (e) {
-    // Fallback: ping a public API if DNS fails (may be blocked in some envs)
+    // Fallback 1: Try to reach Supabase directly if possible
+    const { getSupabaseDiagnostics } = await import('../supabaseClient.js');
+    const diag = getSupabaseDiagnostics();
+    if (diag.hasUrl && diag.urlValid) {
+       try {
+         const res = await fetch(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL, { method: 'HEAD' });
+         if (res.ok) return true;
+       } catch(err) { /* ignore */ }
+    }
+
+    // Fallback 2: ping a public API
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3000);
@@ -86,7 +96,11 @@ router.get('/diagnostics', async (req, res) => {
  */
 router.post('/push', async (req, res) => {
   if (!isSupabaseConfigured()) {
-    return res.status(400).json({ error: 'Supabase is not configured' });
+    const { getSupabaseDiagnostics } = await import('../supabaseClient.js');
+    return res.status(400).json({ 
+      error: 'Supabase is not configured', 
+      details: getSupabaseDiagnostics() 
+    });
   }
 
   const online = await isOnline();
@@ -176,7 +190,11 @@ router.post('/push', async (req, res) => {
  */
 router.get('/pull', async (req, res) => {
   if (!isSupabaseConfigured()) {
-    return res.status(400).json({ error: 'Supabase is not configured' });
+    const { getSupabaseDiagnostics } = await import('../supabaseClient.js');
+    return res.status(400).json({ 
+      error: 'Supabase is not configured', 
+      details: getSupabaseDiagnostics() 
+    });
   }
 
   const online = await isOnline();

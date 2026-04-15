@@ -16,13 +16,14 @@ async function getApiRoot() {
     if (window.electron?.updates?.getAppVersion) {
       try {
         const info = await window.electron.updates.getAppVersion();
-        if (info.serverPort) {
+        if (info && info.serverPort) {
           cachedPort = info.serverPort;
+          console.log(`[API] Discovered server port: ${cachedPort}`);
           isResolving = false;
           return `http://127.0.0.1:${cachedPort}`;
         }
       } catch (err) {
-        console.warn('[API] Retrying port discovery…', i);
+        console.warn('[API] Retrying port discovery…', i, err);
       }
     }
     await new Promise(r => setTimeout(r, 500));
