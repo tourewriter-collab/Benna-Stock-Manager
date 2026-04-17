@@ -540,10 +540,6 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
     const { orderId, itemId } = req.params;
     const { delivered_quantity } = req.body;
 
-    if (req.user.role === 'user') {
-      return res.status(403).json({ message: 'Users cannot update delivery status' });
-    }
-
     const oldItem = db.prepare('SELECT * FROM order_items WHERE id = ? AND order_id = ?').get(itemId, orderId);
     if (!oldItem) {
       return res.status(404).json({ message: 'Item not found' });

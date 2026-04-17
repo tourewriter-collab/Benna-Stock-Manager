@@ -74,6 +74,7 @@ export default function OrderDetail() {
   } | null>(null);
 
   const canEdit = user?.role === 'admin' || user?.role === 'audit_manager';
+  const canUpdateDelivery = canEdit || user?.role === 'user';
   const balance = order ? order.total_amount - order.paid_amount : 0;
 
   useEffect(() => {
@@ -393,7 +394,7 @@ export default function OrderDetail() {
                       <td className="px-4 py-2 text-sm text-gray-900">
                         <div className="flex items-center gap-2">
                           {item.delivered_quantity}
-                          {canEdit && (
+                          {canUpdateDelivery && (
                             <button 
                               onClick={() => handleUpdateDelivery(item)}
                               className="ml-1 flex items-center gap-1 text-xs bg-navy text-white px-2 py-0.5 rounded hover:bg-opacity-80 transition-colors"
