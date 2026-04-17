@@ -275,5 +275,9 @@
   "authorized_by": "Authorized By",
   "authorized_by_name": "Authorized By (Name)",
   "authorized_by_title": "Authorized By (Title)",
-  "title": "Title"
+  "title": "Title",
+  "truck_number": "Truck No.",
+  "truck_number_placeholder": "e.g. TRK-001 or AB-1234",
+  "confirm_usage": "Confirm Usage",
+  "quantity_used": "Quantity Used / Deducted"
 }

@@ -775,23 +775,23 @@ const UsageRecordModal: React.FC<{
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Quantity Used / Deducted
-            </label>
-            <input
-              type="number"
-              min="1"
-              max={item.quantity}
-              value={usageAmount}
-              onChange={(e) => setUsageAmount(Number(e.target.value))}
-              className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
-              required
-            />
-            {usageAmount > item.quantity && (
-              <p className="text-sm text-red-600 mt-1">Cannot deduct more than current stock.</p>
-            )}
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('quantity_used')}
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={item.quantity}
+                value={usageAmount}
+                onChange={(e) => setUsageAmount(Number(e.target.value))}
+                className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
+                required
+              />
+              {usageAmount > item.quantity && (
+                <p className="text-sm text-red-600 mt-1">{t('error')}</p>
+              )}
+            </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -824,13 +824,13 @@ const UsageRecordModal: React.FC<{
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Truck ID / Number *
+              {t('truck_number')} *
             </label>
             <input
               type="text"
               value={truckId}
               onChange={(e) => setTruckId(e.target.value)}
-              placeholder="e.g. TRK-001 or ABC-123"
+              placeholder={t('truck_number_placeholder')}
               className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
               required
             />
@@ -850,7 +850,7 @@ const UsageRecordModal: React.FC<{
               disabled={loading || usageAmount > item.quantity || usageAmount <= 0}
               className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
             >
-              Confirm Usage
+              {t('confirm_usage')}
             </button>
           </div>
         </form>

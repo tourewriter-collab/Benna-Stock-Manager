@@ -417,6 +417,8 @@ router.put('/:orderId/items/:itemId', authenticateToken, (req, res) => {
       );
     }
 
+    const total = quantity * unit_price;
+
     db.prepare(`
       UPDATE order_items 
       SET inventory_item_id = ?, description = ?, quantity = ?, unit_price = ?, total = ?, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP

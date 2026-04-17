@@ -27,6 +27,7 @@ const Settings: React.FC = () => {
   const [diagLoading, setDiagLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState<any>(null);
   const [isPurging, setIsPurging] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
 
   const canExport = user?.role === 'admin' || user?.role === 'audit_manager';
 
@@ -378,13 +379,34 @@ const Settings: React.FC = () => {
 
         {user?.role === 'admin' && (
           <div className="bg-white rounded-lg shadow-md p-6 border border-red-200">
-            <h2 className="text-xl font-semibold mb-4 text-red-700">{t('factory_reset')}</h2>
+            <h2 className="text-xl font-semibold mb-2 text-red-700">{t('factory_reset')}</h2>
             <p className="text-gray-600 mb-4 bg-red-50 p-3 rounded text-sm text-red-800 border border-red-100">
               {t('factory_reset_description')}
             </p>
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-red-700 mb-1">
+                {i18n.language === 'fr'
+                  ? 'Tapez SUPPRIMER pour confirmer :'
+                  : 'Type DELETE to confirm:'}
+              </label>
+              <input
+                type="text"
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                placeholder={i18n.language === 'fr' ? 'SUPPRIMER' : 'DELETE'}
+                className="w-full px-3 py-2 border border-red-300 rounded-md focus:ring-red-500 focus:border-red-500 text-sm"
+              />
+            </div>
             <div className="flex space-x-4">
               <button
                 onClick={async () => {
+                  const expected = i18n.language === 'fr' ? 'SUPPRIMER' : 'DELETE';
+                  if (resetConfirmText !== expected) {
+                    alert(i18n.language === 'fr'
+                      ? `Veuillez taper exactement "${expected}" pour confirmer.`
+                      : `Please type "${expected}" exactly to confirm.`);
+                    return;
+                  }
                   if (!confirm(t('confirm_factory_reset'))) return;
                   
                   try {
@@ -398,7 +420,8 @@ const Settings: React.FC = () => {
                     alert(t('factory_reset_error'));
                   }
                 }}
-                className="px-4 py-2 bg-red-600 text-white font-bold rounded-md hover:bg-red-700"
+                disabled={resetConfirmText !== (i18n.language === 'fr' ? 'SUPPRIMER' : 'DELETE')}
+                className="px-4 py-2 bg-red-600 text-white font-bold rounded-md hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {t('execute_factory_reset')}
               </button>
