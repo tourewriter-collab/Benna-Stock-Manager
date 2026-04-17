@@ -319,14 +319,14 @@ const Inventory: React.FC = () => {
             <table className="w-full">
               <thead className={`bg-gray-50 ${showArchived ? 'border-t-4 border-orange-400' : ''}`}>
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">{t('name')}</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">{t('category')}</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">{t('supplier')}</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">{t('quantity')}</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">{t('price')}</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">{t('location')}</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">{t('status')}</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">{t('actions')}</th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700">{t('name')}</th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700">{t('category')}</th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700">{t('supplier')}</th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700">{t('quantity')}</th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700">{t('price')}</th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700">{t('location')}</th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700">{t('status')}</th>
+                  <th className="text-left py-3 px-3 font-semibold text-gray-700">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -341,15 +341,15 @@ const Inventory: React.FC = () => {
                     const status = getStatus(item);
                     return (
                       <tr key={item.id} className={`border-t hover:bg-gray-50 ${showArchived ? 'bg-orange-50/20' : ''}`}>
-                        <td className="py-3 px-4 font-medium">{item.name}</td>
-                        <td className="py-3 px-4">{getCategoryName(item.category)}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-3 font-medium">{item.name}</td>
+                        <td className="py-3 px-3">{getCategoryName(item.category)}</td>
+                        <td className="py-3 px-3">
                           {item.supplier_name || 'N/A'}
                         </td>
-                        <td className="py-3 px-4 text-center">{item.quantity}</td>
-                        <td className="py-3 px-4">{formatPrice(item.price)}</td>
-                        <td className="py-3 px-4">{item.location}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-3 text-center">{item.quantity}</td>
+                        <td className="py-3 px-3">{formatPrice(item.price)}</td>
+                        <td className="py-3 px-3">{item.location}</td>
+                        <td className="py-3 px-3">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
                               status === 'inStock'
@@ -362,7 +362,7 @@ const Inventory: React.FC = () => {
                             {t(status)}
                           </span>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-3">
                           <div className="flex space-x-2">
                             <button
                               onClick={() => setHistoryItemId(item.id)}

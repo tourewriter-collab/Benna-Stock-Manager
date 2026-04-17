@@ -17,8 +17,10 @@ let serverPort = null; // Will be set by SERVER_READY IPC from child process
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1280,
+    height: 880,
+    minWidth: 1000,
+    minHeight: 600,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

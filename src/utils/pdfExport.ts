@@ -98,14 +98,21 @@ export const generateOrderPDF = (order: OrderData, settings: Settings, t: (key: 
   if (order.supplier?.phone) doc.text(order.supplier.phone, LEFT_MARGIN, 79);
 
   // Items Table
-  const tableData = (order.items || []).map(item => [
-    item.description || 'N/A',
-    String(item.quantity ?? 0),
-    formatCurrency(item.unit_price ?? 0),
-    formatCurrency((item.unit_price ?? 0) * (item.quantity ?? 0) || item.total || 0)
-  ]);
+  const rawItems = order.items || [];
+  const tableData = rawItems.map(item => {
+    const qty = Number(item.quantity) || 0;
+    const price = Number(item.unit_price) || 0;
+    const total = Number(item.total) || (qty * price);
+    
+    return [
+      item.description || 'N/A',
+      qty.toString(),
+      formatCurrency(price),
+      formatCurrency(total)
+    ];
+  });
 
-  const tableBody = tableData.length > 0 ? tableData : [['—', '—', '—', '—']];
+  const tableBody = tableData.length > 0 ? tableData : [[t('no_items'), '—', '—', '—']];
 
   autoTable(doc, {
     startY: 88,

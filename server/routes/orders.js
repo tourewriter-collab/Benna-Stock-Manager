@@ -204,16 +204,21 @@ router.post('/', authenticateToken, (req, res) => {
       const itemId = crypto.randomUUID();
       const total = item.quantity * item.unit_price;
       
-      // AUTO-LINK: Search for an inventory item with the exact same name
-      let inventoryId = null;
-      const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(item.description);
+      // LINKING logic
+      let inventoryId = item.inventory_item_id || null;
       
-      if (existingInv) {
-        inventoryId = existingInv.id;
-        // Optionally update the cost price if it's different? (User didn't specify, keeping it for now)
+      if (!inventoryId) {
+        // Fallback: Search for an inventory item with the exact same name (case-insensitive)
+        const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(item.description);
+        if (existingInv) {
+          inventoryId = existingInv.id;
+        }
+      }
+
+      if (inventoryId) {
         db.prepare('UPDATE inventory SET last_updated = CURRENT_TIMESTAMP WHERE id = ?').run(inventoryId);
       } else {
-        // AUTO-CREATE: Use the default "General" category
+        // AUTO-CREATE: Use the default "General" category if no link found
         const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
         const catId = generalCat ? generalCat.id : 'cat_general';
         const newInvId = crypto.randomUUID();
@@ -352,12 +357,17 @@ router.post('/:id/items', authenticateToken, (req, res) => {
     const itemId = crypto.randomUUID();
     const total = quantity * unit_price;
 
-    // AUTO-LINK/CREATE
-    let inventoryId = null;
-    const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(description);
-    if (existingInv) {
-      inventoryId = existingInv.id;
-    } else {
+    // LINKING logic
+    let inventoryId = inventory_item_id || null;
+    
+    if (!inventoryId) {
+      const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(description);
+      if (existingInv) {
+        inventoryId = existingInv.id;
+      }
+    }
+
+    if (!inventoryId) {
       const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
       const catId = generalCat ? generalCat.id : 'cat_general';
       const newInvId = crypto.randomUUID();
@@ -397,24 +407,26 @@ router.post('/:id/items', authenticateToken, (req, res) => {
 router.put('/:orderId/items/:itemId', authenticateToken, (req, res) => {
   try {
     const { inventory_item_id, description, quantity, unit_price } = req.body;
-    // AUTO-LINK/CREATE on UPDATE as well
-    let inventoryId = null;
-    const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(description);
-    if (existingInv) {
-      inventoryId = existingInv.id;
-    } else {
-      const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
-      const catId = generalCat ? generalCat.id : 'cat_general';
-      const newInvId = crypto.randomUUID();
-      db.prepare(`
-        INSERT INTO inventory (id, name, category_id, category, quantity, price, location, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(newInvId, description, catId, 'General', 0, unit_price, 'Main Store', 'pending');
-      inventoryId = newInvId;
-      const newInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(newInvId);
-      db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
-        'inventory', newInvId, 'INSERT', JSON.stringify(newInv)
-      );
+    // LINKING logic
+    let inventoryId = inventory_item_id || null;
+    if (!inventoryId) {
+      const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(description);
+      if (existingInv) {
+        inventoryId = existingInv.id;
+      } else {
+        const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
+        const catId = generalCat ? generalCat.id : 'cat_general';
+        const newInvId = crypto.randomUUID();
+        db.prepare(`
+          INSERT INTO inventory (id, name, category_id, category, quantity, price, location, sync_status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(newInvId, description, catId, 'General', 0, unit_price, 'Main Store', 'pending');
+        inventoryId = newInvId;
+        const newInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(newInvId);
+        db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+          'inventory', newInvId, 'INSERT', JSON.stringify(newInv)
+        );
+      }
     }
 
     const total = quantity * unit_price;

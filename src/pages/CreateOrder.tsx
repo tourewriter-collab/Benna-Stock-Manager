@@ -11,6 +11,7 @@ interface OrderItem {
   description: string;
   quantity: number;
   unit_price: number;
+  inventory_item_id?: string;
 }
 
 export default function CreateOrder() {
@@ -19,6 +20,7 @@ export default function CreateOrder() {
   const { refreshStatus, triggerSync, isOnline } = useSync();
   const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     supplier_id: '',
     expected_date: '',
@@ -32,7 +34,17 @@ export default function CreateOrder() {
 
   useEffect(() => {
     fetchSuppliers();
+    fetchInventory();
   }, []);
+
+  const fetchInventory = async () => {
+    try {
+      const data = await fetchApi('/api/inventory');
+      setInventory(data || []);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    }
+  };
 
   const fetchSuppliers = async () => {
     try {
@@ -55,7 +67,20 @@ export default function CreateOrder() {
 
   const handleItemChange = (index: number, field: keyof OrderItem, value: any) => {
     const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
+    const item = { ...newItems[index], [field]: value };
+
+    // Auto-fill logic when description is chosen from inventory
+    if (field === 'description') {
+      const matched = inventory.find(inv => inv.name.toLowerCase() === value.toLowerCase());
+      if (matched) {
+        item.unit_price = matched.price;
+        item.inventory_item_id = matched.id;
+      } else {
+        item.inventory_item_id = undefined;
+      }
+    }
+
+    newItems[index] = item;
     setItems(newItems);
   };
 
@@ -184,11 +209,20 @@ export default function CreateOrder() {
                   </label>
                   <input
                     type="text"
+                    list={`inventory-list-${index}`}
                     required
                     value={item.description}
                     onChange={(e) => handleItemChange(index, 'description', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                    placeholder={t('search_or_type_product')}
                   />
+                  <datalist id={`inventory-list-${index}`}>
+                    {inventory.map((inv) => (
+                      <option key={inv.id} value={inv.name}>
+                        {formatCurrency(inv.price)} - {inv.category}
+                      </option>
+                    ))}
+                  </datalist>
                 </div>
 
                 <div className="w-24">
