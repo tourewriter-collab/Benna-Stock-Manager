@@ -13,7 +13,7 @@ log.info('App starting...');
 dotenvConfig();
 
 let mainWindow;
-let serverPort = 5000; // Default fallback
+let serverPort = null; // Will be set by SERVER_READY IPC from child process
 
 function createWindow() {
   mainWindow = new BrowserWindow({
