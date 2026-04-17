@@ -133,7 +133,32 @@ router.post('/push', async (req, res) => {
       try {
         if (action === 'INSERT' || action === 'UPDATE') {
           // Supabase upsert works with an array of objects
-          const payloads = items.map(it => JSON.parse(it.data));
+          const payloads = items.map(it => {
+            const data = JSON.parse(it.data);
+            if (table === 'order_items') {
+              return {
+                id: data.id,
+                order_id: data.order_id,
+                inventory_id: data.inventory_item_id,
+                quantity: data.quantity,
+                unit_price: data.unit_price,
+                total_price: data.total,
+                delivered_quantity: data.delivered_quantity
+              };
+            } else if (table === 'orders') {
+              return {
+                id: data.id,
+                supplier_id: data.supplier_id,
+                order_date: data.order_date,
+                expected_delivery_date: data.expected_date,
+                status: data.status,
+                total_amount: data.total_amount,
+                notes: data.notes,
+                delivery_status: data.delivery_status
+              };
+            }
+            return data;
+          });
           
           const { error } = await supabase
             .from(table)
@@ -244,6 +269,31 @@ router.get('/pull', async (req, res) => {
       );
 
       for (const row of remoteData) {
+        // MAP CLOUD TO LOCAL SCHEMA Let's map remote fields back into the local shape
+        if (table === 'order_items') {
+          row.inventory_item_id = row.inventory_id;
+          row.total = row.total_price || (row.quantity * row.unit_price);
+          
+          if (row.inventory_id) {
+            const inv = db.prepare('SELECT name FROM inventory WHERE id = ?').get(row.inventory_id);
+            row.description = inv ? inv.name : 'Unknown Item';
+          } else {
+            row.description = 'Unknown Item';
+          }
+        } else if (table === 'orders') {
+          row.expected_date = row.expected_delivery_date;
+          
+          // Preserve local-only calculation fields
+          try {
+            const localOrder = db.prepare('SELECT paid_amount, is_archived, created_by FROM orders WHERE id = ?').get(row.id);
+            if (localOrder) {
+              row.paid_amount = localOrder.paid_amount;
+              row.is_archived = localOrder.is_archived;
+              row.created_by = localOrder.created_by;
+            }
+          } catch(e) {}
+        }
+        
         const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
         if (filteredKeys.length === 0) continue;
 
