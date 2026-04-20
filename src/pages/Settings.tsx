@@ -311,7 +311,7 @@ const Settings: React.FC = () => {
                         __html: typeof updateInfo.releaseNotes === 'string' 
                           ? updateInfo.releaseNotes 
                           : Array.isArray(updateInfo.releaseNotes) 
-                            ? updateInfo.releaseNotes.map(n => n.note).join('\n')
+                            ? updateInfo.releaseNotes.map((n: any) => n.note).join('\n')
                             : ''
                       }}
                     />
