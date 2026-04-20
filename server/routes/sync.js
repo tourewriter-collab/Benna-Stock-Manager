@@ -341,11 +341,11 @@ router.get('/pull', async (req, res) => {
 
         if (cloudIds) {
           const cloudIdSet = new Set(cloudIds.map(row => row.id));
-          const localItems = db.prepare(`SELECT id, is_archived FROM ${table}`).all();
+          const localItems = db.prepare(`SELECT id, is_archived, sync_status FROM ${table}`).all();
           
           for (const local of localItems) {
-            // If local item is NOT in cloud AND it's NOT already archived locally
-            if (!cloudIdSet.has(local.id) && local.is_archived === 0) {
+            // If local item is NOT in cloud AND it's NOT already archived locally AND it's NOT a new local item (pending)
+            if (!cloudIdSet.has(local.id) && local.is_archived === 0 && local.sync_status !== 'pending') {
               console.log(`[Sync] Ghost Recovery: Archiving ${table} id=${local.id} (missing from cloud)`);
               db.prepare(`UPDATE ${table} SET is_archived = 1, sync_status = 'synced' WHERE id = ?`).run(local.id);
             }

@@ -8,6 +8,7 @@ import { useSync } from '../contexts/SyncContext';
 import { formatCurrency } from '../utils/currency';
 
 interface OrderItem {
+  localId: string;
   description: string;
   quantity: number;
   unit_price: number;
@@ -27,6 +28,7 @@ export default function CreateOrder() {
     notes: ''
   });
   const [items, setItems] = useState<OrderItem[]>([{
+    localId: crypto.randomUUID(),
     description: '',
     quantity: 1,
     unit_price: 0
@@ -40,7 +42,7 @@ export default function CreateOrder() {
   const fetchInventory = async () => {
     try {
       const data = await fetchApi('/api/inventory');
-      setInventory(data || []);
+      setInventory(data?.items || []);
     } catch (error) {
       console.error('Error fetching inventory:', error);
     }
@@ -56,7 +58,7 @@ export default function CreateOrder() {
   };
 
   const handleAddItem = () => {
-    setItems([...items, { description: '', quantity: 1, unit_price: 0 }]);
+    setItems([...items, { localId: crypto.randomUUID(), description: '', quantity: 1, unit_price: 0 }]);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -202,21 +204,21 @@ export default function CreateOrder() {
 
           <div className="space-y-4">
             {items.map((item, index) => (
-              <div key={index} className="flex gap-4 items-start flex-wrap lg:flex-nowrap">
+              <div key={item.localId} className="flex gap-4 items-start flex-wrap lg:flex-nowrap">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {t('description')} *
                   </label>
                   <input
                     type="text"
-                    list={`inventory-list-${index}`}
+                    list={`inventory-list-${item.localId}`}
                     required
                     value={item.description}
                     onChange={(e) => handleItemChange(index, 'description', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
                     placeholder={t('search_or_type_product')}
                   />
-                  <datalist id={`inventory-list-${index}`}>
+                  <datalist id={`inventory-list-${item.localId}`}>
                     {inventory.map((inv) => (
                       <option key={inv.id} value={inv.name}>
                         {formatCurrency(inv.price)} - {inv.category}

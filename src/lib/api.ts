@@ -11,15 +11,13 @@ async function getApiRoot() {
 
   isResolving = true;
   
-  // Retry loop: give the backend up to 15 seconds to wake up and report its port.
-  // The server needs time to fork, initialize SQLite, run schema migrations, and
-  // send the SERVER_READY IPC message back with the actual port.
-  for (let i = 0; i < 30; i++) {
+  // Retry loop: give the backend up to 20 seconds to wake up and report its port.
+  for (let i = 0; i < 40; i++) {
     if (window.electron?.updates?.getAppVersion) {
       try {
         const info = await window.electron.updates.getAppVersion();
         if (info && info.serverPort) {
-          cachedPort = info.serverPort;
+          cachedPort = Number(info.serverPort);
           console.log(`[API] Discovered server port: ${cachedPort}`);
           isResolving = false;
           return `http://127.0.0.1:${cachedPort}`;
@@ -32,8 +30,8 @@ async function getApiRoot() {
   }
   
   isResolving = false;
-  // Fallback to default (works for dev mode where server is on port 5000)
-  console.warn('[API] Port discovery timed out — falling back to port 5000');
+  // Fallback to 5000 (standard for dev)
+  console.warn('[API] Port discovery failed — using fallback port 5000');
   return 'http://127.0.0.1:5000';
 }
 
@@ -46,79 +44,40 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const API_ROOT = await getApiRoot();
-  const API_BASE = `${API_ROOT}/api`;
-  
-  const url = endpoint.startsWith('/api') 
-    ? `${API_ROOT}${endpoint}` 
-    : `${API_BASE}${endpoint}`;
-
-  // Attempt the request with one automatic retry on network failure.
-  // This handles the case where the server hasn't fully started yet or there's
-  // a transient connection issue (common during Electron cold-start).
+  // Attempt the request with automatic retries on network failure.
   let lastError: Error | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const res = await fetch(url, {
-        ...options,
-        headers,
-      });
+      const API_ROOT = await getApiRoot();
+      const API_BASE = `${API_ROOT}/api`;
+      const url = endpoint.startsWith('/api') ? `${API_ROOT}${endpoint}` : `${API_BASE}${endpoint}`;
+
+      const res = await fetch(url, { ...options, headers });
 
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
           localStorage.removeItem('token');
           localStorage.removeItem('benna_cached_user');
-          // Force a page reload or let the app handle the missing user in the next cycle
           if (typeof window !== 'undefined') window.location.reload();
         }
         
         let errorMsg = `Server error (${res.status})`;
         try {
           const errBody = await res.json();
-          if (errBody.details) {
-            errorMsg = `${errBody.error || 'Error'}: ${JSON.stringify(errBody.details)}`;
-          } else {
-            errorMsg = errBody.error || errBody.message || errorMsg;
-          }
+          errorMsg = errBody.error || errBody.message || errorMsg;
         } catch (_) {}
-        console.error(`[API Error] ${options.method || 'GET'} ${url}: ${errorMsg}`);
         throw new Error(errorMsg);
       }
 
-      // Handle No Content
       if (res.status === 204) return null;
-
       return res.json();
     } catch (err: any) {
-      // Network-level errors (server not reachable) — retry once after a delay
-      if (err instanceof TypeError && err.message === 'Failed to fetch' && attempt === 0) {
-        console.warn(`[API] Network error on ${url}, retrying in 2s…`);
-        // Invalidate cached port in case the server restarted on a different port
-        cachedPort = null;
-        await new Promise(r => setTimeout(r, 2000));
-        // Re-resolve API root for the retry
-        const newRoot = await getApiRoot();
-        const newBase = `${newRoot}/api`;
-        const retryUrl = endpoint.startsWith('/api')
-          ? `${newRoot}${endpoint}`
-          : `${newBase}${endpoint}`;
-        // Update url for retry (we can't reassign const, so we just continue the loop)
-        // Actually, let's just do the retry inline:
-        try {
-          const res2 = await fetch(retryUrl, { ...options, headers });
-          if (!res2.ok) {
-            let errorMsg = `Server error (${res2.status})`;
-            try {
-              const errBody = await res2.json();
-              errorMsg = errBody.error || errBody.message || errorMsg;
-            } catch (_) {}
-            throw new Error(errorMsg);
-          }
-          if (res2.status === 204) return null;
-          return res2.json();
-        } catch (retryErr: any) {
-          lastError = retryErr;
-        }
+      lastError = err;
+      // Network-level errors (server not reachable) — retry after a delay
+      if (err instanceof TypeError && (err.message.includes('fetch') || err.message.includes('Network'))) {
+        console.warn(`[API] Network error on ${endpoint}, retrying...`, attempt + 1);
+        cachedPort = null; // Invalidate port cache and try again
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
       } else {
         throw err;
       }
@@ -126,5 +85,6 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   }
 
   throw lastError || new Error('Request failed after retries');
+}
 }
 

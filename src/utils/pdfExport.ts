@@ -100,24 +100,31 @@ export const generateOrderPDF = (order: OrderData, settings: Settings, t: (key: 
   // Items Table
   const rawItems = order.items || [];
   const tableData = rawItems.map(item => {
-    const qty = Number(item.quantity) || 0;
-    const price = Number(item.unit_price) || 0;
-    const total = Number(item.total) || (qty * price);
+    // Explicitly handle property extraction to be resilient to data shape variations
+    const description = item.description || item.description || 'N/A';
+    const qty = Number(item.quantity || 0);
+    const price = Number(item.unit_price || 0);
+    const total = Number(item.total || (qty * price));
     
     return [
-      item.description || 'N/A',
-      qty.toString(),
+      String(description),
+      String(qty),
       formatCurrency(price),
       formatCurrency(total)
     ];
   });
 
-  const tableBody = tableData.length > 0 ? tableData : [[t('no_items'), '—', '—', '—']];
+  const tableBody = tableData.length > 0 ? tableData : [[t('no_items') || 'No items', '—', '—', '—']];
 
   autoTable(doc, {
     startY: 88,
     margin: { left: LEFT_MARGIN, right: 15 },
-    head: [[t('description'), t('quantity'), t('unit_price'), t('total')]],
+    head: [[
+      t('description') || 'Description', 
+      t('quantity') || 'Quantity', 
+      t('unit_price') || 'Unit Cost', 
+      t('total') || 'Total'
+    ]],
     body: tableBody,
     headStyles: { fillColor: [0, 31, 63], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [245, 247, 250] },

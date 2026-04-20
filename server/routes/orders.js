@@ -208,8 +208,8 @@ router.post('/', authenticateToken, (req, res) => {
       let inventoryId = item.inventory_item_id || null;
       
       if (!inventoryId) {
-        // Fallback: Search for an inventory item with the exact same name (case-insensitive)
-        const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(item.description);
+        // Search for an inventory item with the exact same name (case-insensitive and trimmed)
+        const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(item.description);
         if (existingInv) {
           inventoryId = existingInv.id;
         }
@@ -361,7 +361,7 @@ router.post('/:id/items', authenticateToken, (req, res) => {
     let inventoryId = inventory_item_id || null;
     
     if (!inventoryId) {
-      const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(description);
+      const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(description);
       if (existingInv) {
         inventoryId = existingInv.id;
       }
@@ -410,7 +410,7 @@ router.put('/:orderId/items/:itemId', authenticateToken, (req, res) => {
     // LINKING logic
     let inventoryId = inventory_item_id || null;
     if (!inventoryId) {
-      const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(name) = LOWER(?)').get(description);
+      const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(description);
       if (existingInv) {
         inventoryId = existingInv.id;
       } else {
