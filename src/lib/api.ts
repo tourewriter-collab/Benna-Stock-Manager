@@ -86,5 +86,4 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
 
   throw lastError || new Error('Request failed after retries');
 }
-}
 
