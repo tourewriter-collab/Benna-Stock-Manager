@@ -291,12 +291,7 @@ const hasSupabaseConfig = !!(process.env.VITE_SUPABASE_URL || process.env.SUPABA
 const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
 const supplierCount = db.prepare('SELECT COUNT(*) as c FROM suppliers').get().c;
 
-if (categoryCount === 0) {
-  console.log('[Database] No categories found -- seeding defaults.');
-}
-
-if (categoryCount === 0) {
-  const defaultCategories = [
+const defaultCategories = [
     { en: 'General', fr: 'Général' },
     { en: 'Engine Parts', fr: 'Pièces moteur' },
     { en: 'Lubricants & Fluids', fr: 'Lubrifiants et fluides' },
@@ -322,11 +317,10 @@ if (categoryCount === 0) {
       db.prepare('INSERT INTO categories (id, name_en, name_fr, is_archived, sync_status) VALUES (?, ?, ?, 0, ?)')
         .run(fallbackId, cat.en, cat.fr, 'pending');
     } else if (exists.is_archived === 1) {
-      db.prepare('UPDATE categories SET is_archived = 0, sync_status = "pending" WHERE name_en = ?').run(cat.en);
+      db.prepare("UPDATE categories SET is_archived = 0, sync_status = 'pending' WHERE name_en = ?").run(cat.en);
       console.log('[Database] Resurrected archived default category:', cat.en);
     }
   }
-}
 
 // Always ensure every default supplier exists — idempotent check by name.
 // This runs on every startup so missing suppliers are restored even if the
