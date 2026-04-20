@@ -76,13 +76,13 @@ function getSupabaseClient() {
 
   // Check multiple possible env var names for URL and key
   // Prioritize VITE_ prefixed to match frontend env for consistency
-  const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)?.trim();
-  const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY)?.trim();
+  const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+  const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || '').trim();
 
   if (supabaseUrl && supabaseServiceKey) {
     // Validate basics
     if (!supabaseUrl.startsWith('http')) {
-      console.error(`[Supabase] Invalid URL format: ${supabaseUrl}`);
+      console.error(`[Supabase] Invalid URL format: "${supabaseUrl}"`);
       return null;
     }
 
@@ -100,9 +100,11 @@ function getSupabaseClient() {
     }
   } else {
     // Log helpful troubleshooting notes
-    console.warn('[Supabase] Missing credentials for cloud sync:');
-    if (!supabaseUrl) console.warn('  -> URL: Missing (Set VITE_SUPABASE_URL or SUPABASE_URL)');
-    if (!supabaseServiceKey) console.warn('  -> Key: Missing (Set SUPABASE_SERVICE_ROLE_KEY)');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.warn('[Supabase] Missing credentials for cloud sync:');
+      if (!supabaseUrl) console.warn('  -> URL: Missing (Set VITE_SUPABASE_URL)');
+      if (!supabaseServiceKey) console.warn('  -> Key: Missing (Set SUPABASE_SERVICE_ROLE_KEY)');
+    }
     return null;
   }
 
@@ -113,13 +115,13 @@ function getSupabaseClient() {
 export const supabase = {
   from: (...args) => {
     const client = getSupabaseClient();
-    if (!client) throw new Error('Supabase is not configured');
+    if (!client) throw new Error('Supabase is not configured. Please check your .env file.');
     return client.from(...args);
   },
   auth: {
     signInWithPassword: (...args) => {
       const client = getSupabaseClient();
-      if (!client) throw new Error('Supabase is not configured');
+      if (!client) throw new Error('Supabase is not configured for authentication.');
       return client.auth.signInWithPassword(...args);
     }
   }
@@ -131,7 +133,7 @@ export const isSupabaseConfigured = () => getSupabaseClient() !== null;
 /** Diagnostic info (safe to expose — no secrets) */
 export const getSupabaseDiagnostics = () => {
   const url = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || '').trim();
   
   return {
     configured: isSupabaseConfigured(),
@@ -147,7 +149,8 @@ export const getSupabaseDiagnostics = () => {
     nodeVersion: process.version,
     env: {
        VITE_SUPABASE_URL: url ? `${url.substring(0, 15)}...` : null,
-       SUPABASE_SERVICE_ROLE_KEY: key ? "PRESENT (hidden)" : null
+       SUPABASE_SERVICE_ROLE_KEY: key ? "PRESENT (hidden)" : null,
+       hasAlternativeKey: !!process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
     }
   };
 };

@@ -62,11 +62,17 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
         }
         
         let errorMsg = `Server error (${res.status})`;
+        let details = null;
         try {
           const errBody = await res.json();
           errorMsg = errBody.error || errBody.message || errorMsg;
+          details = errBody.details || null;
         } catch (_) {}
-        throw new Error(errorMsg);
+        
+        const error = new Error(errorMsg) as any;
+        error.status = res.status;
+        error.details = details;
+        throw error;
       }
 
       if (res.status === 204) return null;

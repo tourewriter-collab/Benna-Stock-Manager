@@ -175,24 +175,14 @@ router.get('/summary/outstanding', authenticateToken, (req, res) => {
 
 // Create order
 router.post('/', authenticateToken, (req, res) => {
-  try {
-    const { supplier_id, expected_date, notes, items } = req.body;
-
-    if (!supplier_id || !items || items.length === 0) {
-      return res.status(400).json({ message: 'Supplier and items are required' });
-    }
-
-    if (req.user.role === 'user') {
-      return res.status(403).json({ message: 'Users cannot create orders' });
-    }
-
+  const createOrderTransaction = db.transaction((userId, supplierId, expectedDate, notes, items, ipAddress) => {
     const total_amount = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
     const orderId = crypto.randomUUID();
 
     db.prepare(`
       INSERT INTO orders (id, supplier_id, expected_date, total_amount, notes, created_by, sync_status, delivery_status) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(orderId, supplier_id, expected_date || null, total_amount, notes || null, req.user.id, 'pending', 'pending');
+    `).run(orderId, supplierId, expectedDate || null, total_amount, notes || null, userId, 'pending', 'pending');
 
     const newOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
 
@@ -204,11 +194,9 @@ router.post('/', authenticateToken, (req, res) => {
       const itemId = crypto.randomUUID();
       const total = item.quantity * item.unit_price;
       
-      // LINKING logic
       let inventoryId = item.inventory_item_id || null;
       
       if (!inventoryId) {
-        // Search for an inventory item with the exact same name (case-insensitive and trimmed)
         const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(item.description);
         if (existingInv) {
           inventoryId = existingInv.id;
@@ -218,7 +206,6 @@ router.post('/', authenticateToken, (req, res) => {
       if (inventoryId) {
         db.prepare('UPDATE inventory SET last_updated = CURRENT_TIMESTAMP WHERE id = ?').run(inventoryId);
       } else {
-        // AUTO-CREATE: Use the default "General" category if no link found
         const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
         const catId = generalCat ? generalCat.id : 'cat_general';
         const newInvId = crypto.randomUUID();
@@ -248,12 +235,27 @@ router.post('/', authenticateToken, (req, res) => {
       return inserted;
     });
 
-    logAudit(req.user.id, 'created', orderId, null, newOrder, req.ip);
+    logAudit(userId, 'created', orderId, null, newOrder, ipAddress);
 
     newOrder.items = orderItems;
-    newOrder.supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(supplier_id);
+    newOrder.supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(supplierId);
 
-    res.status(201).json(newOrder);
+    return newOrder;
+  });
+
+  try {
+    const { supplier_id, expected_date, notes, items } = req.body;
+
+    if (!supplier_id || !items || items.length === 0) {
+      return res.status(400).json({ message: 'Supplier and items are required' });
+    }
+
+    if (req.user.role === 'user') {
+      return res.status(403).json({ message: 'Users cannot create orders' });
+    }
+
+    const order = createOrderTransaction(req.user.id, supplier_id, expected_date, notes, items, req.ip);
+    res.status(201).json(order);
   } catch (error) {
     console.error('Error creating order:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -299,21 +301,12 @@ router.put('/:id', authenticateToken, (req, res) => {
 
 // Delete order
 router.delete('/:id', authenticateToken, (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (req.user.role === 'user') {
-      return res.status(403).json({ message: 'Users cannot delete orders' });
-    }
-
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
+  const deleteOrderTransaction = db.transaction((orderId) => {
+    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    if (!order) return null;
 
     // Delete items first
-    const items = db.prepare('SELECT id FROM order_items WHERE order_id = ?').all(id);
+    const items = db.prepare('SELECT id FROM order_items WHERE order_id = ?').all(orderId);
     for (const item of items) {
       db.prepare('DELETE FROM order_items WHERE id = ?').run(item.id);
       db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -322,7 +315,7 @@ router.delete('/:id', authenticateToken, (req, res) => {
     }
 
     // Delete payments
-    const payments = db.prepare('SELECT id FROM payments WHERE order_id = ?').all(id);
+    const payments = db.prepare('SELECT id FROM payments WHERE order_id = ?').all(orderId);
     for (const payment of payments) {
       db.prepare('DELETE FROM payments WHERE id = ?').run(payment.id);
       db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -330,14 +323,29 @@ router.delete('/:id', authenticateToken, (req, res) => {
       );
     }
 
-    db.prepare('DELETE FROM orders WHERE id = ?').run(id);
+    db.prepare('DELETE FROM orders WHERE id = ?').run(orderId);
 
     db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
-      'orders', id, 'DELETE', JSON.stringify(order)
+      'orders', orderId, 'DELETE', JSON.stringify(order)
     );
 
-    logAudit(req.user.id, 'deleted', id, order, null, req.ip);
+    return order;
+  });
 
+  try {
+    const { id } = req.params;
+
+    if (req.user.role === 'user') {
+      return res.status(403).json({ message: 'Users cannot delete orders' });
+    }
+
+    const order = deleteOrderTransaction(id);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    logAudit(req.user.id, 'deleted', id, order, null, req.ip);
     res.json({ message: 'Order deleted successfully' });
   } catch (error) {
     console.error('Error deleting order:', error);
@@ -346,19 +354,12 @@ router.delete('/:id', authenticateToken, (req, res) => {
 });
 
 // Add item to order
-router.post('/:id/items', authenticateToken, (req, res) => {
-  try {
-    const { inventory_item_id, description, quantity, unit_price } = req.body;
-
-    if (!description || !quantity || !unit_price) {
-      return res.status(400).json({ message: 'Description, quantity, and unit price are required' });
-    }
-
+router.post('/:id', authenticateToken, (req, res) => {
+  const addItemTransaction = db.transaction((orderId, inventoryItemId, description, quantity, unitPrice) => {
     const itemId = crypto.randomUUID();
-    const total = quantity * unit_price;
+    const total = quantity * unitPrice;
 
-    // LINKING logic
-    let inventoryId = inventory_item_id || null;
+    let inventoryId = inventoryItemId || null;
     
     if (!inventoryId) {
       const existingInv = db.prepare('SELECT id FROM inventory WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(description);
@@ -374,7 +375,7 @@ router.post('/:id/items', authenticateToken, (req, res) => {
       db.prepare(`
         INSERT INTO inventory (id, name, category_id, category, quantity, price, location, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(newInvId, description, catId, 'General', 0, unit_price, 'Main Store', 'pending');
+      `).run(newInvId, description, catId, 'General', 0, unitPrice, 'Main Store', 'pending');
       inventoryId = newInvId;
       const newInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(newInvId);
       db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -385,17 +386,27 @@ router.post('/:id/items', authenticateToken, (req, res) => {
     db.prepare(`
       INSERT INTO order_items (id, order_id, inventory_item_id, description, quantity, unit_price, total, sync_status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(itemId, req.params.id, inventoryId, description, quantity, unit_price, total, 'pending');
+    `).run(itemId, orderId, inventoryId, description, quantity, unitPrice, total, 'pending');
 
     const item = db.prepare('SELECT * FROM order_items WHERE id = ?').get(itemId);
     db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
       'order_items', itemId, 'INSERT', JSON.stringify(item)
     );
 
-    // Recalculate order total
-    const itemTotals = db.prepare('SELECT sum(total) as val FROM order_items WHERE order_id = ?').get(req.params.id);
-    db.prepare('UPDATE orders SET total_amount = ? WHERE id = ?').run(itemTotals.val || 0, req.params.id);
+    const itemTotals = db.prepare('SELECT sum(total) as val FROM order_items WHERE order_id = ?').get(orderId);
+    db.prepare('UPDATE orders SET total_amount = ?, sync_status = \'pending\', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(itemTotals.val || 0, orderId);
 
+    return item;
+  });
+
+  try {
+    const { inventory_item_id, description, quantity, unit_price } = req.body;
+
+    if (!description || !quantity || !unit_price) {
+      return res.status(400).json({ message: 'Description, quantity, and unit price are required' });
+    }
+
+    const item = addItemTransaction(req.params.id, inventory_item_id, description, quantity, unit_price);
     res.status(201).json(item);
   } catch (error) {
     console.error('Error adding order item:', error);

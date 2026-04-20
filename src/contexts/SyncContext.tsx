@@ -66,8 +66,11 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLastSyncedAt(new Date());
       setSyncStatus('synced');
       await fetchStatus(); // Reconcile ground truth from server
-    } catch (error) {
-      console.error('[Sync] Sync failed:', error);
+    } catch (error: any) {
+      console.error('[Sync] Sync failed:', error.message);
+      if (error.details) {
+        console.error('[Sync] Diagnostic details:', error.details);
+      }
       setSyncStatus('error');
     }
   };
