@@ -139,27 +139,76 @@ router.post('/push', async (req, res) => {
               return {
                 id: data.id,
                 order_id: data.order_id,
-                inventory_id: data.inventory_item_id,
-                description: data.description,
-                quantity: data.quantity,
-                unit_price: data.unit_price,
-                total_price: data.total,
-                delivered_quantity: data.delivered_quantity
+                inventory_id: data.inventory_item_id || data.id,
+                quantity: data.quantity || 1,
+                unit_price: data.unit_price || 0,
+                total_price: data.total || (data.quantity * data.unit_price) || 0
               };
             } else if (table === 'orders') {
               return {
                 id: data.id,
-                supplier_id: data.supplier_id,
-                order_date: data.order_date,
-                expected_delivery_date: data.expected_date,
-                status: data.status,
-                total_amount: data.total_amount,
-                notes: data.notes,
-                delivery_status: data.delivery_status
+                order_number: `ORD-${(data.id || '').substring(0, 8).toUpperCase()}`,
+                supplier_id: data.supplier_id || null,
+                order_date: data.order_date || new Date().toISOString(),
+                expected_delivery_date: data.expected_date || null,
+                status: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].includes(data.status) ? data.status : 'pending',
+                total_amount: data.total_amount || 0,
+                notes: data.notes || null
+              };
+            } else if (table === 'inventory') {
+              return {
+                 id: data.id,
+                 name: data.name,
+                 reference: (data.id || '').substring(0, 8),
+                 category: data.category || 'General',
+                 quantity: data.quantity || 0,
+                 min_quantity: data.min_stock || 0,
+                 unit_price: data.price || 0,
+                 supplier: data.supplier || null,
+                 location: data.location || 'Main Store'
+              };
+            } else if (table === 'categories') {
+              return {
+                 id: data.id,
+                 name_en: data.name_en || 'Unknown',
+                 name_fr: data.name_fr || 'Inconnu'
+              };
+            } else if (table === 'suppliers') {
+              return {
+                 id: data.id,
+                 name: data.name || 'Unknown',
+                 contact_person: data.contact || null,
+                 email: data.email || null,
+                 phone: data.phone || null,
+                 address: data.address || null
+              };
+            } else if (table === 'payments') {
+              const methodMap = { cash: 'cash', bank: 'bank_transfer', check: 'check', credit: 'credit_card', other: 'cash' };
+              return {
+                 id: data.id,
+                 order_id: data.order_id,
+                 payment_date: data.payment_date || new Date().toISOString(),
+                 amount: data.amount || 0,
+                 payment_method: methodMap[data.method] || 'cash',
+                 reference: data.reference || null,
+                 notes: data.notes || null
+              };
+            } else if (table === 'audit_logs') {
+              return {
+                 id: data.id,
+                 table_name: data.table_name || 'unknown',
+                 record_id: data.record_id || data.id,
+                 action: data.action || 'unknown',
+                 old_data: typeof data.old_values === 'string' ? JSON.parse(data.old_values || '{}') : data.old_values,
+                 new_data: typeof data.new_values === 'string' ? JSON.parse(data.new_values || '{}') : data.new_values,
+                 user_id: null,
+                 timestamp: data.timestamp || new Date().toISOString()
               };
             }
-            return data;
-          });
+            return null; // e.g. usage_logs which has no cloud equivalent
+          }).filter(Boolean);
+          
+          if (payloads.length === 0) continue;
           
           const { error } = await supabase
             .from(table)
