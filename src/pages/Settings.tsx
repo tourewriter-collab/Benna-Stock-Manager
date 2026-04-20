@@ -305,9 +305,16 @@ const Settings: React.FC = () => {
                     {t('update_version_available', { version: updateInfo.version })}
                   </p>
                   {updateInfo.releaseNotes && (
-                    <p className="text-sm text-blue-600 mt-2 whitespace-pre-line">
-                      {updateInfo.releaseNotes}
-                    </p>
+                    <div 
+                      className="text-sm text-blue-600 mt-2 whitespace-pre-line"
+                      dangerouslySetInnerHTML={{ 
+                        __html: typeof updateInfo.releaseNotes === 'string' 
+                          ? updateInfo.releaseNotes 
+                          : Array.isArray(updateInfo.releaseNotes) 
+                            ? updateInfo.releaseNotes.map(n => n.note).join('\n')
+                            : ''
+                      }}
+                    />
                   )}
                   <button
                     onClick={handleDownloadUpdate}
