@@ -176,13 +176,22 @@ router.get('/summary/outstanding', authenticateToken, (req, res) => {
 // Create order
 router.post('/', authenticateToken, (req, res) => {
   const createOrderTransaction = db.transaction((userId, supplierId, expectedDate, notes, items, ipAddress) => {
-    const total_amount = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    const total_amount = items.reduce((sum, item) => {
+      const q = Number(item.quantity) || 0;
+      const p = Number(item.unit_price) || 0;
+      return sum + (q * p);
+    }, 0);
+
+    if (isNaN(total_amount)) {
+      throw new Error('Invalid total amount calculation');
+    }
+
     const orderId = crypto.randomUUID();
 
     db.prepare(`
       INSERT INTO orders (id, supplier_id, expected_date, total_amount, notes, created_by, sync_status, delivery_status) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(orderId, supplierId, expectedDate || null, total_amount, notes || null, userId, 'pending', 'pending');
+    `).run(orderId, supplierId, expectedDate || null, total_amount, notes || null, String(userId), 'pending', 'pending');
 
     const newOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
 
@@ -223,10 +232,14 @@ router.post('/', authenticateToken, (req, res) => {
         );
       }
 
+      const q = Number(item.quantity) || 0;
+      const p = Number(item.unit_price) || 0;
+      const total = q * p;
+
       db.prepare(`
         INSERT INTO order_items (id, order_id, inventory_item_id, description, quantity, unit_price, total, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(itemId, orderId, inventoryId, item.description, item.quantity, item.unit_price, total, 'pending');
+      `).run(itemId, orderId, inventoryId, item.description, q, p, total, 'pending');
       
       const inserted = db.prepare('SELECT * FROM order_items WHERE id = ?').get(itemId);
       db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -235,7 +248,7 @@ router.post('/', authenticateToken, (req, res) => {
       return inserted;
     });
 
-    logAudit(userId, 'created', orderId, null, newOrder, ipAddress);
+    logAudit(Number(userId), 'created', orderId, null, newOrder, ipAddress);
 
     newOrder.items = orderItems;
     newOrder.supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(supplierId);
@@ -290,7 +303,7 @@ router.put('/:id', authenticateToken, (req, res) => {
       'orders', id, 'UPDATE', JSON.stringify(updatedOrder)
     );
 
-    logAudit(req.user.id, 'updated', id, oldOrder, updatedOrder, req.ip);
+    logAudit(Number(req.user.id), 'updated', id, oldOrder, updatedOrder, req.ip);
 
     res.json(updatedOrder);
   } catch (error) {
@@ -345,7 +358,7 @@ router.delete('/:id', authenticateToken, (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    logAudit(req.user.id, 'deleted', id, order, null, req.ip);
+    logAudit(Number(req.user.id), 'deleted', id, order, null, req.ip);
     res.json({ message: 'Order deleted successfully' });
   } catch (error) {
     console.error('Error deleting order:', error);
@@ -530,7 +543,7 @@ router.post('/:orderId/items/:itemId/link', authenticateToken, (req, res) => {
       'order_items', itemId, 'UPDATE', JSON.stringify(updatedItem)
     );
 
-    logAudit(req.user.id, 'linked_inventory', itemId, orderItem, updatedItem, req.ip);
+    logAudit(Number(req.user.id), 'linked_inventory', itemId, orderItem, updatedItem, req.ip);
 
     // Recalculate order total (just in case)
     const itemTotals = db.prepare('SELECT sum(total) as val FROM order_items WHERE order_id = ?').get(orderId);
@@ -620,7 +633,7 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
       'orders', orderId, 'UPDATE', JSON.stringify(updatedOrder)
     );
 
-    logAudit(req.user.id, 'updated_delivery', itemId, oldItem, { delivered_quantity }, req.ip);
+    logAudit(Number(req.user.id), 'updated_delivery', itemId, oldItem, { delivered_quantity }, req.ip);
 
     res.json({ item: updatedItem, order: updatedOrder });
   } catch (error) {

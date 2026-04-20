@@ -388,12 +388,12 @@ export default function OrderDetail() {
                   {order.items.map((item) => (
                     <tr key={item.id}>
                       <td className="px-4 py-2 text-sm text-gray-900">
-                        <div className="font-medium">{item.description}</div>
+                        <div className="font-medium">{item.description || t('unknown_item')}</div>
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-900">{item.quantity}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900">{item.quantity || 0}</td>
                       <td className="px-4 py-2 text-sm text-gray-900">
                         <div className="flex items-center gap-2">
-                          {item.delivered_quantity}
+                          {item.delivered_quantity || 0}
                           {canUpdateDelivery && (
                             <button 
                               onClick={() => handleUpdateDelivery(item)}
@@ -407,14 +407,16 @@ export default function OrderDetail() {
                         </div>
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-900">
-                        {item.quantity - item.delivered_quantity > 0 ? (
-                          <span className="text-orange-600 font-medium">{item.quantity - item.delivered_quantity}</span>
+                        {(item.quantity || 0) - (item.delivered_quantity || 0) > 0 ? (
+                          <span className="text-orange-600 font-medium">{(item.quantity || 0) - (item.delivered_quantity || 0)}</span>
                         ) : (
                           <CheckCircle className="w-4 h-4 text-green-500" />
                         )}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-900">{formatCurrency(item.unit_price)}</td>
-                      <td className="px-4 py-2 text-sm font-semibold text-gray-900">{formatCurrency(item.total)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900">{formatCurrency(item.unit_price || 0)}</td>
+                      <td className="px-4 py-2 text-sm font-semibold text-gray-900">
+                        {formatCurrency(item.total || ((item.quantity || 0) * (item.unit_price || 0)))}
+                      </td>
                       {canEdit && (
                         <td className="px-4 py-2 text-sm">
                           <div className="flex gap-2">

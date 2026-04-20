@@ -140,6 +140,7 @@ router.post('/push', async (req, res) => {
                 id: data.id,
                 order_id: data.order_id,
                 inventory_id: data.inventory_item_id,
+                description: data.description,
                 quantity: data.quantity,
                 unit_price: data.unit_price,
                 total_price: data.total,
@@ -274,11 +275,16 @@ router.get('/pull', async (req, res) => {
           row.inventory_item_id = row.inventory_id;
           row.total = row.total_price || (row.quantity * row.unit_price);
           
-          if (row.inventory_id) {
-            const inv = db.prepare('SELECT name FROM inventory WHERE id = ?').get(row.inventory_id);
-            row.description = inv ? inv.name : 'Unknown Item';
-          } else {
-            row.description = 'Unknown Item';
+          // RECOVERY logic for missing descriptions (ghost recovery)
+          if (!row.description) {
+            if (row.inventory_id) {
+              const inv = db.prepare('SELECT name FROM inventory WHERE id = ?').get(row.inventory_id);
+              row.description = inv ? inv.name : 'Unknown Item';
+            } else {
+              // Try to preserve local description if it already exists
+              const local = db.prepare('SELECT description FROM order_items WHERE id = ?').get(row.id);
+              row.description = local ? local.description : 'Unknown Item';
+            }
           }
         } else if (table === 'orders') {
           row.expected_date = row.expected_delivery_date;
