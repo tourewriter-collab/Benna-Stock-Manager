@@ -381,7 +381,7 @@ router.get('/pull', async (req, res) => {
     // --- GHOST RECOVERY (Clean up deletions) ---
     // For critical tables, ensure local matches cloud IDs. 
     // If it's missing from cloud, we archive it locally.
-    const cleanupTables = ['inventory', 'orders', 'categories', 'suppliers'];
+    const cleanupTables = ['inventory', 'orders'];
     for (const table of cleanupTables) {
       try {
         const { data: cloudIds, error } = await supabase.from(table).select('id');
@@ -403,6 +403,9 @@ router.get('/pull', async (req, res) => {
           const localItems = db.prepare(`SELECT id, is_archived, sync_status FROM ${table}`).all();
           
           for (const local of localItems) {
+            // Ignore non-UUID fallback items (like cat_ or sup_) from getting archived
+            if (!local.id.includes('-')) continue;
+
             // If local item is NOT in cloud AND it's NOT already archived locally AND it's NOT a new local item (pending)
             if (!cloudIdSet.has(local.id) && local.is_archived === 0 && local.sync_status !== 'pending') {
               console.log(`[Sync] Ghost Recovery: Archiving ${table} id=${local.id} (missing from cloud)`);

@@ -295,6 +295,9 @@ if (categoryCount === 0) {
       const fallbackId = 'cat_' + cat.en.toLowerCase().replace(/[^a-z0-9]/g, '_');
       db.prepare('INSERT INTO categories (id, name_en, name_fr, is_archived, sync_status) VALUES (?, ?, ?, 0, ?)')
         .run(fallbackId, cat.en, cat.fr, 'synced'); // 'synced' so they don't push to cloud
+    } else if (exists.is_archived === 1) {
+      db.prepare('UPDATE categories SET is_archived = 0 WHERE name_en = ?').run(cat.en);
+      console.log('[Database] Resurrected archived default category:', cat.en);
     }
   }
 }
@@ -324,6 +327,9 @@ for (const supName of defaultSuppliers) {
     db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
       .run(fallbackId, supName, 'synced'); // 'synced' so they don't push to cloud
     console.log('[Database] Restored default supplier:', supName);
+  } else if (exists.is_archived === 1) {
+    db.prepare('UPDATE suppliers SET is_archived = 0 WHERE name = ?').run(supName);
+    console.log('[Database] Resurrected archived default supplier:', supName);
   }
 }
 
