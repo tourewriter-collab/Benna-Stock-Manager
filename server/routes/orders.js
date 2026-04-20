@@ -201,6 +201,9 @@ router.post('/', authenticateToken, (req, res) => {
 
     const orderItems = items.map(item => {
       const itemId = crypto.randomUUID();
+      const q = Number(item.quantity) || 0;
+      const p = Number(item.unit_price) || 0;
+      const total = q * p;
       
       let inventoryId = item.inventory_item_id || null;
       
@@ -230,10 +233,6 @@ router.post('/', authenticateToken, (req, res) => {
           'inventory', newInvId, 'INSERT', JSON.stringify(newInv)
         );
       }
-
-      const q = Number(item.quantity) || 0;
-      const p = Number(item.unit_price) || 0;
-      const total = q * p;
 
       db.prepare(`
         INSERT INTO order_items (id, order_id, inventory_item_id, description, quantity, unit_price, total, sync_status)

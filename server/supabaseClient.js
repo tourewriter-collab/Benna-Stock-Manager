@@ -77,7 +77,7 @@ function getSupabaseClient() {
   // Check multiple possible env var names for URL and key
   // Prioritize VITE_ prefixed to match frontend env for consistency
   const supabaseUrl = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
-  const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || '').trim();
+  const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
 
   if (supabaseUrl && supabaseServiceKey) {
     // Validate basics
@@ -103,11 +103,13 @@ function getSupabaseClient() {
     if (!supabaseUrl || !supabaseServiceKey) {
       console.warn('[Supabase] Missing credentials for cloud sync:');
       if (!supabaseUrl) console.warn('  -> URL: Missing (Set VITE_SUPABASE_URL)');
-      if (!supabaseServiceKey) console.warn('  -> Key: Missing (Set SUPABASE_SERVICE_ROLE_KEY)');
+      if (!supabaseServiceKey) console.warn('  -> Key: Missing (Set SUPABASE_SERVICE_ROLE_KEY or VITE_SUPABASE_ANON_KEY)');
     }
     return null;
   }
 
+  // Debug log to confirm what key prefix was actually loaded
+  console.log(`[Supabase] Active Key prefix: ${supabaseServiceKey.substring(0, 8)}...`);
   return _supabase;
 }
 
@@ -133,7 +135,7 @@ export const isSupabaseConfigured = () => getSupabaseClient() !== null;
 /** Diagnostic info (safe to expose — no secrets) */
 export const getSupabaseDiagnostics = () => {
   const url = (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || '').trim();
+  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '').trim();
   
   return {
     configured: isSupabaseConfigured(),

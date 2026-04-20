@@ -77,8 +77,17 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!isAuthenticated) return;
+    
+    // Initial fetch
     fetchStatus();
-  }, [isAuthenticated, syncStatus]);
+
+    // Setup periodic polling every 60 seconds to replace the infinite reactive loop
+    const interval = setInterval(() => {
+      fetchStatus();
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
   // Handle explicit online/offline browser events
   useEffect(() => {
