@@ -201,7 +201,6 @@ router.post('/', authenticateToken, (req, res) => {
 
     const orderItems = items.map(item => {
       const itemId = crypto.randomUUID();
-      const total = item.quantity * item.unit_price;
       
       let inventoryId = item.inventory_item_id || null;
       

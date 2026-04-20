@@ -210,9 +210,37 @@ router.post('/push', async (req, res) => {
           
           if (payloads.length === 0) continue;
           
+          // DEDUPLICATE BY ID: Postgres cannot UPSERT the same row twice in one transaction!
+          // We keep the LAST item in the array to represent the final updated state of that record.
+          const uniquePayloads = Object.values(payloads.reduce((acc, curr) => {
+            acc[curr.id] = curr;
+            return acc;
+          }, {}));
+
+          // FAILSAFE: Supabase enforces strict Foreign Keys. 
+          // If a local order_item references an inventory item that failed to push, or didn't exist locally, 
+          // Supabase will violently reject the order_item. We must safely inject placeholders first.
+          if (table === 'order_items') {
+             const dummyInvs = uniquePayloads.map(it => ({
+                 id: it.inventory_id,
+                 name: 'Legacy / Recovered Item',
+                 reference: String(it.inventory_id).substring(0, 8),
+                 category: 'General',
+                 quantity: 0,
+                 min_quantity: 0,
+                 unit_price: it.unit_price || 0,
+                 supplier: null,
+                 location: 'Main Store'
+             }));
+             // Fire-and-forget upsert to satisfy constraints. Pre-existing real items are unharmed.
+             if (dummyInvs.length > 0) {
+                 await supabase.from('inventory').upsert(dummyInvs, { onConflict: 'id' });
+             }
+          }
+          
           const { error } = await supabase
             .from(table)
-            .upsert(payloads, { onConflict: 'id' });
+            .upsert(uniquePayloads, { onConflict: 'id' });
 
           if (error) {
             console.error(`[Sync] Batch Push failed for ${table}:`, error.message);

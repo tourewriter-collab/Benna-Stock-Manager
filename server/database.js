@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -253,6 +254,31 @@ if (!dbAppVersion) {
 }
 
 // ---------------------------------------------------------------------------
+// UUID MIGRATION (CRITICAL FIX FOR SYNC)
+// Supabase strictly expects proper UUID format. The old string 'cat_' or 'sup_' 
+// hardcoded IDs will crash Sync completely. We translate them once locally.
+// ---------------------------------------------------------------------------
+try {
+  const nonUuidCategories = db.prepare("SELECT id FROM categories WHERE id LIKE 'cat_%'").all();
+  for (const cat of nonUuidCategories) {
+    const newId = crypto.randomUUID();
+    db.prepare("UPDATE categories SET id = ?, sync_status = 'pending' WHERE id = ?").run(newId, cat.id);
+    db.prepare('UPDATE inventory SET category_id = ? WHERE category_id = ?').run(newId, cat.id);
+    db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = 'categories' OR table_name = 'inventory'").run(cat.id, newId);
+  }
+
+  const nonUuidSuppliers = db.prepare("SELECT id FROM suppliers WHERE id LIKE 'sup_%'").all();
+  for (const sup of nonUuidSuppliers) {
+    const newId = crypto.randomUUID();
+    db.prepare("UPDATE suppliers SET id = ?, sync_status = 'pending' WHERE id = ?").run(newId, sup.id);
+    db.prepare('UPDATE orders SET supplier_id = ? WHERE supplier_id = ?').run(newId, sup.id);
+    db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = 'suppliers' OR table_name = 'orders'").run(sup.id, newId);
+  }
+} catch (e) {
+  console.warn('[Database] Failed to migrate fallback IDs to UUIDs:', e.message);
+}
+
+// ---------------------------------------------------------------------------
 // CONDITIONAL SEEDING
 // CRITICAL: Only seed default categories/suppliers if Supabase is NOT configured.
 // When Supabase IS configured, the app will pull real UUID-based data from the cloud.
@@ -292,11 +318,11 @@ if (categoryCount === 0) {
   for (const cat of defaultCategories) {
     const exists = db.prepare('SELECT * FROM categories WHERE name_en = ?').get(cat.en);
     if (!exists) {
-      const fallbackId = 'cat_' + cat.en.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const fallbackId = crypto.randomUUID();
       db.prepare('INSERT INTO categories (id, name_en, name_fr, is_archived, sync_status) VALUES (?, ?, ?, 0, ?)')
-        .run(fallbackId, cat.en, cat.fr, 'synced'); // 'synced' so they don't push to cloud
+        .run(fallbackId, cat.en, cat.fr, 'pending');
     } else if (exists.is_archived === 1) {
-      db.prepare('UPDATE categories SET is_archived = 0 WHERE name_en = ?').run(cat.en);
+      db.prepare('UPDATE categories SET is_archived = 0, sync_status = "pending" WHERE name_en = ?').run(cat.en);
       console.log('[Database] Resurrected archived default category:', cat.en);
     }
   }
@@ -323,12 +349,12 @@ const defaultSuppliers = [
 for (const supName of defaultSuppliers) {
   const exists = db.prepare('SELECT * FROM suppliers WHERE name = ?').get(supName);
   if (!exists) {
-    const fallbackId = 'sup_' + supName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const fallbackId = crypto.randomUUID();
     db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
-      .run(fallbackId, supName, 'synced'); // 'synced' so they don't push to cloud
+      .run(fallbackId, supName, 'pending');
     console.log('[Database] Restored default supplier:', supName);
   } else if (exists.is_archived === 1) {
-    db.prepare('UPDATE suppliers SET is_archived = 0 WHERE name = ?').run(supName);
+    db.prepare('UPDATE suppliers SET is_archived = 0, sync_status = "pending" WHERE name = ?').run(supName);
     console.log('[Database] Resurrected archived default supplier:', supName);
   }
 }
