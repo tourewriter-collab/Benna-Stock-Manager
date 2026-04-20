@@ -273,7 +273,11 @@ router.get('/pull', async (req, res) => {
         // MAP CLOUD TO LOCAL SCHEMA Let's map remote fields back into the local shape
         if (table === 'order_items') {
           row.inventory_item_id = row.inventory_id;
-          row.total = row.total_price || (row.quantity * row.unit_price);
+          const q = Number(row.quantity) || 0;
+          const p = Number(row.unit_price) || 0;
+          row.quantity = q;
+          row.unit_price = p;
+          row.total = Number(row.total_price) || (q * p);
           
           // RECOVERY logic for missing descriptions (ghost recovery)
           if (!row.description) {

@@ -222,7 +222,7 @@ router.post('/', authenticateToken, (req, res) => {
         db.prepare(`
           INSERT INTO inventory (id, name, category_id, category, quantity, price, location, sync_status)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(newInvId, item.description, catId, 'General', 0, item.unit_price, 'Main Store', 'pending');
+        `).run(newInvId, item.description, catId, 'General', 0, p, 'Main Store', 'pending');
         
         inventoryId = newInvId;
         
@@ -369,8 +369,10 @@ router.delete('/:id', authenticateToken, (req, res) => {
 // Add item to order
 router.post('/:id', authenticateToken, (req, res) => {
   const addItemTransaction = db.transaction((orderId, inventoryItemId, description, quantity, unitPrice) => {
+    const q = Number(quantity) || 0;
+    const p = Number(unitPrice) || 0;
     const itemId = crypto.randomUUID();
-    const total = quantity * unitPrice;
+    const total = q * p;
 
     let inventoryId = inventoryItemId || null;
     
@@ -388,7 +390,7 @@ router.post('/:id', authenticateToken, (req, res) => {
       db.prepare(`
         INSERT INTO inventory (id, name, category_id, category, quantity, price, location, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(newInvId, description, catId, 'General', 0, unitPrice, 'Main Store', 'pending');
+      `).run(newInvId, description, catId, 'General', 0, p, 'Main Store', 'pending');
       inventoryId = newInvId;
       const newInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(newInvId);
       db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -399,7 +401,7 @@ router.post('/:id', authenticateToken, (req, res) => {
     db.prepare(`
       INSERT INTO order_items (id, order_id, inventory_item_id, description, quantity, unit_price, total, sync_status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(itemId, orderId, inventoryId, description, quantity, unitPrice, total, 'pending');
+    `).run(itemId, orderId, inventoryId, description, q, p, total, 'pending');
 
     const item = db.prepare('SELECT * FROM order_items WHERE id = ?').get(itemId);
     db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
