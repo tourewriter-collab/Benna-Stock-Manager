@@ -554,6 +554,47 @@ const Settings: React.FC = () => {
                   </div>
                 )}
 
+                {diagnostics.recentErrors && diagnostics.recentErrors.length > 0 && (
+                  <div className="pt-4 border-t border-gray-100">
+                    <h3 className="text-sm font-bold text-red-700 mb-2 flex items-center">
+                      <ShieldAlert className="w-4 h-4 mr-2" />
+                      Sync Health: Issues Detected
+                    </h3>
+                    <div className="space-y-2">
+                      {diagnostics.recentErrors.map((error: any, idx: number) => (
+                        <div key={idx} className="p-2 bg-red-50 border border-red-100 rounded text-[10px]">
+                          <div className="font-bold text-red-800 uppercase mb-1">
+                            {error.table_name} • {error.action} • {error.record_id.substring(0, 8)}...
+                          </div>
+                          <div className="text-red-700 font-mono break-all">
+                            {error._sync_error}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex space-x-3 pt-2">
+                        <button
+                          onClick={async () => {
+                            if (!confirm("This will convert all legacy item IDs to UUIDs to fix cloud sync. This is safe but will refresh your views. Continue?")) return;
+                            setDiagLoading(true);
+                            try {
+                              await fetchApi('/sync/repair-ids', { method: 'POST' });
+                              alert("ID repair triggered! Please wait a moment and refresh.");
+                              fetchDiagnostics();
+                            } catch (err) {
+                              alert("Repair failed. Check logs.");
+                            } finally {
+                              setDiagLoading(false);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-bold hover:bg-red-200"
+                        >
+                          Repair All IDs
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="pt-4 border-t border-gray-100">
                   <h3 className="text-sm font-bold text-gray-900 mb-2">{t('purge_local_data')}</h3>
                   <p className="text-xs text-gray-500 mb-4">{t('purge_description')}</p>

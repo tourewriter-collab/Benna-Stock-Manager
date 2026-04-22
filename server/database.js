@@ -254,6 +254,60 @@ if (!dbAppVersion) {
   db.prepare("UPDATE settings SET value = ? WHERE key = 'db_app_version'").run(appVersion);
 }
 
+// ---------------------------------------------------------------------------
+// GLOBAL ID REPAIR (v1.1.22)
+// Converts legacy IDs into valid UUIDs for Supabase compatibility
+// ---------------------------------------------------------------------------
+function repairAllIds() {
+  console.log('[Database] Checking for non-UUID legacy IDs...');
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  const repairTable = (table, pk, fkMap = []) => {
+    // Standard pk migration
+    const records = db.prepare(`SELECT ${pk} as id FROM ${table}`).all();
+    for (const row of records) {
+      if (row.id && !uuidRegex.test(row.id)) {
+        const newId = crypto.randomUUID();
+        console.log(`[Database] Repairing legacy ID in ${table}: ${row.id} -> ${newId}`);
+        
+        // 1. Update PK
+        db.prepare(`UPDATE ${table} SET ${pk} = ?, sync_status = 'pending' WHERE ${pk} = ?`).run(newId, row.id);
+        
+        // 2. Update all FKs
+        for (const fk of fkMap) {
+          try {
+            db.prepare(`UPDATE ${fk.table} SET ${fk.col} = ? WHERE ${fk.col} = ?`).run(newId, row.id);
+          } catch(e) { /* ignore if table/col missing */ }
+        }
+
+        // 3. Update Sync Queue entries so they don't point to dead IDs
+        db.prepare("UPDATE sync_queue SET record_id = ?, synced = 0 WHERE table_name = ? AND record_id = ?").run(newId, table, row.id);
+        db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = ?").run(row.id, newId, table);
+      }
+    }
+  };
+
+  // Run migrations in dependency order
+  db.transaction(() => {
+    repairTable('categories', 'id', [{ table: 'inventory', col: 'category_id' }]);
+    repairTable('suppliers', 'id', [
+      { table: 'inventory', col: 'supplier' },
+      { table: 'orders', col: 'supplier_id' }
+    ]);
+    repairTable('inventory', 'id', [
+      { table: 'usage_logs', col: 'inventory_item_id' },
+      { table: 'order_items', col: 'inventory_item_id' }
+    ]);
+    repairTable('orders', 'id', [
+      { table: 'order_items', col: 'order_id' },
+      { table: 'payments', col: 'order_id' }
+    ]);
+    // Atomic items like payments or usage_logs don't have FKs pointing TO them, so just PK
+    repairTable('order_items', 'id');
+    repairTable('payments', 'id');
+  })();
+}
+
 let isMaintenanceRunning = false;
 
 // ---------------------------------------------------------------------------
@@ -271,7 +325,14 @@ export function runPostStartupMaintenance() {
     if (prune.changes > 0) console.log(`[Database] Pruned ${prune.changes} old synced items from queue.`);
   } catch (e) { /* ignore */ }
 
-  // UUID MIGRATION (CRITICAL FIX FOR SYNC)
+  // 2. Perform one-time ID format repair for cloud compatibility
+  try {
+    repairAllIds();
+  } catch (e) {
+    console.error('[Database] Global ID repair failed:', e.message);
+  }
+
+  // 3. Legacy small-scale migrations (subset of repairAllIds, kept for safety)
   try {
     const nonUuidCategories = db.prepare("SELECT id FROM categories WHERE id LIKE 'cat_%'").all();
     for (const cat of nonUuidCategories) {

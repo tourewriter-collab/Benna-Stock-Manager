@@ -59,11 +59,24 @@ router.get('/status', async (req, res) => {
       // Ignore
     }
 
+    // Fetch recent sync errors to show in the UI
+    let recentErrors = [];
+    try {
+      recentErrors = db.prepare(`
+        SELECT table_name, record_id, action, _sync_error 
+        FROM sync_queue 
+        WHERE synced = 0 AND _sync_error IS NOT NULL 
+        ORDER BY created_at DESC 
+        LIMIT 5
+      `).all();
+    } catch(e) {}
+
     res.json({
       pendingItems: queueCount,
       configured: isSupabaseConfigured(),
       online: await isOnline(),
-      hasPulledBefore
+      hasPulledBefore,
+      recentErrors
     });
   } catch (error) {
     console.error('[Sync] Status error:', error);
@@ -112,42 +125,31 @@ router.post('/push', async (req, res) => {
   }
 
   try {
-    // 1. Get all pending items ordered by oldest first
     const pendingItems = db.prepare("SELECT * FROM sync_queue WHERE synced = 0 ORDER BY created_at ASC").all();
-    
     if (pendingItems.length === 0) {
-      return res.json({ success: true, message: 'Nothing to push', pushed: 0 });
+      return res.json({ success: true, pushed: 0, total: 0 });
     }
 
-    // 2. Group items by Table and Action to enable batching
-    const groups = {};
-    pendingItems.forEach(item => {
-      const key = `${item.table_name}:${item.action}`;
-      if (!groups[key]) groups[key] = { table: item.table_name, action: item.action, items: [] };
-      groups[key].items.push(item);
-    });
-
     let successTotal = 0;
+    
+    // Group and execute batches. We use a transaction for the local status updates.
+    // NOTE: Remote Supabase calls are already batch-optimized but separate from the local TX.
+    const grouped = pendingItems.reduce((acc, item) => {
+      const key = `${item.table_name}:${item.action}`;
+      if (!acc[key]) acc[key] = { table: item.table_name, action: item.action, items: [] };
+      acc[key].items.push(item);
+      return acc;
+    }, {});
 
-    // 3. Process groups
-    for (const key of Object.keys(groups)) {
-      const { table, action, items } = groups[key];
-      
+    for (const key in grouped) {
+      const { table: table, action, items } = grouped[key];
       try {
         if (action === 'INSERT' || action === 'UPDATE') {
-          // Supabase upsert works with an array of objects
+          // Flatten data and filter
           const payloads = items.map(it => {
             const data = JSON.parse(it.data);
-            if (table === 'order_items') {
-              return {
-                id: data.id,
-                order_id: data.order_id,
-                inventory_id: data.inventory_item_id || data.id,
-                quantity: data.quantity || 1,
-                unit_price: data.unit_price || 0,
-                total_price: data.total || (data.quantity * data.unit_price) || 0
-              };
-            } else if (table === 'orders') {
+            // Schema mapping for cloud
+            if (table === 'orders') {
               return {
                 id: data.id,
                 order_number: `ORD-${(data.id || '').substring(0, 8).toUpperCase()}`,
@@ -157,6 +159,15 @@ router.post('/push', async (req, res) => {
                 status: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].includes(data.status) ? data.status : 'pending',
                 total_amount: data.total_amount || 0,
                 notes: data.notes || null
+              };
+            } else if (table === 'order_items') {
+              return {
+                id: data.id,
+                order_id: data.order_id,
+                inventory_id: data.inventory_item_id || data.id,
+                quantity: data.quantity || 1,
+                unit_price: data.unit_price || 0,
+                total_price: data.total || (data.quantity * data.unit_price) || 0
               };
             } else if (table === 'inventory') {
               return {
@@ -208,19 +219,18 @@ router.post('/push', async (req, res) => {
                  timestamp: data.timestamp || new Date().toISOString()
               };
             }
-            return null; // e.g. usage_logs which has no cloud equivalent
+            return null;
           }).filter(Boolean);
           
           if (payloads.length === 0) continue;
 
-          // UUID Validation Filter: Drop corrupt non-UUID local records (e.g. ID "1", "2") from the queue
-          // because pushing them will crash the Postgres query with an "invalid syntax for type uuid" error.
+          // UUID Validation Filter
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
           const validPayloads = [];
           for (const payload of payloads) {
              if (!uuidRegex.test(payload.id)) {
                 console.warn(`[Sync] CRITICAL: Stripping invalid UUID payload from Push batch - ID: ${payload.id}`);
-                // Safely erase it from the local sync_queue so it stops blocking the server
+                // Safely erase it from the local sync_queue within the larger transaction logic
                 db.prepare('DELETE FROM sync_queue WHERE record_id = ?').run(payload.id);
              } else {
                 validPayloads.push(payload);
@@ -230,15 +240,12 @@ router.post('/push', async (req, res) => {
           if (validPayloads.length === 0) continue;
           
           // DEDUPLICATE BY ID: Postgres cannot UPSERT the same row twice in one transaction!
-          // We keep the LAST item in the array to represent the final updated state of that record.
           const uniquePayloads = Object.values(validPayloads.reduce((acc, curr) => {
             acc[curr.id] = curr;
             return acc;
           }, {}));
 
           // FAILSAFE: Supabase enforces strict Foreign Keys. 
-          // If a local order_item references an inventory item that failed to push, or didn't exist locally, 
-          // Supabase will violently reject the order_item. We must safely inject placeholders first.
           if (table === 'order_items') {
              const dummyInvs = uniquePayloads.map(it => ({
                  id: it.inventory_id,
@@ -251,7 +258,6 @@ router.post('/push', async (req, res) => {
                  supplier: null,
                  location: 'Main Store'
              }));
-             // Fire-and-forget upsert to satisfy constraints. Pre-existing real items are unharmed.
              if (dummyInvs.length > 0) {
                  await supabase.from('inventory').upsert(dummyInvs, { onConflict: 'id' });
              }
@@ -263,34 +269,31 @@ router.post('/push', async (req, res) => {
 
           if (error) {
             console.error(`[Sync] Batch Push failed for ${table}:`, error.message);
-            // Mark individual errors
+            // Mark individual errors in local DB
             items.forEach(it => {
-               db.prepare("UPDATE sync_queue SET synced = 0, data = ? WHERE id = ?").run(
-                 JSON.stringify({ ...JSON.parse(it.data), _sync_error: error.message }),
-                 it.id
-               );
+               db.prepare("UPDATE sync_queue SET synced = 0, _sync_error = ? WHERE id = ?").run(error.message, it.id);
             });
           } else {
-            // Success: mark all in this batch as synced
-            const itemIds = items.map(it => it.id);
-            const placeholders = itemIds.map(() => '?').join(',');
-            db.prepare(`UPDATE sync_queue SET synced = 1 WHERE id IN (${placeholders})`).run(...itemIds);
-            
-            // Mark local records as synced
-            const recordIds = items.map(it => it.record_id);
-            const recPlaceholders = recordIds.map(() => '?').join(',');
-            try {
-              db.prepare(`UPDATE ${table} SET sync_status = 'synced' WHERE id IN (${recPlaceholders})`).run(...recordIds);
-            } catch (e) { /* Ignore if no sync_status column */ }
+            // SUCCESS: Mark all in this batch as synced inside a TRANSACTION for massive speedup
+            db.transaction(() => {
+              const itemIds = items.map(it => it.id);
+              const placeholders = itemIds.map(() => '?').join(',');
+              db.prepare(`UPDATE sync_queue SET synced = 1, _sync_error = NULL WHERE id IN (${placeholders})`).run(...itemIds);
+              
+              const recordIds = items.map(it => it.record_id);
+              const recPlaceholders = recordIds.map(() => '?').join(',');
+              try {
+                db.prepare(`UPDATE ${table} SET sync_status = 'synced' WHERE id IN (${recPlaceholders})`).run(...recordIds);
+              } catch (e) { /* Ignore if no sync_status column */ }
+            })();
             
             successTotal += items.length;
           }
         } else if (action === 'DELETE') {
-          // Process deletes sequentially but quickly (Supabase doesn't have a batch 'IN' delete via simple JS client yet)
           for (const it of items) {
             const { error } = await supabase.from(table).delete().eq('id', it.record_id);
             if (!error) {
-              db.prepare("UPDATE sync_queue SET synced = 1 WHERE id = ?").run(it.id);
+              db.prepare("UPDATE sync_queue SET synced = 1, _sync_error = NULL WHERE id = ?").run(it.id);
               successTotal++;
             }
           }
@@ -406,12 +409,25 @@ router.get('/pull', async (req, res) => {
         const placeholders = filteredKeys.map(() => '?').join(', ');
         const values = filteredKeys.map(k => row[k]);
 
-        try {
-          db.prepare(`INSERT OR REPLACE INTO ${table} (${filteredKeys.join(', ')}) VALUES (${placeholders})`).run(...values);
-          totalPulled++;
-        } catch (e) {
-          console.error(`[Sync] Local upsert failed for ${table} row ${row.id}:`, e.message);
-        }
+        // ... Schema mapping logic ...
+        const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
+        if (filteredKeys.length === 0) continue;
+
+        const placeholders = filteredKeys.map(() => '?').join(', ');
+        const values = filteredKeys.map(k => row[k]);
+
+        // Accumulate for batch transaction
+        batchOps.push({ sql: `INSERT OR REPLACE INTO ${table} (${filteredKeys.join(', ')}) VALUES (${placeholders})`, params: values });
+        totalPulled++;
+      }
+
+      // Execute pull batch in a TRANSACTION for massive performance gain vs row-by-row commits
+      if (batchOps.length > 0) {
+        db.transaction(() => {
+          for (const op of batchOps) {
+             db.prepare(op.sql).run(...op.params);
+          }
+        })();
       }
 
       if (timeCol) {
@@ -472,6 +488,26 @@ router.get('/pull', async (req, res) => {
   } catch (error) {
     console.error('[Sync] Pull error:', error);
     res.status(500).json({ error: 'Failed to pull changes from Supabase', message: error.message });
+  }
+});
+
+/**
+ * Manual ID repair: converts any legacy non-UUID IDs to valid UUIDs
+ */
+router.post('/repair-ids', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden', message: 'Only admins can repair IDs' });
+  }
+
+  try {
+    const { runPostStartupMaintenance } = await import('../database.js');
+    // We call the maintenance function which now includes repairAllIds()
+    // It's safe to call multiple times as it has intrinsic safeguards
+    runPostStartupMaintenance();
+    res.json({ success: true, message: 'ID repair triggered successfully. Check logs for progress.' });
+  } catch (error) {
+    console.error('[Sync] Manual repair failed:', error);
+    res.status(500).json({ error: 'Repair failed', message: error.message });
   }
 });
 
