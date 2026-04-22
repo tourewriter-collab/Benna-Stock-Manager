@@ -105,9 +105,9 @@ app.use((_req, res) => {
 // ---------------------------------------------------------------------------
 // Start listening
 // ---------------------------------------------------------------------------
-const server = app.listen(PORT, '127.0.0.1', () => {
+const server = app.listen(PORT, () => {
   const actualPort = server.address().port;
-  console.log(`[Server] Express listening on 127.0.0.1:${actualPort}`);
+  console.log(`[Server] Express listening on port ${actualPort}`);
   
   // If run as a forked child process (Electron), report the port back to parent IMMEDIATELY
   // so the renderer can start making API calls without waiting for seeding.

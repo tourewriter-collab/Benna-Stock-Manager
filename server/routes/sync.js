@@ -8,33 +8,52 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 const resolveDns = promisify(dns.resolve);
 
+let lastOnlineCheck = 0;
+let cachedOnlineStatus = true;
+
 /** Determine if we have internet connection by trying to reach multiple endpoints */
 async function isOnline() {
-  try {
-    // Try primary DNS lookup first
-    await resolveDns('supabase.co');
-    return true;
-  } catch (e) {
-    // Fallback 1: Try to reach Supabase directly if possible
-    const { getSupabaseDiagnostics } = await import('../supabaseClient.js');
-    const diag = getSupabaseDiagnostics();
-    if (diag.hasUrl && diag.urlValid) {
-       try {
-         const res = await fetch(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL, { method: 'HEAD' });
-         if (res.ok) return true;
-       } catch(err) { /* ignore */ }
-    }
+  const now = Date.now();
+  // Cache the result for 60 seconds to avoid repeating slow DNS lookups on every request
+  if (now - lastOnlineCheck < 60000) {
+    return cachedOnlineStatus;
+  }
 
-    // Fallback 2: ping a public API
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch('https://www.google.com/favicon.ico', { signal: controller.signal });
-      clearTimeout(timeout);
-      return res.ok;
-    } catch (err) {
-      return false;
+  lastOnlineCheck = now;
+  try {
+    // Try primary DNS lookup first with a fast timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2000);
+    
+    // We use a simple fetch to a small resource as it's often more reliable 
+    // than raw DNS resolution which can hang indefinitely on some Windows setups.
+    const res = await fetch('https://8.8.8.8', { // Google Public DNS IP (no DNS resolution needed)
+      method: 'HEAD',
+      mode: 'no-cors',
+      signal: controller.signal
+    }).catch(() => null);
+    
+    clearTimeout(timeout);
+    cachedOnlineStatus = !!res;
+    if (cachedOnlineStatus) return true;
+
+    // Fallback: Try Supabase URL if configured
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    if (supabaseUrl) {
+      try {
+        const res = await fetch(supabaseUrl, { method: 'HEAD', signal: controller.signal });
+        if (res.ok) {
+          cachedOnlineStatus = true;
+          return true;
+        }
+      } catch (err) { /* ignore */ }
     }
+    
+    cachedOnlineStatus = false;
+    return false;
+  } catch (e) {
+    cachedOnlineStatus = false;
+    return false;
   }
 }
 

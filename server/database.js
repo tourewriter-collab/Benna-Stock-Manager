@@ -253,12 +253,17 @@ if (!dbAppVersion) {
   db.prepare("UPDATE settings SET value = ? WHERE key = 'db_app_version'").run(appVersion);
 }
 
+let isMaintenanceRunning = false;
+
 // ---------------------------------------------------------------------------
 // POST-STARTUP MAINTENANCE
 // Exported so server/index.js can call it AFTER emitting SERVER_READY,
 // keeping the port announcement fast (eliminates the ~30s startup freeze).
 // ---------------------------------------------------------------------------
 export function runPostStartupMaintenance() {
+  if (isMaintenanceRunning) return;
+  isMaintenanceRunning = true;
+  console.log('[Database] Starting post-startup maintenance...');
 
   // UUID MIGRATION (CRITICAL FIX FOR SYNC)
   try {

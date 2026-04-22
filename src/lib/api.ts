@@ -11,8 +11,9 @@ async function getApiRoot() {
 
   isResolving = true;
   
-  // Retry loop: give the backend up to 10 seconds to wake up and report its port.
-  for (let i = 0; i < 20; i++) {
+  // Retry loop: give the backend up to 30 seconds to wake up and report its port.
+  // Slow Windows machines or background database seeding can delay the SERVER_READY signal.
+  for (let i = 0; i < 100; i++) {
     if (window.electron?.updates?.getAppVersion) {
       try {
         const info = await window.electron.updates.getAppVersion();
@@ -26,14 +27,14 @@ async function getApiRoot() {
         console.warn('[API] Retrying port discovery…', i, err);
       }
     }
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 300));
   }
   
   isResolving = false;
-  // Fallback: use the fixed production port (set in electron/main.cjs)
+  // Fallback: use the fixed production port but DO NOT cache it yet.
+  // We want to keep checking for the real port on the next call if the server is just slow.
   const fallbackPort = 57234;
-  console.warn(`[API] Port discovery timed out — using fixed fallback port ${fallbackPort}`);
-  cachedPort = fallbackPort; // Cache it so we don't retry on every call
+  console.warn(`[API] Port discovery slow — using temporary fallback port ${fallbackPort}`);
   return `http://127.0.0.1:${fallbackPort}`;
 }
 
