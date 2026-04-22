@@ -209,10 +209,26 @@ router.post('/push', async (req, res) => {
           }).filter(Boolean);
           
           if (payloads.length === 0) continue;
+
+          // UUID Validation Filter: Drop corrupt non-UUID local records (e.g. ID "1", "2") from the queue
+          // because pushing them will crash the Postgres query with an "invalid syntax for type uuid" error.
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const validPayloads = [];
+          for (const payload of payloads) {
+             if (!uuidRegex.test(payload.id)) {
+                console.warn(`[Sync] CRITICAL: Stripping invalid UUID payload from Push batch - ID: ${payload.id}`);
+                // Safely erase it from the local sync_queue so it stops blocking the server
+                db.prepare('DELETE FROM sync_queue WHERE record_id = ?').run(payload.id);
+             } else {
+                validPayloads.push(payload);
+             }
+          }
+
+          if (validPayloads.length === 0) continue;
           
           // DEDUPLICATE BY ID: Postgres cannot UPSERT the same row twice in one transaction!
           // We keep the LAST item in the array to represent the final updated state of that record.
-          const uniquePayloads = Object.values(payloads.reduce((acc, curr) => {
+          const uniquePayloads = Object.values(validPayloads.reduce((acc, curr) => {
             acc[curr.id] = curr;
             return acc;
           }, {}));
