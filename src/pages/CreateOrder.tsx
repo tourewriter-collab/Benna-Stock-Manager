@@ -221,7 +221,7 @@ export default function CreateOrder() {
                   <datalist id={`inventory-list-${item.localId}`}>
                     {inventory.map((inv) => (
                       <option key={inv.id} value={inv.name}>
-                        {formatCurrency(inv.price)} - {inv.category}
+                        {formatCurrency(inv.price)} - {typeof inv.category === 'object' ? (inv.category?.name_en || 'General') : (inv.category || 'General')}
                       </option>
                     ))}
                   </datalist>
