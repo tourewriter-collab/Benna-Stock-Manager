@@ -1,19 +1,25 @@
 let cachedPort: number | null = null;
 let isResolving = false;
+let lastDiscoveryAttempt = 0;
+const DISCOVERY_COOLDOWN = 30000; // Wait 30s before retrying discovery if it timed out once
 
 async function getApiRoot() {
   if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
-  if (isResolving) {
-    // Wait a bit if another call is already resolving the port
-    await new Promise(r => setTimeout(r, 150));
-    if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
+  
+  const now = Date.now();
+  const isCooldownActive = (now - lastDiscoveryAttempt) < DISCOVERY_COOLDOWN;
+  const fallbackPort = 57234;
+
+  if (isResolving || isCooldownActive) {
+    return `http://127.0.0.1:${fallbackPort}`;
   }
 
   isResolving = true;
+  lastDiscoveryAttempt = now;
   
-  // Retry loop: give the backend up to 30 seconds to wake up and report its port.
-  // Slow Windows machines or background database seeding can delay the SERVER_READY signal.
-  for (let i = 0; i < 100; i++) {
+  // Give it a quick 2-second chance to find the real port.
+  // We don't want to block the UI for 30s anymore.
+  for (let i = 0; i < 10; i++) {
     if (window.electron?.updates?.getAppVersion) {
       try {
         const info = await window.electron.updates.getAppVersion();
@@ -23,18 +29,13 @@ async function getApiRoot() {
           isResolving = false;
           return `http://127.0.0.1:${cachedPort}`;
         }
-      } catch (err) {
-        console.warn('[API] Retrying port discovery…', i, err);
-      }
+      } catch (err) {}
     }
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 200));
   }
   
   isResolving = false;
-  // Fallback: use the fixed production port but DO NOT cache it yet.
-  // We want to keep checking for the real port on the next call if the server is just slow.
-  const fallbackPort = 57234;
-  console.warn(`[API] Port discovery slow — using temporary fallback port ${fallbackPort}`);
+  console.warn(`[API] Port discovery slow — proceeding with fallback port ${fallbackPort}`);
   return `http://127.0.0.1:${fallbackPort}`;
 }
 

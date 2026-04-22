@@ -14,43 +14,27 @@ let cachedOnlineStatus = true;
 /** Determine if we have internet connection by trying to reach multiple endpoints */
 async function isOnline() {
   const now = Date.now();
-  // Cache the result for 60 seconds to avoid repeating slow DNS lookups on every request
   if (now - lastOnlineCheck < 60000) {
     return cachedOnlineStatus;
   }
 
   lastOnlineCheck = now;
   try {
-    // Try primary DNS lookup first with a fast timeout
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
+    const timeout = setTimeout(() => controller.abort(), 1000); // 1s timeout
     
-    // We use a simple fetch to a small resource as it's often more reliable 
-    // than raw DNS resolution which can hang indefinitely on some Windows setups.
-    const res = await fetch('https://8.8.8.8', { // Google Public DNS IP (no DNS resolution needed)
-      method: 'HEAD',
-      mode: 'no-cors',
-      signal: controller.signal
-    }).catch(() => null);
-    
-    clearTimeout(timeout);
-    cachedOnlineStatus = !!res;
-    if (cachedOnlineStatus) return true;
-
-    // Fallback: Try Supabase URL if configured
+    // Check Supabase directly as it's the only one that matters
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
     if (supabaseUrl) {
-      try {
-        const res = await fetch(supabaseUrl, { method: 'HEAD', signal: controller.signal });
-        if (res.ok) {
-          cachedOnlineStatus = true;
-          return true;
-        }
-      } catch (err) { /* ignore */ }
+      const res = await fetch(supabaseUrl, { method: 'HEAD', signal: controller.signal });
+      clearTimeout(timeout);
+      cachedOnlineStatus = res.ok;
+      return res.ok;
     }
     
-    cachedOnlineStatus = false;
-    return false;
+    clearTimeout(timeout);
+    cachedOnlineStatus = true; // Default to true to allow attempt
+    return true;
   } catch (e) {
     cachedOnlineStatus = false;
     return false;
