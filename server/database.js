@@ -203,6 +203,7 @@ try {
   db.exec('CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_usage_logs_item_id ON usage_logs(inventory_item_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_usage_logs_timestamp ON usage_logs(timestamp)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_sync_queue_synced ON sync_queue(synced)');
 } catch (e) {
   console.warn('[Database] Failed to create secondary indexes:', e.message);
 }
@@ -259,11 +260,16 @@ let isMaintenanceRunning = false;
 // POST-STARTUP MAINTENANCE
 // Exported so server/index.js can call it AFTER emitting SERVER_READY,
 // keeping the port announcement fast (eliminates the ~30s startup freeze).
-// ---------------------------------------------------------------------------
 export function runPostStartupMaintenance() {
   if (isMaintenanceRunning) return;
   isMaintenanceRunning = true;
   console.log('[Database] Starting post-startup maintenance...');
+
+  // Prune history: delete synced items older than 3 days to keep sync_queue small
+  try {
+    const prune = db.prepare("DELETE FROM sync_queue WHERE synced = 1 AND created_at < datetime('now', '-3 days')").run();
+    if (prune.changes > 0) console.log(`[Database] Pruned ${prune.changes} old synced items from queue.`);
+  } catch (e) { /* ignore */ }
 
   // UUID MIGRATION (CRITICAL FIX FOR SYNC)
   try {
