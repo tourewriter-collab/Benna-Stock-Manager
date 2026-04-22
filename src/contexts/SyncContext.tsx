@@ -28,22 +28,12 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await fetchApi('/sync/status');
       setPendingCount(data.pendingItems);
 
-      // Instantly trigger full pull on fresh installations
-      if (data.configured && data.online && data.hasPulledBefore === false) {
-        // Prevent infinite loop if trigger fails
-        if (syncStatus !== 'syncing') {
-           triggerSync();
-        }
-        return;
-      }
-
-      // If offline, mark as such. If there are pending items and we ARE online,
-      // trigger a sync immediately rather than waiting for the next interval.
+      // Update UI state based on backend response, but NEVER auto-trigger a sync from here
+      // to avoid infinite loops if an item gets permanently stuck or the DB is empty.
       if (!data.online || !navigator.onLine) {
         setSyncStatus('offline');
-      } else if (data.pendingItems > 0 && syncStatus !== 'syncing') {
-        // Fire-and-forget: push right now instead of waiting up to 5 minutes
-        triggerSync();
+      } else if (data.pendingItems > 0 && syncStatus !== 'syncing' && syncStatus !== 'error') {
+        setSyncStatus('pending');
       } else if (syncStatus !== 'syncing' && syncStatus !== 'error') {
         setSyncStatus('synced');
       }
@@ -80,18 +70,24 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    // Initial fetch
-    fetchStatus();
-
-    // Setup periodic polling every 60 seconds to pull remote changes and push any local queues
-    const interval = setInterval(async () => {
-      try {
-        // Run a silent pull to grab any new records from other devices
-        await fetchApi('/sync/pull', { method: 'GET' });
-      } catch (e) {
-        // Ignore background silent pull errors
+    // Initial mount sync
+    const performMountSync = async () => {
+      await fetchStatus();
+      if (navigator.onLine) {
+        await triggerSync();
       }
-      fetchStatus();
+    };
+    performMountSync();
+
+    // Setup periodic polling every 60 seconds to push/pull naturally
+    const interval = setInterval(async () => {
+      if (navigator.onLine) {
+        try {
+          await triggerSync();
+        } catch (e) {
+          // Ignore polling errors
+        }
+      }
     }, 60000);
 
     return () => clearInterval(interval);

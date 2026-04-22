@@ -421,6 +421,9 @@ router.get('/pull', async (req, res) => {
       }
     }
 
+    // Ensure hasPulledBefore will become true even if all tables were empty on the cloud
+    db.prepare(`INSERT OR IGNORE INTO sync_meta (table_name, last_pulled) VALUES ('_system_init', ?)`).run(new Date().toISOString());
+
     
     // --- GHOST RECOVERY (Clean up deletions) ---
     // For critical tables, ensure local matches cloud IDs. 
