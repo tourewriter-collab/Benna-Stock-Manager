@@ -13,15 +13,17 @@ interface OrderItem {
   quantity: number;
   unit_price: number;
   inventory_item_id?: string;
+  category_id?: string;
 }
 
 export default function CreateOrder() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   useAuth();
   const { refreshStatus, triggerSync, isOnline } = useSync();
   const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     supplier_id: '',
     expected_date: '',
@@ -37,6 +39,7 @@ export default function CreateOrder() {
   useEffect(() => {
     fetchSuppliers();
     fetchInventory();
+    fetchCategories();
   }, []);
 
   const fetchInventory = async () => {
@@ -45,6 +48,15 @@ export default function CreateOrder() {
       setInventory(data?.items || []);
     } catch (error) {
       console.error('Error fetching inventory:', error);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const data = await fetchApi('/categories');
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
@@ -77,6 +89,7 @@ export default function CreateOrder() {
       if (matched) {
         item.unit_price = matched.price;
         item.inventory_item_id = matched.id;
+        item.category_id = undefined; // Locked to the parent item
       } else {
         item.inventory_item_id = undefined;
       }
@@ -225,6 +238,23 @@ export default function CreateOrder() {
                       </option>
                     ))}
                   </datalist>
+                  {!item.inventory_item_id && item.description.length > 0 && (
+                    <div className="mt-2">
+                      <select
+                        value={item.category_id || ''}
+                        onChange={(e) => handleItemChange(index, 'category_id', e.target.value)}
+                        className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent bg-blue-50 text-sm"
+                        required
+                      >
+                        <option value="">{t('select_category')} (Required for new items)</option>
+                        {categories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {i18n.language === 'fr' ? cat.name_fr : cat.name_en}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="w-24">

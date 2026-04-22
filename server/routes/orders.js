@@ -62,7 +62,14 @@ router.get('/', authenticateToken, (req, res) => {
     const ordersRaw = db.prepare(sql).all(...params);
 
     const orders = ordersRaw.map(row => {
-      const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(row.id);
+      const items = db.prepare(`
+        SELECT oi.*, c.name_en as item_category
+        FROM order_items oi
+        LEFT JOIN inventory inv ON oi.inventory_item_id = inv.id
+        LEFT JOIN categories c ON inv.category_id = c.id
+        WHERE oi.order_id = ?
+      `).all(row.id);
+      items.forEach((it: any) => { if (it.item_category) it.category = it.item_category; });
       
       return {
         id: row.id,
@@ -101,7 +108,15 @@ router.get('/:id', authenticateToken, (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderRow.id);
+    const items = db.prepare(`
+      SELECT oi.*, c.name_en as item_category
+      FROM order_items oi
+      LEFT JOIN inventory inv ON oi.inventory_item_id = inv.id
+      LEFT JOIN categories c ON inv.category_id = c.id
+      WHERE oi.order_id = ?
+    `).all(orderRow.id);
+    // Map the joined category name onto the item
+    items.forEach((it: any) => { if (it.item_category) it.category = it.item_category; });
     const payments = db.prepare('SELECT * FROM payments WHERE order_id = ?').all(orderRow.id);
 
     const orderWithBalance = {
@@ -217,14 +232,23 @@ router.post('/', authenticateToken, (req, res) => {
       if (inventoryId) {
         db.prepare('UPDATE inventory SET last_updated = CURRENT_TIMESTAMP WHERE id = ?').run(inventoryId);
       } else {
-        const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
-        const catId = generalCat ? generalCat.id : 'cat_general';
+        let catId = item.category_id;
+        let catName = 'General';
+        
+        if (catId) {
+          const matchedCat = db.prepare('SELECT name_en FROM categories WHERE id = ?').get(catId);
+          if (matchedCat) catName = matchedCat.name_en;
+        } else {
+          const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
+          catId = generalCat ? generalCat.id : 'cat_general';
+        }
+
         const newInvId = crypto.randomUUID();
         
         db.prepare(`
           INSERT INTO inventory (id, name, category_id, category, quantity, price, location, sync_status)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(newInvId, item.description, catId, 'General', 0, p, 'Main Store', 'pending');
+        `).run(newInvId, item.description, catId, catName, 0, p, 'Main Store', 'pending');
         
         inventoryId = newInvId;
         

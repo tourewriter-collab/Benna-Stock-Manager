@@ -1,1 +1,0 @@
-const Database = require('better-sqlite3'); const db = Database('./database.sqlite'); console.log(JSON.stringify(db.prepare('SELECT record_id, data FROM sync_queue WHERE table_name=''inventory''').all(), null, 2));

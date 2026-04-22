@@ -58,7 +58,9 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSyncStatus('syncing');
     try {
       // 1. Push pending local changes to Supabase
-      await fetchApi('/sync/push', { method: 'POST' });
+      if (pendingCount > 0 || (await fetchApi('/sync/status')).pendingItems > 0) {
+        await fetchApi('/sync/push', { method: 'POST' });
+      }
 
       // 2. Pull any remote changes made on other devices
       await fetchApi('/sync/pull', { method: 'GET' });
@@ -81,8 +83,14 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Initial fetch
     fetchStatus();
 
-    // Setup periodic polling every 60 seconds to replace the infinite reactive loop
-    const interval = setInterval(() => {
+    // Setup periodic polling every 60 seconds to pull remote changes and push any local queues
+    const interval = setInterval(async () => {
+      try {
+        // Run a silent pull to grab any new records from other devices
+        await fetchApi('/sync/pull', { method: 'GET' });
+      } catch (e) {
+        // Ignore background silent pull errors
+      }
       fetchStatus();
     }, 60000);
 

@@ -10,6 +10,7 @@ interface OrderItem {
   unit_price: number;
   total: number;
   delivered_quantity?: number;
+  category?: string;
 }
 
 interface OrderData {
@@ -100,14 +101,15 @@ export const generateOrderPDF = (order: OrderData, settings: Settings, t: (key: 
   // Items Table
   const rawItems = order.items || [];
   const tableData = rawItems.map(item => {
-    // Explicitly handle property extraction to be resilient to data shape variations
-    const description = item.description || item.description || 'N/A';
+    const description = item.description || 'N/A';
+    const category = item.category ? `[${item.category}]` : '';
+    const displayDesc = category ? `${description}\n${category}` : description;
     const qty = Number(item.quantity || 0);
     const price = Number(item.unit_price || 0);
     const total = Number(item.total || (qty * price));
     
     return [
-      String(description),
+      String(displayDesc),
       String(qty),
       formatCurrency(price),
       formatCurrency(total)
