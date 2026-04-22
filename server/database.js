@@ -181,8 +181,10 @@ const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 
 for (const table of tables) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT DEFAULT 'synced'`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
-  try { db.exec(`ALTER TABLE ${table} ADD COLUMN is_archived BOOLEAN DEFAULT 0`); } catch (e) {}
+  try { db.exec(`ALTER TABLE ${table} ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN _sync_error TEXT`); } catch (e) {}
+  // Ensure no NULLs exist in is_archived column which can hide records from UI filters
+  try { db.exec(`UPDATE ${table} SET is_archived = 0 WHERE is_archived IS NULL`); } catch (e) {}
 }
 try { db.exec(`ALTER TABLE inventory ADD COLUMN category_id TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE order_items ADD COLUMN delivered_quantity INTEGER DEFAULT 0`); } catch (e) {}
@@ -319,41 +321,7 @@ export function runPostStartupMaintenance() {
   isMaintenanceRunning = true;
   console.log('[Database] Starting post-startup maintenance...');
 
-  // Prune history: delete synced items older than 3 days to keep sync_queue small
-  try {
-    const prune = db.prepare("DELETE FROM sync_queue WHERE synced = 1 AND created_at < datetime('now', '-3 days')").run();
-    if (prune.changes > 0) console.log(`[Database] Pruned ${prune.changes} old synced items from queue.`);
-  } catch (e) { /* ignore */ }
-
-  // 2. Perform one-time ID format repair for cloud compatibility
-  try {
-    repairAllIds();
-  } catch (e) {
-    console.error('[Database] Global ID repair failed:', e.message);
-  }
-
-  // 3. Legacy small-scale migrations (subset of repairAllIds, kept for safety)
-  try {
-    const nonUuidCategories = db.prepare("SELECT id FROM categories WHERE id LIKE 'cat_%'").all();
-    for (const cat of nonUuidCategories) {
-      const newId = crypto.randomUUID();
-      db.prepare("UPDATE categories SET id = ?, sync_status = 'pending' WHERE id = ?").run(newId, cat.id);
-      db.prepare('UPDATE inventory SET category_id = ? WHERE category_id = ?').run(newId, cat.id);
-      db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = 'categories' OR table_name = 'inventory'").run(cat.id, newId);
-    }
-
-    const nonUuidSuppliers = db.prepare("SELECT id FROM suppliers WHERE id LIKE 'sup_%'").all();
-    for (const sup of nonUuidSuppliers) {
-      const newId = crypto.randomUUID();
-      db.prepare("UPDATE suppliers SET id = ?, sync_status = 'pending' WHERE id = ?").run(newId, sup.id);
-      db.prepare('UPDATE orders SET supplier_id = ? WHERE supplier_id = ?').run(newId, sup.id);
-      db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = 'suppliers' OR table_name = 'orders'").run(sup.id, newId);
-    }
-  } catch (e) {
-    console.warn('[Database] Failed to migrate fallback IDs to UUIDs:', e.message);
-  }
-
-  // CATEGORY SEEDING
+  // 1. CATEGORY SEEDING (Run first thing so UI isn't empty)
   const defaultCategories = [
     { en: 'General', fr: 'Général' },
     { en: 'Engine Parts', fr: 'Pièces moteur' },
@@ -373,18 +341,24 @@ export function runPostStartupMaintenance() {
     { en: 'Hydraulics', fr: 'Hydraulique' }
   ];
 
-  for (const cat of defaultCategories) {
-    const exists = db.prepare('SELECT * FROM categories WHERE name_en = ?').get(cat.en);
-    if (!exists) {
-      const fallbackId = crypto.randomUUID();
-      db.prepare('INSERT INTO categories (id, name_en, name_fr, is_archived, sync_status) VALUES (?, ?, ?, 0, ?)')
-        .run(fallbackId, cat.en, cat.fr, 'pending');
-    } else if (exists.is_archived === 1) {
-      db.prepare("UPDATE categories SET is_archived = 0, sync_status = 'pending' WHERE name_en = ?").run(cat.en);
-    }
+  try {
+    db.transaction(() => {
+      for (const cat of defaultCategories) {
+        const exists = db.prepare('SELECT * FROM categories WHERE name_en = ?').get(cat.en);
+        if (!exists) {
+          db.prepare('INSERT INTO categories (id, name_en, name_fr, is_archived, sync_status) VALUES (?, ?, ?, 0, ?)')
+            .run(crypto.randomUUID(), cat.en, cat.fr, 'pending');
+        } else if (exists.is_archived === 1) {
+          db.prepare("UPDATE categories SET is_archived = 0, sync_status = 'pending' WHERE name_en = ?").run(cat.en);
+        }
+      }
+    })();
+    console.log('[Database] Category seeding verified.');
+  } catch (e) {
+    console.warn('[Database] Category seeding failed:', e.message);
   }
 
-  // SUPPLIER SEEDING
+  // 2. SUPPLIER SEEDING
   const defaultSuppliers = [
     'AMMARS SARL', 'ERA SHACMAN TRUCK SARLU', 'ABOUBACAR CAMARA',
     'LAYE DIARRA KOUROUMA', 'MOHAMED KANTE', 'KOLABOUI',
@@ -392,18 +366,37 @@ export function runPostStartupMaintenance() {
     'BELT WAY SARLU', 'ABDOULAYE DIABY', 'SKOUBA TOURE'
   ];
 
-  for (const supName of defaultSuppliers) {
-    const exists = db.prepare('SELECT * FROM suppliers WHERE name = ?').get(supName);
-    if (!exists) {
-      const fallbackId = crypto.randomUUID();
-      db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
-        .run(fallbackId, supName, 'pending');
-    } else if (exists.is_archived === 1) {
-      db.prepare('UPDATE suppliers SET is_archived = 0, sync_status = "pending" WHERE name = ?').run(supName);
-    }
+  try {
+    db.transaction(() => {
+      for (const supName of defaultSuppliers) {
+        const exists = db.prepare('SELECT * FROM suppliers WHERE name = ?').get(supName);
+        if (!exists) {
+          db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
+            .run(crypto.randomUUID(), supName, 'pending');
+        } else if (exists.is_archived === 1) {
+          db.prepare('UPDATE suppliers SET is_archived = 0, sync_status = "pending" WHERE name = ?').run(supName);
+        }
+      }
+    })();
+    console.log('[Database] Supplier seeding verified.');
+  } catch (e) {
+    console.warn('[Database] Supplier seeding failed:', e.message);
   }
 
-  // ORPHAN CLEANUP
+  // 3. Prune history: delete synced items older than 3 days to keep sync_queue small
+  try {
+    const prune = db.prepare("DELETE FROM sync_queue WHERE synced = 1 AND created_at < datetime('now', '-3 days')").run();
+    if (prune.changes > 0) console.log(`[Database] Pruned ${prune.changes} old synced items from queue.`);
+  } catch (e) { /* ignore */ }
+
+  // 4. Perform one-time ID format repair (UUID conversion)
+  try {
+    repairAllIds();
+  } catch (e) {
+    console.error('[Database] Global ID repair failed:', e.message);
+  }
+
+  // 5. ORPHAN CLEANUP
   try {
     const orphanCleanup = db.prepare(
       'DELETE FROM order_items WHERE order_id NOT IN (SELECT id FROM orders)'
