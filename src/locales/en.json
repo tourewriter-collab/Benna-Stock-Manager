@@ -279,5 +279,7 @@
   "truck_number": "Truck No.",
   "truck_number_placeholder": "e.g. TRK-001 or AB-1234",
   "confirm_usage": "Confirm Usage",
-  "quantity_used": "Quantity Used / Deducted"
+  "quantity_used": "Quantity Used / Deducted",
+  "fully_delivered": "Fully Delivered ✓",
+  "items_remaining": "items remaining"
 }

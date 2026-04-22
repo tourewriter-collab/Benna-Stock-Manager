@@ -8,7 +8,7 @@ async function getApiRoot() {
   
   const now = Date.now();
   const isCooldownActive = (now - lastDiscoveryAttempt) < DISCOVERY_COOLDOWN;
-  const fallbackPort = 57234;
+  const fallbackPort = 5000;
 
   if (isResolving || isCooldownActive) {
     return `http://127.0.0.1:${fallbackPort}`;

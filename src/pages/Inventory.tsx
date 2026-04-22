@@ -780,11 +780,13 @@ const UsageRecordModal: React.FC<{
                 {t('quantity_used')}
               </label>
               <input
-                type="number"
-                min="1"
-                max={item.quantity}
+                type="text"
+                inputMode="numeric"
                 value={usageAmount}
-                onChange={(e) => setUsageAmount(Number(e.target.value))}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  setUsageAmount(Number(val) || 0);
+                }}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
                 required
               />

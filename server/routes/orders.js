@@ -69,7 +69,7 @@ router.get('/', authenticateToken, (req, res) => {
         LEFT JOIN categories c ON inv.category_id = c.id
         WHERE oi.order_id = ?
       `).all(row.id);
-      items.forEach((it: any) => { if (it.item_category) it.category = it.item_category; });
+      items.forEach((it) => { if (it.item_category) it.category = it.item_category; });
       
       return {
         id: row.id,
@@ -116,7 +116,7 @@ router.get('/:id', authenticateToken, (req, res) => {
       WHERE oi.order_id = ?
     `).all(orderRow.id);
     // Map the joined category name onto the item
-    items.forEach((it: any) => { if (it.item_category) it.category = it.item_category; });
+    items.forEach((it) => { if (it.item_category) it.category = it.item_category; });
     const payments = db.prepare('SELECT * FROM payments WHERE order_id = ?').all(orderRow.id);
 
     const orderWithBalance = {
@@ -629,10 +629,10 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
     let noneDelivered = true;
     
     for (const item of items) {
-      if (item.delivered_quantity < item.quantity) {
+      if ((item.delivered_quantity || 0) < (item.quantity || 0)) {
         allDelivered = false;
       }
-      if (item.delivered_quantity > 0) {
+      if ((item.delivered_quantity || 0) > 0) {
         noneDelivered = false;
       }
     }

@@ -13,32 +13,11 @@ let cachedOnlineStatus = true;
 
 /** Determine if we have internet connection by trying to reach multiple endpoints */
 async function isOnline() {
-  const now = Date.now();
-  if (now - lastOnlineCheck < 60000) {
-    return cachedOnlineStatus;
-  }
-
-  lastOnlineCheck = now;
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1000); // 1s timeout
-    
-    // Check Supabase directly as it's the only one that matters
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    if (supabaseUrl) {
-      const res = await fetch(supabaseUrl, { method: 'HEAD', signal: controller.signal });
-      clearTimeout(timeout);
-      cachedOnlineStatus = res.ok;
-      return res.ok;
-    }
-    
-    clearTimeout(timeout);
-    cachedOnlineStatus = true; // Default to true to allow attempt
-    return true;
-  } catch (e) {
-    cachedOnlineStatus = false;
-    return false;
-  }
+  // We've found that manual connectivity checks (HTTP HEAD or DNS) can be brittle 
+  // in various network environments. We'll now allow the sync attempt to proceed 
+  // if Supabase is configured, and let the actual request handle any real connectivity issues.
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  return !!supabaseUrl;
 }
 
 /** 
@@ -403,13 +382,6 @@ router.get('/pull', async (req, res) => {
           } catch(e) {}
         }
         
-        const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
-        if (filteredKeys.length === 0) continue;
-
-        const placeholders = filteredKeys.map(() => '?').join(', ');
-        const values = filteredKeys.map(k => row[k]);
-
-        // ... Schema mapping logic ...
         const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
         if (filteredKeys.length === 0) continue;
 

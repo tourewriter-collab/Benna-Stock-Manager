@@ -399,7 +399,7 @@ const Dashboard: React.FC = () => {
       ) : (
         <>
           {/* ── Stat cards ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-4">
             {statCards.map((stat) => {
               const isActive = activePanel === stat.id;
               const isPanelCard = stat.id === 'articles' || stat.id === 'lowStock' || stat.id === 'outOfStock';

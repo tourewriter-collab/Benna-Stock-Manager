@@ -129,6 +129,36 @@ router.get('/:id', authenticateToken, (req, res) => {
   }
 });
 
+router.get('/:id/history', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  try {
+    const logs = db.prepare(`
+      SELECT 
+        a.*,
+        u.name as user_name,
+        u.email as user_email
+      FROM audit_logs a
+      LEFT JOIN users u ON a.user_id = u.id
+      WHERE a.table_name = 'inventory' AND a.record_id = ?
+      ORDER BY a.timestamp DESC
+    `).all(id);
+
+    // Map to the format expected by the frontend
+    const mappedLogs = logs.map(log => ({
+      ...log,
+      user: {
+        name: log.user_name,
+        email: log.user_email
+      }
+    }));
+
+    res.json(mappedLogs);
+  } catch (error) {
+    console.error('Get inventory history error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
 router.post('/', authenticateToken, (req, res) => {
   const { name, category, category_id, quantity, price, supplier, location, min_stock, max_stock } = req.body;
 

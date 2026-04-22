@@ -330,7 +330,26 @@ export default function OrderDetail() {
               </div>
               <div>
                 <span className="font-medium text-gray-700">{t('delivery_status')}:</span>
-                <p className="text-gray-900 font-semibold">{t(`delivery_${order.delivery_status || 'pending'}`)}</p>
+                <div className="mt-1">
+                  {(() => {
+                    const remainingItems = order.items.filter(it => (it.quantity - (it.delivered_quantity || 0)) > 0).length;
+                    if (remainingItems === 0 && order.items.length > 0) {
+                      return (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          {t('fully_delivered')}
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+                        remainingItems === order.items.length ? 'bg-orange-100 text-orange-800 border border-orange-200' : 'bg-blue-100 text-blue-800 border border-blue-200'
+                      }`}>
+                        {remainingItems} {t('items_remaining')}
+                      </span>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
             {order.notes && (
@@ -710,13 +729,16 @@ export default function OrderDetail() {
                 {t('delivered_quantity')} * (0 – {deliveryModal.item.quantity})
               </label>
               <input
-                type="number"
-                min={0}
-                max={deliveryModal.item.quantity}
+                type="text"
+                inputMode="numeric"
                 value={deliveryModal.newQty}
-                onChange={(e) => setDeliveryModal({ ...deliveryModal, newQty: parseInt(e.target.value) || 0 })}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, '');
+                  setDeliveryModal({ ...deliveryModal, newQty: parseInt(val) || 0 });
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent text-lg font-semibold"
                 autoFocus
+                placeholder="0"
               />
             </div>
 

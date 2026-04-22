@@ -247,8 +247,56 @@ if (!dbCreatedAt) {
   db.prepare("INSERT INTO settings (key, value) VALUES ('db_created_at', datetime('now'))").run();
 }
 
+// ---------------------------------------------------------------------------
+// SCHEMA SANITIZATION (v1.1.23)
+// Safely migrates INTEGER ID columns to TEXT to allow UUIDs.
+// This is required to solve 'datatype mismatch' on legacy databases.
+// ---------------------------------------------------------------------------
+function sanitizeSchema() {
+  const tablesToFix = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments'];
+  
+  for (const table of tablesToFix) {
+    try {
+      const info = db.prepare(`PRAGMA table_info(${table})`).all();
+      const idCol = info.find(c => c.name === 'id');
+      
+      if (idCol && (idCol.type === 'INTEGER' || idCol.type.includes('INT'))) {
+        console.log(`[Database] Sanitizing schema for ${table}: Converting ID to TEXT...`);
+        
+        db.transaction(() => {
+          // 1. Rename old table
+          db.prepare(`ALTER TABLE ${table} RENAME TO ${table}_old`).run();
+          
+          // 2. Recreate table with TEXT PK (strip AUTOINCREMENT and swap type)
+          const oldSql = db.prepare(`SELECT sql FROM sqlite_master WHERE name = '${table}_old'`).get().sql;
+          const newSql = oldSql
+            .replace(`${table}_old`, table)
+            .replace(/id\s+INTEGER/i, 'id TEXT')
+            .replace(/id\s+INT/i, 'id TEXT')
+            .replace(/AUTOINCREMENT/gi, '');
+          
+          db.prepare(newSql).run();
+          
+          // 3. Copy data (SQLite will cast INTEGER to TEXT automatically)
+          const cols = info.map(c => c.name).join(', ');
+          db.prepare(`INSERT INTO ${table} (${cols}) SELECT ${cols} FROM ${table}_old`).run();
+          
+          // 4. Drop old table
+          db.prepare(`DROP TABLE ${table}_old`).run();
+        })();
+        console.log(`[Database] ${table} schema successfully migrated to TEXT IDs.`);
+      }
+    } catch (e) {
+      console.warn(`[Database] Schema sanitization failed for ${table}:`, e.message);
+    }
+  }
+}
+
+// Run sanitization before any data migrations or seeding
+sanitizeSchema();
+
 // Track the current application version that last touched this DB.
-const appVersion = process.env.APP_VERSION || '1.0.18';
+const appVersion = process.env.APP_VERSION || '1.1.23';
 const dbAppVersion = db.prepare("SELECT * FROM settings WHERE key = 'db_app_version'").get();
 if (!dbAppVersion) {
   db.prepare("INSERT INTO settings (key, value) VALUES ('db_app_version', ?)").run(appVersion);
@@ -266,25 +314,47 @@ function repairAllIds() {
 
   const repairTable = (table, pk, fkMap = []) => {
     // Standard pk migration
-    const records = db.prepare(`SELECT ${pk} as id FROM ${table}`).all();
+    const records = db.prepare(`SELECT * FROM ${table}`).all();
     for (const row of records) {
-      if (row.id && !uuidRegex.test(row.id)) {
+      const currentId = String(row[pk]);
+      if (currentId && !uuidRegex.test(currentId)) {
         const newId = crypto.randomUUID();
-        console.log(`[Database] Repairing legacy ID in ${table}: ${row.id} -> ${newId}`);
+        console.log(`[Database] Migrating ${table}.${pk}: (${typeof row[pk]}) ${currentId} -> ${newId}`);
         
-        // 1. Update PK
-        db.prepare(`UPDATE ${table} SET ${pk} = ?, sync_status = 'pending' WHERE ${pk} = ?`).run(newId, row.id);
-        
-        // 2. Update all FKs
-        for (const fk of fkMap) {
-          try {
-            db.prepare(`UPDATE ${fk.table} SET ${fk.col} = ? WHERE ${fk.col} = ?`).run(newId, row.id);
-          } catch(e) { /* ignore if table/col missing */ }
-        }
+        try {
+          // 1. Create a duplicate record with new ID
+          // We explicitly ensure 'id' and 'sync_status' are strings
+          const newRecord = { ...row };
+          newRecord[pk] = newId;
+          newRecord.sync_status = 'pending';
+          
+          const cols = Object.keys(newRecord);
+          const placeholders = cols.map(() => '?').join(', ');
+          const values = cols.map(c => newRecord[c]);
+          
+          db.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`).run(...values);
+          
+          // 2. Update Foreign Keys
+          for (const fk of fkMap) {
+            try {
+              db.prepare(`UPDATE ${fk.table} SET ${fk.col} = ? WHERE ${fk.col} = ?`).run(newId, currentId);
+            } catch(e) {
+              console.warn(`[Database] FK Link failed (${fk.table}.${fk.col}):`, e.message);
+            }
+          }
 
-        // 3. Update Sync Queue entries so they don't point to dead IDs
-        db.prepare("UPDATE sync_queue SET record_id = ?, synced = 0 WHERE table_name = ? AND record_id = ?").run(newId, table, row.id);
-        db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = ?").run(row.id, newId, table);
+          // 3. Update Sync Queue
+          db.prepare("UPDATE sync_queue SET record_id = ?, synced = 0 WHERE table_name = ? AND record_id = ?").run(newId, table, currentId);
+          db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = ?").run(currentId, newId, table);
+
+          // 4. Delete old record
+          db.prepare(`DELETE FROM ${table} WHERE ${pk} = ?`).run(currentId);
+          
+        } catch (e) {
+          console.error(`[Database] Migration failed for ${table}.${pk} (${currentId}):`, e.message);
+          // If insert failed with datatype mismatch, it means pk column is strict INTEGER
+          // In that case, we keep the old ID for now to avoid losing data
+        }
       }
     }
   };
