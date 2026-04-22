@@ -5,14 +5,14 @@ async function getApiRoot() {
   if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
   if (isResolving) {
     // Wait a bit if another call is already resolving the port
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 150));
     if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
   }
 
   isResolving = true;
   
-  // Retry loop: give the backend up to 20 seconds to wake up and report its port.
-  for (let i = 0; i < 40; i++) {
+  // Retry loop: give the backend up to 10 seconds to wake up and report its port.
+  for (let i = 0; i < 20; i++) {
     if (window.electron?.updates?.getAppVersion) {
       try {
         const info = await window.electron.updates.getAppVersion();
@@ -26,13 +26,15 @@ async function getApiRoot() {
         console.warn('[API] Retrying port discovery…', i, err);
       }
     }
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 150));
   }
   
   isResolving = false;
-  // Fallback to 5000 (standard for dev)
-  console.warn('[API] Port discovery failed — using fallback port 5000');
-  return 'http://127.0.0.1:5000';
+  // Fallback: use the fixed production port (set in electron/main.cjs)
+  const fallbackPort = 57234;
+  console.warn(`[API] Port discovery timed out — using fixed fallback port ${fallbackPort}`);
+  cachedPort = fallbackPort; // Cache it so we don't retry on every call
+  return `http://127.0.0.1:${fallbackPort}`;
 }
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {

@@ -94,7 +94,7 @@ app.whenReady().then(async () => {
     const serverProcess = fork(serverPath, [], {
       env: {
         ...process.env,
-        PORT: app.isPackaged ? 0 : (process.env.PORT || 5000), // Random port in prod, fixed in dev
+        PORT: app.isPackaged ? 57234 : (process.env.PORT || 5000), // Fixed port in prod avoids discovery race
         // Explicitly carry the Supabase credentials so the forked child
         // always has them, regardless of whether its own dotenv call works.
         ...(parsedEnv.VITE_SUPABASE_URL ? { VITE_SUPABASE_URL: parsedEnv.VITE_SUPABASE_URL } : {}),

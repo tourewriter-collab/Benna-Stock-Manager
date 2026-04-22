@@ -254,58 +254,49 @@ if (!dbAppVersion) {
 }
 
 // ---------------------------------------------------------------------------
-// UUID MIGRATION (CRITICAL FIX FOR SYNC)
-// Supabase strictly expects proper UUID format. The old string 'cat_' or 'sup_' 
-// hardcoded IDs will crash Sync completely. We translate them once locally.
+// POST-STARTUP MAINTENANCE
+// Exported so server/index.js can call it AFTER emitting SERVER_READY,
+// keeping the port announcement fast (eliminates the ~30s startup freeze).
 // ---------------------------------------------------------------------------
-try {
-  const nonUuidCategories = db.prepare("SELECT id FROM categories WHERE id LIKE 'cat_%'").all();
-  for (const cat of nonUuidCategories) {
-    const newId = crypto.randomUUID();
-    db.prepare("UPDATE categories SET id = ?, sync_status = 'pending' WHERE id = ?").run(newId, cat.id);
-    db.prepare('UPDATE inventory SET category_id = ? WHERE category_id = ?').run(newId, cat.id);
-    db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = 'categories' OR table_name = 'inventory'").run(cat.id, newId);
+export function runPostStartupMaintenance() {
+
+  // UUID MIGRATION (CRITICAL FIX FOR SYNC)
+  try {
+    const nonUuidCategories = db.prepare("SELECT id FROM categories WHERE id LIKE 'cat_%'").all();
+    for (const cat of nonUuidCategories) {
+      const newId = crypto.randomUUID();
+      db.prepare("UPDATE categories SET id = ?, sync_status = 'pending' WHERE id = ?").run(newId, cat.id);
+      db.prepare('UPDATE inventory SET category_id = ? WHERE category_id = ?').run(newId, cat.id);
+      db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = 'categories' OR table_name = 'inventory'").run(cat.id, newId);
+    }
+
+    const nonUuidSuppliers = db.prepare("SELECT id FROM suppliers WHERE id LIKE 'sup_%'").all();
+    for (const sup of nonUuidSuppliers) {
+      const newId = crypto.randomUUID();
+      db.prepare("UPDATE suppliers SET id = ?, sync_status = 'pending' WHERE id = ?").run(newId, sup.id);
+      db.prepare('UPDATE orders SET supplier_id = ? WHERE supplier_id = ?').run(newId, sup.id);
+      db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = 'suppliers' OR table_name = 'orders'").run(sup.id, newId);
+    }
+  } catch (e) {
+    console.warn('[Database] Failed to migrate fallback IDs to UUIDs:', e.message);
   }
 
-  const nonUuidSuppliers = db.prepare("SELECT id FROM suppliers WHERE id LIKE 'sup_%'").all();
-  for (const sup of nonUuidSuppliers) {
-    const newId = crypto.randomUUID();
-    db.prepare("UPDATE suppliers SET id = ?, sync_status = 'pending' WHERE id = ?").run(newId, sup.id);
-    db.prepare('UPDATE orders SET supplier_id = ? WHERE supplier_id = ?').run(newId, sup.id);
-    db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name = 'suppliers' OR table_name = 'orders'").run(sup.id, newId);
-  }
-} catch (e) {
-  console.warn('[Database] Failed to migrate fallback IDs to UUIDs:', e.message);
-}
-
-// ---------------------------------------------------------------------------
-// CONDITIONAL SEEDING
-// CRITICAL: Only seed default categories/suppliers if Supabase is NOT configured.
-// When Supabase IS configured, the app will pull real UUID-based data from the cloud.
-// Seeding with hardcoded fallback IDs (like 'cat_engine_parts') when cloud data exists
-// creates DUPLICATES after every factory reset, inflating totals and breaking references.
-// ---------------------------------------------------------------------------
-const hasSupabaseConfig = !!(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) &&
-  !!process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
-const supplierCount = db.prepare('SELECT COUNT(*) as c FROM suppliers').get().c;
-
-const defaultCategories = [
+  // CATEGORY SEEDING
+  const defaultCategories = [
     { en: 'General', fr: 'Général' },
     { en: 'Engine Parts', fr: 'Pièces moteur' },
     { en: 'Lubricants & Fluids', fr: 'Lubrifiants et fluides' },
-    { en: 'Tools & Equipment', fr: 'Outils et quipement' },
+    { en: 'Tools & Equipment', fr: 'Outils et équipement' },
     { en: 'Tires & Wheels', fr: 'Pneus et roues' },
-    { en: 'Brake & Clutch System', fr: 'Systme de frein et embrayage' },
-    { en: 'Transmission & Drivetrain', fr: 'Transmission et chane cinmatique' },
+    { en: 'Brake & Clutch System', fr: 'Système de frein et embrayage' },
+    { en: 'Transmission & Drivetrain', fr: 'Transmission et chaîne cinématique' },
     { en: 'Suspension & Steering', fr: 'Suspension et direction' },
-    { en: 'Electrical & Electronics', fr: 'lectrique et lectronique' },
-    { en: 'Cooling System', fr: 'Systme de refroidissement' },
-    { en: 'Fuel System', fr: "Systme d'alimentation en carburant" },
+    { en: 'Electrical & Electronics', fr: 'Électrique et électronique' },
+    { en: 'Cooling System', fr: 'Système de refroidissement' },
+    { en: 'Fuel System', fr: "Système d'alimentation en carburant" },
     { en: 'Body & Cab Parts', fr: 'Carrosserie et cabine' },
     { en: 'Hardware & Fasteners', fr: 'Quincaillerie et fixations' },
-    { en: 'Safety Gear (PPE)', fr: 'quipement de scurit (EPI)' },
+    { en: 'Safety Gear (PPE)', fr: 'Équipement de sécurité (EPI)' },
     { en: 'Filters', fr: 'Filtres' },
     { en: 'Hydraulics', fr: 'Hydraulique' }
   ];
@@ -318,55 +309,39 @@ const defaultCategories = [
         .run(fallbackId, cat.en, cat.fr, 'pending');
     } else if (exists.is_archived === 1) {
       db.prepare("UPDATE categories SET is_archived = 0, sync_status = 'pending' WHERE name_en = ?").run(cat.en);
-      console.log('[Database] Resurrected archived default category:', cat.en);
     }
   }
 
-// Always ensure every default supplier exists — idempotent check by name.
-// This runs on every startup so missing suppliers are restored even if the
-// user's DB already has some entries (not gated on supplierCount === 0).
-const defaultSuppliers = [
-  'AMMARS SARL',
-  'ERA SHACMAN TRUCK SARLU',
-  'ABOUBACAR CAMARA',
-  'LAYE DIARRA KOUROUMA',
-  'MOHAMED KANTE',
-  'KOLABOUI',
-  'KALLO SARL',
-  'ABDOULAYE KABA & FRERE',
-  'ALCOTEX',
-  'BELT WAY SARLU',
-  'ABDOULAYE DIABY',
-  'SKOUBA TOURE'
-];
+  // SUPPLIER SEEDING
+  const defaultSuppliers = [
+    'AMMARS SARL', 'ERA SHACMAN TRUCK SARLU', 'ABOUBACAR CAMARA',
+    'LAYE DIARRA KOUROUMA', 'MOHAMED KANTE', 'KOLABOUI',
+    'KALLO SARL', 'ABDOULAYE KABA & FRERE', 'ALCOTEX',
+    'BELT WAY SARLU', 'ABDOULAYE DIABY', 'SKOUBA TOURE'
+  ];
 
-for (const supName of defaultSuppliers) {
-  const exists = db.prepare('SELECT * FROM suppliers WHERE name = ?').get(supName);
-  if (!exists) {
-    const fallbackId = crypto.randomUUID();
-    db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
-      .run(fallbackId, supName, 'pending');
-    console.log('[Database] Restored default supplier:', supName);
-  } else if (exists.is_archived === 1) {
-    db.prepare('UPDATE suppliers SET is_archived = 0, sync_status = "pending" WHERE name = ?').run(supName);
-    console.log('[Database] Resurrected archived default supplier:', supName);
+  for (const supName of defaultSuppliers) {
+    const exists = db.prepare('SELECT * FROM suppliers WHERE name = ?').get(supName);
+    if (!exists) {
+      const fallbackId = crypto.randomUUID();
+      db.prepare('INSERT INTO suppliers (id, name, is_archived, sync_status) VALUES (?, ?, 0, ?)')
+        .run(fallbackId, supName, 'pending');
+    } else if (exists.is_archived === 1) {
+      db.prepare('UPDATE suppliers SET is_archived = 0, sync_status = "pending" WHERE name = ?').run(supName);
+    }
   }
-}
 
-// ---------------------------------------------------------------------------
-// STARTUP INTEGRITY CHECK -- clean up orphaned order_items
-// These can accumulate if an order was deleted on another device but items remain locally
-// ---------------------------------------------------------------------------
-try {
-  const orphanCleanup = db.prepare(`
-    DELETE FROM order_items 
-    WHERE order_id NOT IN (SELECT id FROM orders)
-  `).run();
-  if (orphanCleanup.changes > 0) {
-    console.log(`[Database] Cleaned up ${orphanCleanup.changes} orphaned order item(s) on startup.`);
+  // ORPHAN CLEANUP
+  try {
+    const orphanCleanup = db.prepare(
+      'DELETE FROM order_items WHERE order_id NOT IN (SELECT id FROM orders)'
+    ).run();
+    if (orphanCleanup.changes > 0) {
+      console.log(`[Database] Cleaned up ${orphanCleanup.changes} orphaned order item(s).`);
+    }
+  } catch (e) {
+    console.warn('[Database] Orphan cleanup failed:', e.message);
   }
-} catch (e) {
-  console.warn('[Database] Orphan cleanup failed:', e.message);
 }
 
 export default db;

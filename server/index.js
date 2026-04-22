@@ -36,7 +36,7 @@ import categoriesRoutes from './routes/categories.js';
 import reportsRoutes from './routes/reports.js';
 import syncRoutes from './routes/sync.js';
 import settingsRoutes from './routes/settings.js';
-import './database.js';
+import db, { runPostStartupMaintenance } from './database.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -109,10 +109,21 @@ const server = app.listen(PORT, '127.0.0.1', () => {
   const actualPort = server.address().port;
   console.log(`[Server] Express listening on 127.0.0.1:${actualPort}`);
   
-  // If run as a forked child process (Electron), report the port back to parent
+  // If run as a forked child process (Electron), report the port back to parent IMMEDIATELY
+  // so the renderer can start making API calls without waiting for seeding.
   if (process.send) {
     process.send({ type: 'SERVER_READY', port: actualPort });
   }
+
+  // Run non-critical maintenance AFTER announcing ready, so startup is fast
+  setImmediate(() => {
+    try {
+      runPostStartupMaintenance();
+      console.log('[Server] Post-startup maintenance complete.');
+    } catch (e) {
+      console.warn('[Server] Post-startup maintenance failed (non-fatal):', e.message);
+    }
+  });
 });
 
 server.on('error', (err) => {
