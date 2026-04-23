@@ -1,6 +1,6 @@
 import express from 'express';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { authenticateToken } from './auth.js';
+import { authenticateToken } from '../middleware/auth.js';
 import db from '../database.js';
 
 const router = express.Router();
