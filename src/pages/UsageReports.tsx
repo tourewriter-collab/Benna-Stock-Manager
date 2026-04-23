@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TrendingDown, Calendar, ListFilter as Filter } from 'lucide-react';
+import { TrendingDown, Calendar, ListFilter as Filter, Download, FileText } from 'lucide-react';
 import { fetchApi } from '../lib/api';
+import { exportToExcel, exportToPdf, ExportColumn } from '../utils/export';
 
 interface UsageEvent {
   id: number;
@@ -23,8 +24,11 @@ export default function UsageReports() {
   const [usageEvents, setUsageEvents] = useState<UsageEvent[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [logo, setLogo] = useState<string>('');
+  const [preset, setPreset] = useState<'30' | '90' | '365' | 'custom'>('30');
+  
   const [filters, setFilters] = useState({
-    start_date: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
+    start_date: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0],
     category_id: ''
   });
@@ -32,6 +36,7 @@ export default function UsageReports() {
   useEffect(() => {
     fetchCategories();
     fetchUsageEvents();
+    fetchApi('/api/settings').then(s => setLogo(s?.company_logo || '')).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -64,6 +69,64 @@ export default function UsageReports() {
     }
   };
 
+  const handlePresetSelect = (days: '30' | '90' | '365') => {
+    setPreset(days);
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - parseInt(days));
+    setFilters(prev => ({ 
+      ...prev, 
+      start_date: start.toISOString().split('T')[0], 
+      end_date: end.toISOString().split('T')[0] 
+    }));
+  };
+
+  const handleExportExcel = () => {
+    const columns: ExportColumn[] = [
+      { header: t('item_name') || 'Item Name', key: 'item_name', width: 30 },
+      { header: t('previous_stock') || 'Initial Stock', key: 'previous_quantity', width: 15 },
+      { header: t('quantity_changed') || 'Quantity Used', key: 'quantity_changed', width: 15 },
+      { header: t('new_stock') || 'Remaining Stock', key: 'new_quantity', width: 15 },
+      { header: t('type') || 'Type', key: 'transaction_type', width: 15 },
+      { header: t('authorized_by') || 'Authorized By', key: 'authorized_by', width: 25 },
+      { header: 'Truck', key: 'truck_id', width: 15 },
+      { header: t('timestamp') || 'Timestamp', key: 'timestamp', width: 25 },
+    ];
+
+    const data = usageEvents.map((evt) => ({
+      ...evt,
+      transaction_type: evt.transaction_type === 'IN' ? (t('inflow') || 'IN') : (t('usage') || 'OUT'),
+      authorized_by: evt.authorized_by_name ? `${evt.authorized_by_name} (${evt.authorized_by_title})` : 'N/A',
+      truck_id: evt.truck_id || 'None',
+      timestamp: new Date(evt.timestamp).toLocaleString(),
+    }));
+
+    exportToExcel(columns, data, `usage_reports_${filters.start_date}_to_${filters.end_date}.xlsx`, 'Usage Reports');
+  };
+
+  const handleExportPdf = () => {
+    const columns: ExportColumn[] = [
+      { header: t('item_name') || 'Item Name', key: 'item_name' },
+      { header: t('previous_stock') || 'Initial Stock', key: 'previous_quantity' },
+      { header: t('quantity_changed') || 'Quantity Used', key: 'quantity_changed' },
+      { header: t('new_stock') || 'Remaining Stock', key: 'new_quantity' },
+      { header: t('type') || 'Type', key: 'transaction_type' },
+      { header: t('authorized_by') || 'Authorized By', key: 'authorized_by' },
+      { header: 'Truck', key: 'truck_id' },
+      { header: t('timestamp') || 'Timestamp', key: 'timestamp' },
+    ];
+
+    const data = usageEvents.map((evt) => ({
+      ...evt,
+      transaction_type: evt.transaction_type === 'IN' ? (t('inflow') || 'IN') : (t('usage') || 'OUT'),
+      authorized_by: evt.authorized_by_name || 'N/A',
+      truck_id: evt.truck_id || 'None',
+      timestamp: new Date(evt.timestamp).toLocaleString(),
+    }));
+
+    exportToPdf(columns, data, `usage_reports_${filters.start_date}_to_${filters.end_date}.pdf`, t('usage_reports') || 'Usage Reports', logo);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -83,9 +146,54 @@ export default function UsageReports() {
       </div>
 
       <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Filter className="w-5 h-5 text-gray-600" />
-          <h2 className="text-lg font-semibold text-gray-800">{t('filters')}</h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-5 h-5 text-gray-600" />
+            <h2 className="text-lg font-semibold text-gray-800">{t('filters')}</h2>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExportPdf}
+              className="px-3 py-1.5 flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 rounded-md text-sm font-medium"
+            >
+              <FileText className="w-4 h-4" />
+              PDF
+            </button>
+            <button
+              onClick={handleExportExcel}
+              className="px-3 py-1.5 flex items-center gap-1 bg-green-50 text-green-700 hover:bg-green-100 rounded-md text-sm font-medium"
+            >
+              <Download className="w-4 h-4" />
+              Excel
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-6">
+          <button 
+            onClick={() => handlePresetSelect('30')} 
+            className={`px-4 py-2 rounded-md text-sm font-medium transition ${preset === '30' ? 'bg-navy text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            30 Days
+          </button>
+          <button 
+            onClick={() => handlePresetSelect('90')} 
+            className={`px-4 py-2 rounded-md text-sm font-medium transition ${preset === '90' ? 'bg-navy text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            90 Days
+          </button>
+          <button 
+            onClick={() => handlePresetSelect('365')} 
+            className={`px-4 py-2 rounded-md text-sm font-medium transition ${preset === '365' ? 'bg-navy text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            1 Year
+          </button>
+          <button 
+            onClick={() => setPreset('custom')} 
+            className={`px-4 py-2 rounded-md text-sm font-medium transition ${preset === 'custom' ? 'bg-navy text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            Custom Range
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -97,7 +205,10 @@ export default function UsageReports() {
             <input
               type="date"
               value={filters.start_date}
-              onChange={(e) => setFilters({ ...filters, start_date: e.target.value })}
+              onChange={(e) => { 
+                setPreset('custom'); 
+                setFilters({ ...filters, start_date: e.target.value }); 
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
             />
           </div>
@@ -110,7 +221,10 @@ export default function UsageReports() {
             <input
               type="date"
               value={filters.end_date}
-              onChange={(e) => setFilters({ ...filters, end_date: e.target.value })}
+              onChange={(e) => { 
+                setPreset('custom'); 
+                setFilters({ ...filters, end_date: e.target.value }); 
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
             />
           </div>
@@ -146,10 +260,10 @@ export default function UsageReports() {
                   {t('item_name')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('quantity_changed') || 'Quantity Changed'}
+                  {t('previous_stock') || 'Previous Stock'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('previous_stock') || 'Previous Stock'}
+                  {t('quantity_changed') || 'Quantity Changed'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('new_stock') || 'New Stock'}
@@ -174,13 +288,13 @@ export default function UsageReports() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {event.item_name}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    {event.previous_quantity}
+                  </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${
                     event.transaction_type === 'IN' ? 'text-green-600' : 'text-red-600'
                   }`}>
                     {event.transaction_type === 'IN' ? '+' : '-'}{event.quantity_changed}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {event.previous_quantity}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {event.new_quantity}

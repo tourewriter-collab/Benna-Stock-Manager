@@ -21,7 +21,8 @@ const Settings: React.FC = () => {
 
   const [settings, setSettings] = useState({
     high_balance_threshold: '100000',
-    company_logo: ''
+    company_logo: '',
+    gemini_api_key: ''
   });
   const [saving, setSaving] = useState(false);
   const [diagLoading, setDiagLoading] = useState(false);
@@ -95,7 +96,8 @@ const Settings: React.FC = () => {
       if (data) {
         setSettings({
           high_balance_threshold: data.high_balance_threshold || '100000',
-          company_logo: data.company_logo || ''
+          company_logo: data.company_logo || '',
+          gemini_api_key: data.gemini_api_key || ''
         });
       }
     } catch (error) {
@@ -639,6 +641,27 @@ const Settings: React.FC = () => {
                     className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-navy file:text-white hover:file:bg-opacity-90"
                   />
                 </div>
+              </div>
+
+              <div className="bg-orange-50 border border-orange-200 p-4 rounded-md">
+                <div className="flex items-start mb-3">
+                  <AlertCircle className="w-5 h-5 text-orange-600 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <label className="block text-sm font-bold text-orange-900">
+                      Gemini API Key (Advanced)
+                    </label>
+                    <p className="text-xs text-orange-800 mt-1">
+                      <strong>WARNING:</strong> Do not tamper with this key unless strictly necessary. Altering or removing it will completely break the AI Document Scanning functionality in the app.
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="password"
+                  placeholder="AIzaSy..."
+                  value={settings.gemini_api_key}
+                  onChange={(e) => setSettings({ ...settings, gemini_api_key: e.target.value })}
+                  className="w-full px-3 py-2 border border-orange-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-white"
+                />
               </div>
 
               <div>

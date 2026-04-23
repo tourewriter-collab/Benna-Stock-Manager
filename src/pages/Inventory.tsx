@@ -6,6 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
 import { fetchApi } from '../lib/api';
 import { formatPrice } from '../utils/currency';
+import { exportToExcel, exportToPdf, ExportColumn } from '../utils/export';
+import { Download, FileText } from 'lucide-react';
 
 interface Category {
   id: string;
@@ -228,20 +230,72 @@ const Inventory: React.FC = () => {
     return 'inStock';
   };
 
+  const handleExportExcel = () => {
+    const columns: ExportColumn[] = [
+      { header: t('name') || 'Name', key: 'name', width: 30 },
+      { header: t('category') || 'Category', key: 'category', width: 20 },
+      { header: t('supplier') || 'Supplier', key: 'supplier_name', width: 20 },
+      { header: t('quantity') || 'Quantity', key: 'quantity', width: 15 },
+      { header: t('price') || 'Price', key: 'price', width: 15 },
+      { header: t('location') || 'Location', key: 'location', width: 20 }
+    ];
+
+    const data = items.map((item) => ({
+      ...item,
+      category: getCategoryName(item.category)
+    }));
+
+    exportToExcel(columns, data, 'inventory.xlsx', 'Inventory');
+  };
+
+  const handleExportPdf = () => {
+    const columns: ExportColumn[] = [
+      { header: t('name') || 'Name', key: 'name' },
+      { header: t('category') || 'Category', key: 'category' },
+      { header: t('supplier') || 'Supplier', key: 'supplier_name' },
+      { header: t('quantity') || 'Quantity', key: 'quantity' },
+      { header: t('price') || 'Price', key: 'price' },
+      { header: t('location') || 'Location', key: 'location' }
+    ];
+
+    const data = items.map((item) => ({
+      ...item,
+      category: getCategoryName(item.category)
+    }));
+
+    exportToPdf(columns, data, 'inventory.pdf', t('inventory') || 'Inventory');
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-900">{t('inventory')}</h1>
-        <button
-          onClick={() => {
-            setEditingItem(null);
-            setIsModalOpen(true);
-          }}
-          className="bg-navy text-white px-4 py-2 rounded-md hover:bg-opacity-90 transition flex items-center"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          {t('add_item')}
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handleExportPdf}
+            className="px-3 py-1.5 flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 rounded-md text-sm font-medium"
+          >
+            <FileText className="w-4 h-4" />
+            PDF
+          </button>
+          <button
+            onClick={handleExportExcel}
+            className="px-3 py-1.5 flex items-center gap-1 bg-green-50 text-green-700 hover:bg-green-100 rounded-md text-sm font-medium"
+          >
+            <Download className="w-4 h-4" />
+            Excel
+          </button>
+          <button
+            onClick={() => {
+              setEditingItem(null);
+              setIsModalOpen(true);
+            }}
+            className="bg-navy text-white px-4 py-2 rounded-md hover:bg-opacity-90 transition flex items-center ml-2"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            {t('add_item')}
+          </button>
+        </div>
       </div>
 
       {frozen && (

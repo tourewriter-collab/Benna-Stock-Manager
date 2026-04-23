@@ -279,6 +279,15 @@
   "truck_number_placeholder": "ex: TRK-001 ou AB-1234",
   "confirm_usage": "Confirmer l'utilisation",
   "quantity_used": "Quantité Utilisée / Déduite",
-  "fully_delivered": "Livraison complète ✓",
+  "fully_delivered": "Livraison Complète",
+  "scan_document": "Scanner & Extraire le Document",
+  "click_to_upload_or_drag": "Cliquez pour télécharger ou faites glisser l'image ici",
+  "reading_with_ai": "L'IA lit votre document",
+  "scan_and_extract": "Scanner et Extraire les Données",
+  "scan_success_message": "L'IA a extrait {{count}} articles avec succès !",
+  "extracted_item": "Texte Extrait",
+  "system_match": "Correspondance Système",
+  "apply_to_form": "Appliquer au Formulaire",
+  "retry": "Réessayer",
   "items_remaining": "articles restants"
 }

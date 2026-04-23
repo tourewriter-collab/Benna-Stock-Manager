@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Camera } from 'lucide-react';
+import ScanModal from '../components/ScanModal';
 import { fetchApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
@@ -35,6 +36,7 @@ export default function CreateOrder() {
     quantity: 1,
     unit_price: 0
   }]);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
 
   useEffect(() => {
     fetchSuppliers();
@@ -101,6 +103,28 @@ export default function CreateOrder() {
 
   const calculateTotal = () => {
     return items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+  };
+
+  const handleScanApply = (extractedItems: any[]) => {
+    // Map extracted items to our OrderItem structure
+    const newItems = extractedItems.map(ext => {
+      const matched = inventory.find(inv => inv.name.toLowerCase() === ext.name.toLowerCase());
+      return {
+        localId: crypto.randomUUID(),
+        description: ext.name,
+        quantity: ext.quantity,
+        unit_price: ext.price,
+        inventory_item_id: matched ? matched.id : undefined
+      };
+    });
+
+    // If we have existing empty items, replace them, otherwise append
+    if (items.length === 1 && !items[0].description) {
+        setItems(newItems);
+    } else {
+        setItems([...items, ...newItems]);
+    }
+    setIsScanModalOpen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -205,14 +229,24 @@ export default function CreateOrder() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-[#001f3f]">{t('order_items')}</h2>
-            <button
-              type="button"
-              onClick={handleAddItem}
-              className="flex items-center gap-2 bg-[#001f3f] text-white px-3 py-1.5 rounded-lg hover:bg-[#003366] text-sm"
-            >
-              <Plus className="w-4 h-4" />
-              {t('add_item')}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setIsScanModalOpen(true)}
+                className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 text-sm shadow-sm"
+              >
+                <Camera className="w-4 h-4" />
+                {t('scan_document')}
+              </button>
+              <button
+                type="button"
+                onClick={handleAddItem}
+                className="flex items-center gap-2 bg-[#001f3f] text-white px-3 py-1.5 rounded-lg hover:bg-[#003366] text-sm shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                {t('add_item')}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -338,6 +372,13 @@ export default function CreateOrder() {
           </button>
         </div>
       </form>
+      {isScanModalOpen && (
+        <ScanModal 
+          onClose={() => setIsScanModalOpen(false)} 
+          onApply={handleScanApply}
+          title={t('scan_delivery_note')}
+        />
+      )}
     </div>
   );
 }

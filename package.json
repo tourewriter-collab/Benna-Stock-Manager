@@ -24,6 +24,7 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.99.1",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.10.0",

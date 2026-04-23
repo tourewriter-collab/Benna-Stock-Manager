@@ -36,6 +36,7 @@ import categoriesRoutes from './routes/categories.js';
 import reportsRoutes from './routes/reports.js';
 import syncRoutes from './routes/sync.js';
 import settingsRoutes from './routes/settings.js';
+import visionRoutes from './routes/vision.js';
 import db, { runPostStartupMaintenance } from './database.js';
 
 const app = express();
@@ -79,6 +80,7 @@ app.use('/api/categories', categoriesRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/vision', visionRoutes);
 
 import { getSupabaseDiagnostics } from './supabaseClient.js';
 

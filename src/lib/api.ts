@@ -20,6 +20,9 @@ async function getApiRoot() {
   // Give it a quick 2-second chance to find the real port.
   // We don't want to block the UI for 30s anymore.
   for (let i = 0; i < 10; i++) {
+    if (!window.electron) { // If not running in electron, skip this discovery
+      break;
+    }
     if (window.electron?.updates?.getAppVersion) {
       try {
         const info = await window.electron.updates.getAppVersion();

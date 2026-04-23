@@ -347,6 +347,8 @@ router.get('/pull', async (req, res) => {
         db.prepare(`PRAGMA table_info(${table})`).all().map(col => col.name)
       );
 
+      const batchOps = [];
+
       for (const row of remoteData) {
         // MAP CLOUD TO LOCAL SCHEMA Let's map remote fields back into the local shape
         if (table === 'order_items') {
