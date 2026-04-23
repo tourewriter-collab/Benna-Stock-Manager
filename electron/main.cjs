@@ -102,6 +102,7 @@ app.whenReady().then(async () => {
         ...(parsedEnv.SUPABASE_SERVICE_ROLE_KEY ? { SUPABASE_SERVICE_ROLE_KEY: parsedEnv.SUPABASE_SERVICE_ROLE_KEY } : {}),
         ...(parsedEnv.SERVICE_ROLE_KEY ? { SERVICE_ROLE_KEY: parsedEnv.SERVICE_ROLE_KEY } : {}),
         ...(parsedEnv.VITE_SUPABASE_SERVICE_ROLE_KEY ? { VITE_SUPABASE_SERVICE_ROLE_KEY: parsedEnv.VITE_SUPABASE_SERVICE_ROLE_KEY } : {}),
+        ...(parsedEnv.GEMINI_API_KEY ? { GEMINI_API_KEY: parsedEnv.GEMINI_API_KEY } : {}),
         ...(parsedEnv.VITE_SUPABASE_ANON_KEY ? { VITE_SUPABASE_ANON_KEY:  parsedEnv.VITE_SUPABASE_ANON_KEY } : {}),
         ...(parsedEnv.SUPABASE_ANON_KEY ? { SUPABASE_ANON_KEY:  parsedEnv.SUPABASE_ANON_KEY } : {}),
         ...(parsedEnv.JWT_SECRET ? { JWT_SECRET: parsedEnv.JWT_SECRET } : {}),

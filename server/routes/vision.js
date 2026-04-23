@@ -53,12 +53,16 @@ router.post('/scan', authenticateToken, async (req, res) => {
       IMPORTANT: Return ONLY the JSON array. No markdown, no "json" backticks, no explanatory text.
     `;
 
+    const mimeTypeMatch = image.match(/^data:(image\/\w+);base64,/);
+    const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg';
+    const base64Data = image.includes(',') ? image.split(',')[1] : image;
+
     // Process the base64 image
     const imageParts = [
       {
         inlineData: {
-          data: image.split(',')[1] || image, // Strip the data:image/png;base64, part if present
-          mimeType: "image/jpeg"
+          data: base64Data,
+          mimeType: mimeType
         }
       }
     ];
@@ -75,12 +79,14 @@ router.post('/scan', authenticateToken, async (req, res) => {
       res.json(parsedData);
     } catch (parseError) {
       console.error('Gemini parsing error. Raw text:', text);
-      res.status(500).json({ error: 'Failed to parse AI response', raw: text });
+      res.status(500).json({ error: 'Failed to parse AI response. Ensure the image is legible.', raw: text });
     }
 
   } catch (error) {
     console.error('Vision scan error:', error);
-    res.status(500).json({ error: 'Internal server error', message: error.message });
+    res.status(500).json({ 
+      error: error.message || 'Internal server error while processing image' 
+    });
   }
 });
 

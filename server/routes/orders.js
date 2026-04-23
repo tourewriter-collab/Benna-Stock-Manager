@@ -204,8 +204,8 @@ router.post('/', authenticateToken, (req, res) => {
     const orderId = crypto.randomUUID();
 
     db.prepare(`
-      INSERT INTO orders (id, supplier_id, expected_date, total_amount, notes, created_by, sync_status, delivery_status) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (id, supplier_id, expected_date, total_amount, notes, created_by, sync_status, delivery_status, is_archived) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
     `).run(orderId, supplierId, expectedDate || null, total_amount, notes || null, String(userId), 'pending', 'pending');
 
     const newOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
