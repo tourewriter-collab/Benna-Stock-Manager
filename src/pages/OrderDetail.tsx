@@ -123,6 +123,7 @@ export default function OrderDetail() {
       });
       setDeliveryModal(null);
       fetchOrder();
+      await refreshStatus(); // Force global app state refresh
       if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error updating delivery:', error);
@@ -619,9 +620,18 @@ export default function OrderDetail() {
 
             <form onSubmit={handleAddPayment} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('amount')} * (Max: {formatCurrency(balance)})
-                </label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {t('amount')} *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentForm({ ...paymentForm, amount: balance })}
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded border border-blue-200 uppercase tracking-wider transition-colors"
+                  >
+                    {t('pay_full_balance') || 'Pay Full Balance'} ({formatCurrency(balance)})
+                  </button>
+                </div>
                 <input
                   type="number"
                   required

@@ -55,7 +55,6 @@
   "french": "French",
   "data_integrity": "Data Integrity",
   "reconcile_ledger": "Reconcile Ledger",
-  "delivered": "Delivered",
 
   "freeze_warning": "Editing is frozen after the 15th",
   "sync_google_drive": "Sync with Google Drive",
@@ -134,6 +133,7 @@
   "error_deleting_item": "Error deleting item",
   "payment_summary": "Payment Summary",
   "record_payment": "Record Payment",
+  "pay_full_balance": "Pay Full Balance",
   "payment_history": "Payment History",
   "no_payments_recorded": "No payments recorded yet",
   "amount": "Amount",

@@ -55,7 +55,6 @@
   "french": "Français",
   "data_integrity": "Intégrité des données",
   "reconcile_ledger": "Réconcilier le grand livre",
-  "delivered": "Livré",
 
   "freeze_warning": "La modification est gelée après le 15",
   "sync_google_drive": "Synchroniser avec Google Drive",
@@ -134,6 +133,7 @@
   "error_deleting_item": "Erreur lors de la suppression de l'article",
   "payment_summary": "Résumé des paiements",
   "record_payment": "Enregistrer un paiement",
+  "pay_full_balance": "Payer le solde complet",
   "payment_history": "Historique des paiements",
   "no_payments_recorded": "Aucun paiement enregistré",
   "amount": "Montant",

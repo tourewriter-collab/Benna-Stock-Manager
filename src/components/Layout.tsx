@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
 import pkg from '../../package.json';
-import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, CheckCircle2 } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, CheckCircle2, TrendingDown } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 
 const Layout: React.FC = () => {
