@@ -38,7 +38,20 @@ export default function Categories() {
   const fetchCategories = async () => {
     try {
       const data = await fetchApi(`/categories?include_archived=true`);
-      const filtered = (data || []).filter((c: Category) => showArchived ? c.is_archived : !c.is_archived);
+      
+      // Strict frontend deduplication by English name
+      const uniqueData: Category[] = [];
+      const seenNames = new Set();
+      
+      (data || []).forEach((cat: Category) => {
+        const nameKey = (cat.name_en || '').toLowerCase().trim();
+        if (!seenNames.has(nameKey) && nameKey !== '') {
+          seenNames.add(nameKey);
+          uniqueData.push(cat);
+        }
+      });
+
+      const filtered = uniqueData.filter((c: Category) => showArchived ? c.is_archived : !c.is_archived);
       setCategories(filtered);
     } catch (error) {
       console.error('Error fetching categories:', error);

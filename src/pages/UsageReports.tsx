@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TrendingDown, Calendar, ListFilter as Filter, Download, FileText } from 'lucide-react';
+import { TrendingDown, Calendar, ListFilter as Filter, Download, FileText, Info } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { exportToExcel, exportToPdf, ExportColumn } from '../utils/export';
 
@@ -350,16 +350,16 @@ export default function UsageReports() {
                   {t('item_name')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('previous_stock') || 'Previous Stock'}
+                  {t('previous_stock') || 'Opening Balance'}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('quantity_changed') || 'Quantity Changed'}
+                <th className="px-6 py-3 text-left text-xs font-medium text-green-600 uppercase tracking-wider">
+                  {t('stock_received') || 'Received (+)'}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('new_stock') || 'New Stock'}
+                <th className="px-6 py-3 text-left text-xs font-medium text-red-600 uppercase tracking-wider">
+                  {t('quantity_changed') || 'Used (-)'}
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  {t('type') || 'Type'}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-900 uppercase tracking-wider font-bold">
+                  {t('new_stock') || 'New Balance'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('authorized_by') || 'Authorized By'}
@@ -381,22 +381,14 @@ export default function UsageReports() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {event.previous_quantity}
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${
-                    event.transaction_type === 'IN' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {event.transaction_type === 'IN' ? '+' : '-'}{event.quantity_changed}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 bg-green-50/20">
+                    {event.transaction_type === 'IN' ? `+${event.quantity_changed}` : '-'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600 bg-red-50/20">
+                    {event.transaction_type === 'OUT' ? `-${event.quantity_changed}` : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                     {event.new_quantity}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-bold rounded-full ${
-                      event.transaction_type === 'IN' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {event.transaction_type === 'IN' ? t('inflow') || 'IN' : t('usage') || 'OUT'}
-                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {event.authorized_by_name ? (

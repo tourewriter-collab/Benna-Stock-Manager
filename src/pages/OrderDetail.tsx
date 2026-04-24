@@ -66,7 +66,8 @@ export default function OrderDetail() {
     payment_date: new Date().toISOString().split('T')[0],
     method: 'cash',
     reference: '',
-    notes: ''
+    notes: '',
+    mark_as_delivered: false
   });
   const [deliveryModal, setDeliveryModal] = useState<{
     item: OrderItem;
@@ -75,7 +76,7 @@ export default function OrderDetail() {
 
   const canEdit = user?.role === 'admin' || user?.role === 'audit_manager';
   const canUpdateDelivery = canEdit || user?.role === 'user';
-  const balance = order ? order.total_amount - order.paid_amount : 0;
+  const balance = order ? Math.max(0, Math.round((order.total_amount - order.paid_amount) * 100) / 100) : 0;
 
   useEffect(() => {
     if (id) {
@@ -254,7 +255,8 @@ export default function OrderDetail() {
       payment_date: new Date().toISOString().split('T')[0],
       method: 'cash',
       reference: '',
-      notes: ''
+      notes: '',
+      mark_as_delivered: false
     });
   };
 
@@ -480,7 +482,7 @@ export default function OrderDetail() {
               </div>
             </div>
 
-            {canEdit && balance > 0 && (
+            {canEdit && order.status !== 'paid' && balance > 0 ? (
               <button
                 onClick={() => setShowPaymentModal(true)}
                 className="w-full mt-4 flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
@@ -488,7 +490,12 @@ export default function OrderDetail() {
                 <DollarSign className="w-5 h-5" />
                 {t('record_payment')}
               </button>
-            )}
+            ) : order.status === 'paid' ? (
+              <div className="mt-4 flex items-center justify-center gap-2 bg-green-50 text-green-700 px-4 py-3 rounded-lg border border-green-200">
+                <CheckCircle className="w-5 h-5" />
+                <span className="font-bold text-sm uppercase tracking-wide">{t('fully_paid') || 'Fully Paid'}</span>
+              </div>
+            ) : null}
           </div>
 
           <div className="bg-white rounded-lg shadow-md p-6">
@@ -679,6 +686,28 @@ export default function OrderDetail() {
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
                 />
+              </div>
+
+              <div className="pt-2">
+                {order?.delivery_status === 'delivered' ? (
+                  <div className="flex items-center gap-2 bg-green-50 text-green-700 p-3 rounded-lg border border-green-200">
+                    <CheckCircle className="w-5 h-5" />
+                    <span className="text-sm font-semibold">{t('already_delivered')}</span>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={paymentForm.mark_as_delivered}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, mark_as_delivered: e.target.checked })}
+                      className="w-5 h-5 rounded border-blue-300 text-[#001f3f] focus:ring-[#001f3f]"
+                    />
+                    <div>
+                      <div className="text-sm font-bold text-[#001f3f]">{t('mark_as_delivered')}</div>
+                      <div className="text-[10px] text-blue-600 uppercase font-semibold">{t('updates_inventory_stock')}</div>
+                    </div>
+                  </label>
+                )}
               </div>
 
               <div className="flex gap-3 pt-4">

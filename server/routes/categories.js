@@ -24,8 +24,8 @@ router.get('/', authenticateToken, (req, res) => {
   try {
     const includeArchived = req.query.include_archived === 'true';
     const query = includeArchived 
-      ? 'SELECT * FROM categories ORDER BY name_en'
-      : 'SELECT * FROM categories WHERE is_archived = 0 ORDER BY name_en';
+      ? 'SELECT * FROM categories GROUP BY LOWER(TRIM(name_en)) ORDER BY name_en'
+      : 'SELECT * FROM categories WHERE is_archived = 0 GROUP BY LOWER(TRIM(name_en)) ORDER BY name_en';
     
     const categories = db.prepare(query).all();
     res.json(categories);

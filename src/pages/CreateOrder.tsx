@@ -60,7 +60,20 @@ export default function CreateOrder() {
   const fetchCategories = async () => {
     try {
       const data = await fetchApi('/categories');
-      setCategories(data || []);
+      
+      // Deduplicate by English name
+      const uniqueData: any[] = [];
+      const seenNames = new Set();
+      
+      (data || []).forEach((cat: any) => {
+        const nameKey = (cat.name_en || '').toLowerCase().trim();
+        if (!seenNames.has(nameKey) && nameKey !== '') {
+          seenNames.add(nameKey);
+          uniqueData.push(cat);
+        }
+      });
+      
+      setCategories(uniqueData);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }

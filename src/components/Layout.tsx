@@ -8,7 +8,7 @@ import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, C
 import { fetchApi } from '../lib/api';
 
 const Layout: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
   const { syncStatus, pendingCount, triggerSync, isOnline } = useSync();
   const location = useLocation();
@@ -113,6 +113,26 @@ const Layout: React.FC = () => {
           </p>
         </div>
       </footer>
+
+      {/* ── Floating Language Toggle (bottom-left corner) ── */}
+      <button
+        onClick={() => i18n.changeLanguage(i18n.language === 'en' ? 'fr' : 'en')}
+        title={i18n.language === 'en' ? 'Switch to French' : 'Passer à l\'anglais'}
+        className={[
+          'fixed bottom-6 left-6 z-50',
+          'flex items-center justify-center w-12 h-12 rounded-full',
+          'bg-white text-navy shadow-lg border border-gray-200',
+          'text-xs font-bold tracking-wider',
+          'transition-all duration-300 ease-in-out',
+          'hover:scale-110 hover:shadow-xl hover:border-navy hover:text-blue-600',
+          'active:scale-95 shadow-[0_4px_14px_0_rgba(0,0,0,0.1)]'
+        ].join(' ')}
+      >
+        <div className="flex flex-col items-center leading-none">
+          <span className="text-[10px] opacity-50 mb-0.5">{i18n.language === 'en' ? 'FR' : 'EN'}</span>
+          <span className="text-sm font-black border-t border-gray-100 pt-0.5">{i18n.language.toUpperCase()}</span>
+        </div>
+      </button>
 
       {/* ── Floating Sync Pill (bottom-right corner) ── */}
       <button

@@ -58,10 +58,12 @@ function recalculateOrderPaymentStatus(orderId) {
   );
 }
 
+import { logUsage } from './inventory.js';
+
 // Create payment
 router.post('/', authenticateToken, (req, res) => {
   try {
-    const { order_id, amount, payment_date, method, reference, notes } = req.body;
+    const { order_id, amount, payment_date, method, reference, notes, mark_as_delivered } = req.body;
 
     if (!order_id || !amount) {
       return res.status(400).json({ message: 'Order ID and amount are required' });
@@ -71,13 +73,21 @@ router.post('/', authenticateToken, (req, res) => {
       return res.status(403).json({ message: 'Users cannot create payments' });
     }
 
-    const order = db.prepare('SELECT total_amount, paid_amount FROM orders WHERE id = ?').get(order_id);
+    const order = db.prepare('SELECT total_amount, paid_amount, status, delivery_status FROM orders WHERE id = ?').get(order_id);
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
     }
 
-    const newPaidAmount = parseFloat(order.paid_amount) + parseFloat(amount);
-    if (newPaidAmount > parseFloat(order.total_amount)) {
+    if (order.status === 'paid') {
+      return res.status(400).json({ message: 'This order is already fully paid and finalized.' });
+    }
+
+    // Use rounding to 2 decimal places to avoid floating point errors
+    const totalAmount = Math.round(parseFloat(order.total_amount) * 100) / 100;
+    const currentPaid = Math.round(parseFloat(order.paid_amount) * 100) / 100;
+    const paymentAmount = Math.round(parseFloat(amount) * 100) / 100;
+    
+    if (currentPaid + paymentAmount > totalAmount + 0.01) {
       return res.status(400).json({ message: 'Payment amount exceeds order balance' });
     }
 
@@ -94,6 +104,46 @@ router.post('/', authenticateToken, (req, res) => {
     db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
       'payments', id, 'INSERT', JSON.stringify(payment)
     );
+
+    // HANDLE DELIVERY INTEGRATION
+    if (mark_as_delivered && order.delivery_status !== 'delivered') {
+      const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(order_id);
+      
+      for (const item of items) {
+        const remaining = (item.quantity || 0) - (item.delivered_quantity || 0);
+        if (remaining > 0) {
+          // Update item
+          db.prepare(`
+            UPDATE order_items 
+            SET delivered_quantity = quantity, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+          `).run(item.id);
+
+          // Update inventory if linked
+          if (item.inventory_item_id) {
+            db.prepare(
+              'UPDATE inventory SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?'
+            ).run(remaining, item.inventory_item_id);
+
+            const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(item.inventory_item_id);
+            db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+              'inventory', item.inventory_item_id, 'UPDATE', JSON.stringify(updatedInv)
+            );
+
+            // Log inflow
+            logUsage(req.user.id, item.inventory_item_id, updatedInv.name, updatedInv.quantity - remaining, updatedInv.quantity, 'IN');
+          }
+
+          const updatedItem = db.prepare('SELECT * FROM order_items WHERE id = ?').get(item.id);
+          db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+            'order_items', item.id, 'UPDATE', JSON.stringify(updatedItem)
+          );
+        }
+      }
+
+      // Update order delivery status
+      db.prepare('UPDATE orders SET delivery_status = ?, sync_status = \'pending\', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('delivered', order_id);
+    }
 
     recalculateOrderPaymentStatus(order_id);
     logAudit(req.user.id, 'created', id, null, payment, req.ip);

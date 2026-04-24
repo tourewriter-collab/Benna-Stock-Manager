@@ -39,7 +39,7 @@ router.get('/usage', authenticateToken, (req, res) => {
       params.push(category_id);
     }
 
-    sql += ` GROUP BY ul.inventory_item_id, ul.item_name ORDER BY period_out DESC, ul.item_name ASC`;
+    sql += ` GROUP BY LOWER(TRIM(ul.item_name)) ORDER BY period_out DESC, ul.item_name ASC`;
 
     const items = db.prepare(sql).all(...params);
 

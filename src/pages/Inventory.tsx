@@ -86,7 +86,20 @@ const Inventory: React.FC = () => {
   const fetchCategories = async () => {
     try {
       const data = await fetchApi('/categories');
-      setCategories(data || []);
+      
+      // Deduplicate by English name
+      const uniqueData: Category[] = [];
+      const seenNames = new Set();
+      
+      (data || []).forEach((cat: Category) => {
+        const nameKey = (cat.name_en || '').toLowerCase().trim();
+        if (!seenNames.has(nameKey) && nameKey !== '') {
+          seenNames.add(nameKey);
+          uniqueData.push(cat);
+        }
+      });
+      
+      setCategories(uniqueData);
     } catch (error) {
       console.error('Error fetching categories:', error);
     }
