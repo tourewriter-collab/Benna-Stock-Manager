@@ -141,10 +141,11 @@ router.post('/', authenticateToken, (req, res) => {
         }
       }
 
-      // Update order delivery status
+      // Update order delivery status BEFORE recalculating payment status
       db.prepare('UPDATE orders SET delivery_status = ?, sync_status = \'pending\', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('delivered', order_id);
     }
 
+    // Now recalculate payment status (it will see the 'delivered' status and archive if needed)
     recalculateOrderPaymentStatus(order_id);
     logAudit(req.user.id, 'created', id, null, payment, req.ip);
 

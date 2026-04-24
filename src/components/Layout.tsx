@@ -41,47 +41,51 @@ const Layout: React.FC = () => {
       {/* ── Top Navigation Bar ── */}
       <nav className="bg-navy text-white shadow-lg w-full">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
-          <div className="flex justify-between min-h-[4rem] py-2 gap-2">
+          <div className="flex flex-wrap items-center justify-between min-h-[4rem] py-2 gap-x-4 gap-y-2">
             {/* Left: Logo + Nav Links */}
-            <div className="flex items-center space-x-4 lg:space-x-8 flex-1 min-w-0">
+            <div className="flex items-center space-x-3 lg:space-x-6 flex-1 min-w-0">
               <div className="flex items-center space-x-2 flex-shrink-0">
-                {logo && <img src={logo} alt="Logo" className="h-10 w-10 object-contain bg-white rounded-md p-1 shadow-sm" />}
-                <h1 className="text-lg lg:text-xl font-bold whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px] sm:max-w-none">
+                {logo && <img src={logo} alt="Logo" className="h-8 w-8 lg:h-10 lg:w-10 object-contain bg-white rounded-md p-1 shadow-sm" />}
+                <h1 className="text-base lg:text-xl font-bold whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] sm:max-w-[200px] lg:max-w-none">
                   {t('app_title')}
                 </h1>
               </div>
 
-              {/* Full links — xl+ screens */}
-              <div className="hidden xl:flex space-x-4">
-                <Link to="/dashboard"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/dashboard')}`}>{t('dashboard')}</Link>
-                <Link to="/inventory"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/inventory')}`}>{t('inventory')}</Link>
-                <Link to="/suppliers"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/suppliers')}`}>{t('suppliers')}</Link>
-                <Link to="/orders"        className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/orders')}`}>{t('orders')}</Link>
-                <Link to="/usage-reports" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/usage-reports')}`}>{t('usage_reports')}</Link>
+              {/* Full links — xxl+ screens (using 1400px as a safer threshold) */}
+              <div className="hidden 2xl:flex space-x-2 lg:space-x-4">
+                <Link to="/dashboard"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/dashboard')}`}>{t('dashboard')}</Link>
+                <Link to="/inventory"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/inventory')}`}>{t('inventory')}</Link>
+                <Link to="/suppliers"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/suppliers')}`}>{t('suppliers')}</Link>
+                <Link to="/orders"        className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/orders')}`}>{t('orders')}</Link>
+                <Link to="/usage-reports" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/usage-reports')}`}>{t('usage_reports')}</Link>
                 {user?.role === 'admin' && (
                   <>
-                    <Link to="/categories"  className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/categories')}`}>{t('categories')}</Link>
-                    <Link to="/admin/users" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/admin/users')}`}>{t('admin_users')}</Link>
+                    <Link to="/categories"  className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/categories')}`}>{t('categories')}</Link>
+                    <Link to="/admin/users" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/admin/users')}`}>{t('admin_users')}</Link>
                   </>
                 )}
-                <Link to="/settings" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/settings')}`}>{t('settings')}</Link>
+                <Link to="/settings" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/settings')}`}>{t('settings')}</Link>
               </div>
 
-              {/* Icon-only links — md–xl screens */}
-              <div className="hidden md:flex xl:hidden space-x-1">
-                <Link to="/dashboard" className={`p-2 rounded-md transition ${isActive('/dashboard')}`} title={t('dashboard')}><Package size={18} /></Link>
-                <Link to="/inventory" className={`p-2 rounded-md transition ${isActive('/inventory')}`} title={t('inventory')}><Layers size={18} /></Link>
-                <Link to="/orders"    className={`p-2 rounded-md transition ${isActive('/orders')}`}    title={t('orders')}><CreditCard size={18} /></Link>
-                <Link to="/settings"  className={`p-2 rounded-md transition ${isActive('/settings')}`}  title={t('settings')}><RefreshCw size={18} /></Link>
+              {/* Icon-only links — md to 2xl screens */}
+              <div className="hidden md:flex 2xl:hidden space-x-1">
+                <Link to="/dashboard" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/dashboard')}`} title={t('dashboard')}><Package size={18} /></Link>
+                <Link to="/inventory" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/inventory')}`} title={t('inventory')}><Layers size={18} /></Link>
+                <Link to="/orders"    className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/orders')}`}    title={t('orders')}><CreditCard size={18} /></Link>
+                <Link to="/usage-reports" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/usage-reports')}`} title={t('usage_reports')}><TrendingDown size={18} /></Link>
+                <Link to="/settings"  className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/settings')}`}  title={t('settings')}><RefreshCw size={18} /></Link>
               </div>
             </div>
 
             {/* Right: User name + Logout */}
-            <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
-              <span className="text-sm border-l border-white/20 pl-4 ml-2">{user?.name}</span>
+            <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 ml-auto">
+              <div className="hidden sm:flex flex-col items-end border-l border-white/20 pl-4">
+                <span className="text-xs font-bold text-blue-200 uppercase tracking-tighter leading-none mb-1">{user?.role}</span>
+                <span className="text-sm font-medium truncate max-w-[100px] lg:max-w-[150px]">{user?.name}</span>
+              </div>
               <button
                 onClick={logout}
-                className="px-4 py-2 bg-white text-navy rounded-md text-sm font-medium hover:bg-gray-100 transition"
+                className="px-3 py-1.5 lg:px-4 lg:py-2 bg-white text-navy rounded-md text-sm font-bold hover:bg-gray-100 transition shadow-sm whitespace-nowrap"
               >
                 {t('logout')}
               </button>

@@ -49,7 +49,7 @@ export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { isOnline, triggerSync } = useSync();
+  const { isOnline, triggerSync, refreshStatus } = useSync();
   const navigate = useNavigate();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -204,6 +204,7 @@ export default function OrderDetail() {
       setShowPaymentModal(false);
       resetPaymentForm();
       fetchOrder();
+      await refreshStatus(); // Force global app state refresh
       if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error adding payment:', error);
