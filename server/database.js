@@ -50,7 +50,7 @@ db.exec(`
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS audit_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
     action TEXT NOT NULL,
     table_name TEXT NOT NULL,
@@ -67,7 +67,7 @@ db.exec(`
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS usage_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     inventory_item_id TEXT NOT NULL,
     item_name TEXT NOT NULL,
     quantity_changed INTEGER NOT NULL,
@@ -253,7 +253,7 @@ if (!dbCreatedAt) {
 // This is required to solve 'datatype mismatch' on legacy databases.
 // ---------------------------------------------------------------------------
 function sanitizeSchema() {
-  const tablesToFix = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments'];
+  const tablesToFix = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs', 'audit_logs'];
   
   for (const table of tablesToFix) {
     try {

@@ -186,6 +186,20 @@ router.post('/push', async (req, res) => {
                  reference: data.reference || null,
                  notes: data.notes || null
               };
+            } else if (table === 'usage_logs') {
+              return {
+                 id: data.id,
+                 inventory_id: data.inventory_item_id,
+                 item_name: data.item_name,
+                 quantity_changed: data.quantity_changed,
+                 previous_quantity: data.previous_quantity,
+                 new_quantity: data.new_quantity,
+                 transaction_type: data.transaction_type || 'OUT',
+                 authorized_by_name: data.authorized_by_name,
+                 authorized_by_title: data.authorized_by_title,
+                 truck_id: data.truck_id,
+                 timestamp: data.timestamp || new Date().toISOString()
+              };
             } else if (table === 'audit_logs') {
               return {
                  id: data.id,
@@ -324,93 +338,99 @@ router.get('/pull', async (req, res) => {
     let totalPulled = 0;
 
     for (const table of tablesToSync) {
-      const meta = db.prepare("SELECT last_pulled FROM sync_meta WHERE table_name = ?").get(table);
-      const lastPulled = meta ? meta.last_pulled : '1970-01-01T00:00:00.000Z';
-      const timeCol = tableTimeCols[table];
+      try {
+        const meta = db.prepare("SELECT last_pulled FROM sync_meta WHERE table_name = ?").get(table);
+        const lastPulled = meta ? meta.last_pulled : '1970-01-01T00:00:00.000Z';
+        const timeCol = tableTimeCols[table];
 
-      let query = supabase.from(table).select('*');
-      
-      if (timeCol) {
-        query = query.gt(timeCol, lastPulled).order(timeCol, { ascending: true });
-      }
-
-      const { data: remoteData, error } = await query;
-
-      if (error) {
-        console.error(`[Sync] Pull failed for table ${table}:`, error.message);
-        continue;
-      }
-
-      if (!remoteData || remoteData.length === 0) continue;
-
-      const localColumns = new Set(
-        db.prepare(`PRAGMA table_info(${table})`).all().map(col => col.name)
-      );
-
-      const batchOps = [];
-
-      for (const row of remoteData) {
-        // MAP CLOUD TO LOCAL SCHEMA Let's map remote fields back into the local shape
-        if (table === 'order_items') {
-          row.inventory_item_id = row.inventory_id;
-          const q = Number(row.quantity) || 0;
-          const p = Number(row.unit_price) || 0;
-          row.quantity = q;
-          row.unit_price = p;
-          row.total = Number(row.total_price) || (q * p);
-          
-          // RECOVERY logic for missing descriptions (ghost recovery)
-          if (!row.description) {
-            if (row.inventory_id) {
-              const inv = db.prepare('SELECT name FROM inventory WHERE id = ?').get(row.inventory_id);
-              row.description = inv ? inv.name : 'Unknown Item';
-            } else {
-              // Try to preserve local description if it already exists
-              const local = db.prepare('SELECT description FROM order_items WHERE id = ?').get(row.id);
-              row.description = local ? local.description : 'Unknown Item';
-            }
-          }
-        } else if (table === 'orders') {
-          row.expected_date = row.expected_delivery_date;
-          
-          // Preserve local-only calculation fields
-          try {
-            const localOrder = db.prepare('SELECT paid_amount, is_archived, created_by FROM orders WHERE id = ?').get(row.id);
-            if (localOrder) {
-              row.paid_amount = localOrder.paid_amount;
-              row.is_archived = localOrder.is_archived;
-              row.created_by = localOrder.created_by;
-            }
-          } catch(e) {}
-        }
+        let query = supabase.from(table).select('*');
         
-        const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
-        if (filteredKeys.length === 0) continue;
-
-        const placeholders = filteredKeys.map(() => '?').join(', ');
-        const values = filteredKeys.map(k => row[k]);
-
-        // Accumulate for batch transaction
-        batchOps.push({ sql: `INSERT OR REPLACE INTO ${table} (${filteredKeys.join(', ')}) VALUES (${placeholders})`, params: values });
-        totalPulled++;
-      }
-
-      // Execute pull batch in a TRANSACTION for massive performance gain vs row-by-row commits
-      if (batchOps.length > 0) {
-        db.transaction(() => {
-          for (const op of batchOps) {
-             db.prepare(op.sql).run(...op.params);
-          }
-        })();
-      }
-
-      if (timeCol) {
-        const newestDate = remoteData[remoteData.length - 1][timeCol];
-        if (newestDate) {
-          db.prepare(`INSERT OR REPLACE INTO sync_meta (table_name, last_pulled) VALUES (?, ?)`).run(table, newestDate);
+        if (timeCol) {
+          query = query.gt(timeCol, lastPulled).order(timeCol, { ascending: true });
         }
-      } else {
-        db.prepare(`INSERT OR REPLACE INTO sync_meta (table_name, last_pulled) VALUES (?, ?)`).run(table, new Date().toISOString());
+
+        const { data: remoteData, error } = await query;
+
+        if (error) {
+          console.error(`[Sync] Pull failed for table ${table}:`, error.message);
+          continue;
+        }
+
+        if (!remoteData || remoteData.length === 0) continue;
+
+        const localColumns = new Set(
+          db.prepare(`PRAGMA table_info(${table})`).all().map(col => col.name)
+        );
+
+        const batchOps = [];
+
+        for (const row of remoteData) {
+          // MAP CLOUD TO LOCAL SCHEMA Let's map remote fields back into the local shape
+          if (table === 'order_items') {
+            row.inventory_item_id = row.inventory_id;
+            const q = Number(row.quantity) || 0;
+            const p = Number(row.unit_price) || 0;
+            row.quantity = q;
+            row.unit_price = p;
+            row.total = Number(row.total_price) || (q * p);
+            
+            // RECOVERY logic for missing descriptions (ghost recovery)
+            if (!row.description) {
+              if (row.inventory_id) {
+                const inv = db.prepare('SELECT name FROM inventory WHERE id = ?').get(row.inventory_id);
+                row.description = inv ? inv.name : 'Unknown Item';
+              } else {
+                // Try to preserve local description if it already exists
+                const local = db.prepare('SELECT description FROM order_items WHERE id = ?').get(row.id);
+                row.description = local ? local.description : 'Unknown Item';
+              }
+            }
+          } else if (table === 'orders') {
+            row.expected_date = row.expected_delivery_date;
+            
+            // Preserve local-only calculation fields
+            try {
+              const localOrder = db.prepare('SELECT paid_amount, is_archived, created_by FROM orders WHERE id = ?').get(row.id);
+              if (localOrder) {
+                row.paid_amount = localOrder.paid_amount;
+                row.is_archived = localOrder.is_archived;
+                row.created_by = localOrder.created_by;
+              }
+            } catch(e) {}
+          } else if (table === 'usage_logs') {
+            row.inventory_item_id = row.inventory_id; 
+          }
+          
+          const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
+          if (filteredKeys.length === 0) continue;
+
+          const placeholders = filteredKeys.map(() => '?').join(', ');
+          const values = filteredKeys.map(k => row[k]);
+
+          // Accumulate for batch transaction
+          batchOps.push({ sql: `INSERT OR REPLACE INTO ${table} (${filteredKeys.join(', ')}) VALUES (${placeholders})`, params: values });
+          totalPulled++;
+        }
+
+        // Execute pull batch in a TRANSACTION
+        if (batchOps.length > 0) {
+          db.transaction(() => {
+            for (const op of batchOps) {
+               db.prepare(op.sql).run(...op.params);
+            }
+          })();
+        }
+
+        if (timeCol) {
+          const newestDate = remoteData[remoteData.length - 1][timeCol];
+          if (newestDate) {
+            db.prepare(`INSERT OR REPLACE INTO sync_meta (table_name, last_pulled) VALUES (?, ?)`).run(table, newestDate);
+          }
+        } else {
+          db.prepare(`INSERT OR REPLACE INTO sync_meta (table_name, last_pulled) VALUES (?, ?)`).run(table, new Date().toISOString());
+        }
+      } catch (tableErr) {
+        console.error(`[Sync] Critical failure pulling ${table}:`, tableErr.message);
       }
     }
 
