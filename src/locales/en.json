@@ -157,6 +157,7 @@
   "error_deleting_category": "Error deleting category",
   "admin_only": "This page is only accessible to administrators",
   "usage_reports": "Usage Reports",
+  "usage_summary": "Usage Summary",
   "type": "Type",
   "approved_by": "Approved By",
   "inflow": "Inflow",

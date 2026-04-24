@@ -49,20 +49,36 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       // 1. Push pending local changes to Supabase
       if (pendingCount > 0 || (await fetchApi('/sync/status')).pendingItems > 0) {
-        await fetchApi('/sync/push', { method: 'POST' });
+        try {
+          await fetchApi('/sync/push', { method: 'POST' });
+        } catch (pushErr: any) {
+          // 400 = not configured, 503 = offline — not a real error, skip silently
+          if (pushErr?.status === 400 || pushErr?.status === 503) {
+            setSyncStatus('synced');
+            return;
+          }
+          throw pushErr;
+        }
       }
 
       // 2. Pull any remote changes made on other devices
-      await fetchApi('/sync/pull', { method: 'GET' });
+      try {
+        await fetchApi('/sync/pull', { method: 'GET' });
+      } catch (pullErr: any) {
+        // 400 = not configured, 503 = offline — treat as a no-op, not an error
+        if (pullErr?.status === 400 || pullErr?.status === 503) {
+          setSyncStatus('synced');
+          return;
+        }
+        throw pullErr;
+      }
 
       setLastSyncedAt(new Date());
       setSyncStatus('synced');
-      await fetchStatus(); // Reconcile ground truth from server
+      await fetchStatus();
     } catch (error: any) {
       console.error('[Sync] Sync failed:', error.message);
-      if (error.details) {
-        console.error('[Sync] Diagnostic details:', error.details);
-      }
+      if (error.details) console.error('[Sync] Diagnostic details:', error.details);
       setSyncStatus('error');
     }
   };

@@ -157,6 +157,7 @@
   "error_deleting_category": "Erreur lors de la suppression de la catégorie",
   "admin_only": "Cette page est accessible uniquement aux administrateurs",
   "usage_reports": "Rapports d'utilisation",
+  "usage_summary": "Résumé d'utilisation",
   "recent_usage_history": "Historique récent d'utilisation",
   "type": "Type",
   "approved_by": "Approuvé par",
