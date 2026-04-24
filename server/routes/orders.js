@@ -232,7 +232,15 @@ router.post('/', authenticateToken, (req, res) => {
 
       let currentInv;
       if (inventoryId) {
-        db.prepare('UPDATE inventory SET last_updated = CURRENT_TIMESTAMP WHERE id = ?').run(inventoryId);
+        const supplier = db.prepare('SELECT name FROM suppliers WHERE id = ?').get(supplierId);
+        const supplierName = supplier ? supplier.name : null;
+        
+        db.prepare(`
+          UPDATE inventory 
+          SET last_updated = CURRENT_TIMESTAMP,
+              supplier = COALESCE(NULLIF(supplier, ''), ?)
+          WHERE id = ?
+        `).run(supplierName, inventoryId);
         currentInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(inventoryId);
       } else {
         let catId = item.category_id;
@@ -247,11 +255,13 @@ router.post('/', authenticateToken, (req, res) => {
         }
 
         const newInvId = crypto.randomUUID();
-        
+        const supplier = db.prepare('SELECT name FROM suppliers WHERE id = ?').get(supplierId);
+        const supplierName = supplier ? supplier.name : null;
+
         db.prepare(`
-          INSERT INTO inventory (id, name, category_id, category, quantity, price, location, sync_status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(newInvId, item.description, catId, catName, 0, p, 'Main Store', 'pending');
+          INSERT INTO inventory (id, name, category_id, category, quantity, price, location, supplier, sync_status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(newInvId, item.description, catId, catName, 0, p, 'Main Store', supplierName, 'pending');
         
         inventoryId = newInvId;
         currentInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(newInvId);
@@ -719,9 +729,62 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
 
     logAudit(Number(req.user.id), 'updated_delivery', itemId, oldItem, { delivered_quantity }, req.ip);
 
-    res.json({ item: updatedItem, order: updatedOrder });
+// Mark entire order as delivered
+router.put('/:id/deliver-all', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(id);
+    
+    for (const item of items) {
+      const remaining = (item.quantity || 0) - (item.delivered_quantity || 0);
+      if (remaining > 0) {
+        // Update item
+        db.prepare(`
+          UPDATE order_items 
+          SET delivered_quantity = quantity, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(item.id);
+
+        // Update inventory if linked
+        if (item.inventory_item_id) {
+          db.prepare(
+            'UPDATE inventory SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?'
+          ).run(remaining, item.inventory_item_id);
+
+          const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(item.inventory_item_id);
+          db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+            'inventory', item.inventory_item_id, 'UPDATE', JSON.stringify(updatedInv)
+          );
+
+          // Log inflow
+          logUsage(req.user.id, item.inventory_item_id, updatedInv.name, updatedInv.quantity - remaining, updatedInv.quantity, 'IN');
+        }
+
+        const updatedItem = db.prepare('SELECT * FROM order_items WHERE id = ?').get(item.id);
+        db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+          'order_items', item.id, 'UPDATE', JSON.stringify(updatedItem)
+        );
+      }
+    }
+
+    // Update order delivery status
+    db.prepare('UPDATE orders SET delivery_status = ?, sync_status = \'pending\', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('delivered', id);
+    
+    // Check if we should archive (if also fully paid)
+    const order = db.prepare('SELECT status FROM orders WHERE id = ?').get(id);
+    if (order.status === 'paid') {
+      db.prepare('UPDATE orders SET is_archived = 1 WHERE id = ?').run(id);
+    }
+
+    const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+      'orders', id, 'UPDATE', JSON.stringify(updatedOrder)
+    );
+
+    logAudit(Number(req.user.id), 'delivered_all', id, null, null, req.ip);
+    res.json({ message: 'Order marked as fully delivered' });
   } catch (error) {
-    console.error('Error updating delivery status:', error);
+    console.error('Error marking order as delivered:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

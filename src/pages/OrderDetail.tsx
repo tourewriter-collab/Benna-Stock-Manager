@@ -228,6 +228,19 @@ export default function OrderDetail() {
     }
   };
 
+  const handleDeliverAll = async () => {
+    if (!confirm('Mark all items in this order as fully delivered? This will update inventory stock.')) return;
+    try {
+      await fetchApi(`/api/orders/${id}/deliver-all`, { method: 'PUT' });
+      fetchOrder();
+      await refreshStatus();
+      if (isOnline) triggerSync();
+    } catch (error) {
+      console.error('Error delivering all items:', error);
+      alert('Error updating delivery status');
+    }
+  };
+
   const handleDeleteOrder = async () => {
     if (!confirm(t('confirm_delete_order'))) return;
 
@@ -289,6 +302,15 @@ export default function OrderDetail() {
         </button>
         <h1 className="text-3xl font-bold text-[#001f3f]">{t('order_details')}</h1>
         <div className="flex-1" />
+        {canUpdateDelivery && order.items.some(it => it.quantity > (it.delivered_quantity || 0)) && (
+          <button
+            onClick={handleDeliverAll}
+            className="flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 px-4 py-2 rounded-lg hover:bg-green-100 transition-colors"
+          >
+            <CheckCircle className="w-5 h-5" />
+            {t('mark_as_delivered') || 'Mark All Delivered'}
+          </button>
+        )}
         {canEdit && (
           <button
             onClick={handlePrint}
