@@ -137,7 +137,9 @@ router.post('/push', async (req, res) => {
         if (action === 'INSERT' || action === 'UPDATE') {
           // ... (payload mapping logic remains same) ...
           const payloads = items.map(it => {
-            const data = JSON.parse(it.data);
+            let data;
+            try { data = JSON.parse(it.data); } catch(e) { return null; }
+            if (!data || !data.id) return null;
             // Schema mapping for cloud
             if (table === 'orders') {
               return {

@@ -22,19 +22,21 @@ export const logUsage = (userId, inventoryId, itemName, oldQty, newQty, transact
   const quantityChanged = Math.abs(oldQty - newQty);
   if (quantityChanged === 0) return;
 
-  const result = db.prepare(
-    'INSERT INTO usage_logs (inventory_item_id, item_name, quantity_changed, previous_quantity, new_quantity, user_id, transaction_type, authorized_by_name, authorized_by_title, truck_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(inventoryId, itemName, quantityChanged, oldQty, newQty, userId, transactionType, authName, authTitle, truckId);
+  const logId = crypto.randomUUID();
+  db.prepare(
+    'INSERT INTO usage_logs (id, inventory_item_id, item_name, quantity_changed, previous_quantity, new_quantity, user_id, transaction_type, authorized_by_name, authorized_by_title, truck_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(logId, inventoryId, itemName, quantityChanged, oldQty, newQty, userId, transactionType, authName, authTitle, truckId);
 
-  const usageLog = db.prepare('SELECT * FROM usage_logs WHERE id = ?').get(result.lastInsertRowid);
+  const usageLog = db.prepare('SELECT * FROM usage_logs WHERE id = ?').get(logId);
 
   // Add to sync queue
   db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
     'usage_logs',
-    result.lastInsertRowid,
+    logId,
     'INSERT',
     JSON.stringify(usageLog)
   );
+
 };
 
 const isEditingFrozen = (userRole) => {
@@ -195,6 +197,11 @@ router.post('/', authenticateToken, (req, res) => {
 
     logAudit(req.user.id, 'created', result.lastInsertRowid, null, newItem, req.ip);
 
+    // Initial stock creation (if quantity > 0)
+    if (quantity > 0) {
+      logUsage(req.user.id, result.lastInsertRowid, newItem.name, 0, quantity, 'IN', null, null, null);
+    }
+
     res.status(201).json(newItem);
   } catch (error) {
     console.error('Create inventory error:', error);
@@ -249,10 +256,13 @@ router.put('/:id', authenticateToken, (req, res) => {
 
     logAudit(req.user.id, 'updated', id, oldItem, updatedItem, req.ip);
 
-    // Explicitly log usage if quantity decreased
+    // Explicitly log usage for manual adjustments
     if (oldItem.quantity > updatedItem.quantity) {
       const { authorized_by_name, authorized_by_title, truck_id } = req.body;
       logUsage(req.user.id, id, updatedItem.name, oldItem.quantity, updatedItem.quantity, 'OUT', authorized_by_name, authorized_by_title, truck_id);
+    } else if (oldItem.quantity < updatedItem.quantity) {
+      const { authorized_by_name, authorized_by_title, truck_id } = req.body;
+      logUsage(req.user.id, id, updatedItem.name, oldItem.quantity, updatedItem.quantity, 'IN', authorized_by_name, authorized_by_title, truck_id);
     }
 
     res.json(updatedItem);
@@ -410,4 +420,20 @@ router.put('/:id/restore', authenticateToken, (req, res) => {
   }
 });
 
+router.post('/reconcile', authenticateToken, async (req, res) => {
+
+  if (req.user.role !== 'admin' && req.user.role !== 'audit_manager') {
+    return res.status(403).json({ error: 'Only admins can trigger reconciliation' });
+  }
+
+  try {
+    const { reconcileLedger } = await import('../database.js');
+    reconcileLedger(true); // Force run
+    res.json({ message: 'Reconciliation completed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Reconciliation failed', message: error.message });
+  }
+});
+
 export default router;
+

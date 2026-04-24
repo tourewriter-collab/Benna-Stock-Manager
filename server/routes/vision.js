@@ -67,9 +67,11 @@ router.post('/scan', authenticateToken, async (req, res) => {
       }
     ];
 
+    console.log('[Vision] Sending image to Gemini...');
     const result = await model.generateContent([prompt, ...imageParts]);
     const response = await result.response;
     let text = response.text();
+    console.log('[Vision] AI Response received.');
 
     // Clean any potential markdown wrapping
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -91,3 +93,4 @@ router.post('/scan', authenticateToken, async (req, res) => {
 });
 
 export default router;
+

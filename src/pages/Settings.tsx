@@ -249,6 +249,38 @@ const Settings: React.FC = () => {
       <h1 className="text-3xl font-bold text-gray-900 mb-8">{t('settings')}</h1>
 
       <div className="space-y-6">
+        {(user?.role === 'admin' || user?.role === 'audit_manager') && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <span className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">🛡️</span>
+              {t('data_integrity')}
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-2">
+                  Automatically sync the physical stock quantity with the transaction ledger. Run this if your reports show inconsistent balances.
+                </p>
+                <button
+                  onClick={async () => {
+                    if (confirm('Run ledger reconciliation? This will audit all stock and fix any ledger discrepancies.')) {
+                      try {
+                        await fetchApi('/api/inventory/reconcile', { method: 'POST' });
+                        alert('Reconciliation complete!');
+                      } catch (err) {
+                        alert('Reconciliation failed: ' + err.message);
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors shadow-sm text-sm font-medium"
+                >
+                  {t('reconcile_ledger')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold mb-4">{t('language')}</h2>
           <div className="flex space-x-4">

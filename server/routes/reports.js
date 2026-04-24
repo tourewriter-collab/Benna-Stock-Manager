@@ -13,55 +13,67 @@ router.get('/usage', authenticateToken, (req, res) => {
       SELECT 
         ul.inventory_item_id, 
         ul.item_name,
-        SUM(CASE WHEN ul.transaction_type = 'OUT' THEN ul.quantity_changed ELSE 0 END) as usage,
-        SUM(CASE WHEN ul.transaction_type = 'IN' THEN ul.quantity_changed ELSE 0 END) as inflow,
-        i.quantity,
-        i.min_stock,
+        -- Historical sums (before start_date)
+        SUM(CASE WHEN ul.transaction_type = 'IN' AND (? IS NULL OR ul.timestamp < ?) THEN ul.quantity_changed ELSE 0 END) as historical_in,
+        SUM(CASE WHEN ul.transaction_type = 'OUT' AND (? IS NULL OR ul.timestamp < ?) THEN ABS(ul.quantity_changed) ELSE 0 END) as historical_out,
+        -- Period sums (between start_date and end_date)
+        SUM(CASE WHEN ul.transaction_type = 'IN' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_in,
+        SUM(CASE WHEN ul.transaction_type = 'OUT' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ABS(ul.quantity_changed) ELSE 0 END) as period_out,
         i.category_id,
         c.name_en,
         c.name_fr
       FROM usage_logs ul
-      JOIN inventory i ON ul.inventory_item_id = i.id
+      LEFT JOIN inventory i ON ul.inventory_item_id = i.id
       LEFT JOIN categories c ON i.category_id = c.id
       WHERE 1=1
     `;
-    const params = [];
+    const params = [
+      start_date || null, start_date || null,
+      start_date || null, start_date || null,
+      start_date || null, start_date || null, end_date ? `${end_date} 23:59:59` : null, end_date ? `${end_date} 23:59:59` : null,
+      start_date || null, start_date || null, end_date ? `${end_date} 23:59:59` : null, end_date ? `${end_date} 23:59:59` : null
+    ];
 
-    if (start_date) {
-      sql += ` AND ul.timestamp >= ?`;
-      params.push(start_date);
-    }
-    if (end_date) {
-      sql += ` AND ul.timestamp <= ?`;
-      params.push(`${end_date} 23:59:59`);
-    }
     if (category_id) {
-      sql += ` AND i.category_id = ?`;
+      sql += ` AND (i.category_id = ? OR i.category_id IS NULL)`; // Include orphans if they match via name? No, just match by ID
       params.push(category_id);
     }
 
-    sql += ` GROUP BY ul.inventory_item_id ORDER BY usage DESC`;
+    sql += ` GROUP BY ul.inventory_item_id, ul.item_name ORDER BY period_out DESC, ul.item_name ASC`;
 
     const items = db.prepare(sql).all(...params);
 
     const usageReport = items.map(item => {
-      const usage = item.usage || 0;
-      const current = item.quantity || 0;
-      const initial = current + usage - (item.inflow || 0);
+      const historicalIn = item.historical_in || 0;
+      const historicalOut = item.historical_out || 0;
+      const periodIn = item.period_in || 0;
+      const periodOut = item.period_out || 0;
+      
+      // Stock at the exact start of the date range
+      const initialStock = historicalIn - historicalOut;
+      
+      // Current stock calculated dynamically from ledger
+      const calculatedCurrentStock = initialStock + periodIn - periodOut;
+      
+      // Total available to be used during this specific period
+      const availableStock = initialStock + periodIn;
       
       return {
         id: item.inventory_item_id,
         name: item.item_name,
         category_id: item.category_id,
         category: item.name_en ? { id: item.category_id, name_en: item.name_en, name_fr: item.name_fr } : null,
-        current_stock: current,
-        initial_stock: initial,
-        usage: usage,
-        usage_percentage: initial > 0
-          ? ((usage / initial) * 100).toFixed(2)
+        initial_stock: Math.max(initialStock, 0), 
+        received: periodIn,
+        usage: periodOut,
+        current_stock: Math.max(calculatedCurrentStock, 0),
+        usage_percentage: availableStock > 0
+          ? ((periodOut / availableStock) * 100).toFixed(2)
           : 0
       };
     });
+
+
 
     res.json(usageReport);
   } catch (error) {

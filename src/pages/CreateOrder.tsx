@@ -12,10 +12,12 @@ interface OrderItem {
   localId: string;
   description: string;
   quantity: number;
+  delivered_quantity: number;
   unit_price: number;
   inventory_item_id?: string;
   category_id?: string;
 }
+
 
 export default function CreateOrder() {
   const { t, i18n } = useTranslation();
@@ -34,8 +36,10 @@ export default function CreateOrder() {
     localId: crypto.randomUUID(),
     description: '',
     quantity: 1,
+    delivered_quantity: 0,
     unit_price: 0
   }]);
+
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
 
   useEffect(() => {
@@ -72,7 +76,13 @@ export default function CreateOrder() {
   };
 
   const handleAddItem = () => {
-    setItems([...items, { localId: crypto.randomUUID(), description: '', quantity: 1, unit_price: 0 }]);
+    setItems([...items, {
+      localId: crypto.randomUUID(),
+      description: '',
+      quantity: 1,
+      delivered_quantity: 0,
+      unit_price: 0
+    }]);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -113,9 +123,11 @@ export default function CreateOrder() {
         localId: crypto.randomUUID(),
         description: ext.name,
         quantity: ext.quantity,
+        delivered_quantity: 0,
         unit_price: ext.price,
         inventory_item_id: matched ? matched.id : undefined
       };
+
     });
 
     // If we have existing empty items, replace them, otherwise append
@@ -305,6 +317,21 @@ export default function CreateOrder() {
                       handleItemChange(index, 'quantity', parseInt(val) || 0);
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                  />
+                </div>
+                 <div className="w-24">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('delivered')}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={item.delivered_quantity}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      handleItemChange(index, 'delivered_quantity', parseInt(val) || 0);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent bg-green-50"
                   />
                 </div>
 

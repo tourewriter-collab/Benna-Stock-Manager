@@ -269,15 +269,18 @@ export default function UsageReports() {
         </div>
       </div>
 
+
+
+      {/* Recent Usage History Section */}
       {/* Usage Summary Section */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-[#001f3f]">{t('usage_summary') || 'Usage Summary'}</h2>
+          <h2 className="text-xl font-bold text-[#001f3f]">{t('usage_summary')}</h2>
           <span className="text-xs text-gray-500">{filters.start_date} {t('to')} {filters.end_date}</span>
         </div>
         
         {summaryLoading ? (
-          <div className="text-center py-8">{t('loading')}</div>
+          <div className="text-center py-8 text-gray-500">{t('loading')}</div>
         ) : usageSummary.length === 0 ? (
           <div className="text-center py-8 text-gray-500">{t('no_usage_data_found')}</div>
         ) : (
@@ -286,10 +289,19 @@ export default function UsageReports() {
               <thead className="bg-white">
                 <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   <th className="px-6 py-4">{t('item_name')}</th>
-                  <th className="px-6 py-4">{t('previous_stock') || 'Initial Stock'}</th>
-                  <th className="px-6 py-4">{t('quantity_changed') || 'Total Used'}</th>
-                  <th className="px-6 py-4">{t('current_stock') || 'Current Stock'}</th>
-                  <th className="px-6 py-4">{t('usage_rate') || 'Usage Rate'}</th>
+                  <th className="px-6 py-4 flex items-center gap-1">
+                    {t('previous_stock')}
+                    <div className="group relative">
+                      <Info className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-xl z-50 normal-case font-normal">
+                        {t('initial_stock_tooltip')}
+                      </div>
+                    </div>
+                  </th>
+                  <th className="px-6 py-4 text-green-600">{t('stock_received') || 'Received (+)'}</th>
+                  <th className="px-6 py-4 text-red-600">{t('quantity_changed') || 'Used (-)'}</th>
+                  <th className="px-6 py-4 font-bold">{t('current_stock')}</th>
+                  <th className="px-6 py-4">{t('usage_rate')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
@@ -299,16 +311,18 @@ export default function UsageReports() {
                       <div className="font-semibold text-gray-900">{item.name}</div>
                       <div className="text-xs text-gray-500">{i18n.language === 'fr' ? item.category?.name_fr : item.category?.name_en}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{item.initial_stock}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600">-{item.usage}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-navy font-medium">{item.current_stock}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{item.initial_stock}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 text-center bg-green-50/20">+{item.received}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600 text-center bg-red-50/20">-{item.usage}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${item.current_stock > 0 ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-500'}`}>
+                        {item.current_stock}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                       <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
                         <div className="w-16 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                          <div 
-                            className="bg-navy h-full" 
-                            style={{ width: `${Math.min(parseFloat(item.usage_percentage), 100)}%` }} 
-                          />
+                          <div className="bg-navy h-full" style={{ width: `${Math.min(parseFloat(item.usage_percentage), 100)}%` }} />
                         </div>
                         <span className="text-xs font-bold text-gray-700">{item.usage_percentage}%</span>
                       </div>
@@ -321,9 +335,13 @@ export default function UsageReports() {
         )}
       </div>
 
-      {/* Recent Usage History Section */}
       <div className="mt-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">{t('recent_usage_history') || 'Recent Usage History'}</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">
+          {preset === '30' ? t('period_30') : 
+           preset === '90' ? t('period_90') : 
+           preset === '365' ? t('period_365') : 
+           t('period_custom')} {t('usage_history_label') || 'Usage History'}
+        </h2>
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
