@@ -13,7 +13,8 @@ router.get('/usage', authenticateToken, (req, res) => {
       SELECT 
         ul.inventory_item_id, 
         ul.item_name,
-        SUM(ul.quantity_changed) as usage,
+        SUM(CASE WHEN ul.transaction_type = 'OUT' THEN ul.quantity_changed ELSE 0 END) as usage,
+        SUM(CASE WHEN ul.transaction_type = 'IN' THEN ul.quantity_changed ELSE 0 END) as inflow,
         i.quantity,
         i.min_stock,
         i.category_id,
@@ -43,18 +44,24 @@ router.get('/usage', authenticateToken, (req, res) => {
 
     const items = db.prepare(sql).all(...params);
 
-    const usageReport = items.map(item => ({
-      id: item.inventory_item_id,
-      name: item.item_name,
-      category_id: item.category_id,
-      category: item.name_en ? { id: item.category_id, name_en: item.name_en, name_fr: item.name_fr } : null,
-      quantity: item.quantity,
-      min_stock: item.min_stock,
-      usage: item.usage,
-      usage_percentage: item.quantity > 0
-        ? ((item.usage / (item.quantity + item.usage)) * 100).toFixed(2)
-        : 100
-    }));
+    const usageReport = items.map(item => {
+      const usage = item.usage || 0;
+      const current = item.quantity || 0;
+      const initial = current + usage - (item.inflow || 0);
+      
+      return {
+        id: item.inventory_item_id,
+        name: item.item_name,
+        category_id: item.category_id,
+        category: item.name_en ? { id: item.category_id, name_en: item.name_en, name_fr: item.name_fr } : null,
+        current_stock: current,
+        initial_stock: initial,
+        usage: usage,
+        usage_percentage: initial > 0
+          ? ((usage / initial) * 100).toFixed(2)
+          : 0
+      };
+    });
 
     res.json(usageReport);
   } catch (error) {
@@ -66,16 +73,34 @@ router.get('/usage', authenticateToken, (req, res) => {
 // Get recent usage events
 router.get('/usage-events', authenticateToken, (req, res) => {
   try {
-    const { limit = 50 } = req.query;
+    const { start_date, end_date, category_id, limit = 100 } = req.query;
     
-    const logs = db.prepare(`
+    let sql = `
       SELECT ul.*, u.name as user_name, u.email as user_email
       FROM usage_logs ul
       LEFT JOIN users u ON ul.user_id = u.id
-      ORDER BY ul.timestamp DESC
-      LIMIT ?
-    `).all(limit);
+      JOIN inventory i ON ul.inventory_item_id = i.id
+      WHERE 1=1
+    `;
+    const params = [];
 
+    if (start_date) {
+      sql += ` AND ul.timestamp >= ?`;
+      params.push(start_date);
+    }
+    if (end_date) {
+      sql += ` AND ul.timestamp <= ?`;
+      params.push(`${end_date} 23:59:59`);
+    }
+    if (category_id) {
+      sql += ` AND i.category_id = ?`;
+      params.push(category_id);
+    }
+
+    sql += ` ORDER BY ul.timestamp DESC LIMIT ?`;
+    params.push(parseInt(limit));
+
+    const logs = db.prepare(sql).all(...params);
     res.json(logs);
   } catch (error) {
     console.error('Error fetching usage events:', error);
