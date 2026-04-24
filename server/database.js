@@ -206,7 +206,7 @@ try {
     DELETE FROM inventory 
     WHERE (name LIKE 'Legacy / Recovered Item%' OR name LIKE 'Old Stock%')
     AND quantity = 0 
-    AND id NOT IN (SELECT DISTINCT inventory_id FROM order_items)
+    AND id NOT IN (SELECT DISTINCT inventory_item_id FROM order_items WHERE inventory_item_id IS NOT NULL)
     AND id NOT IN (SELECT DISTINCT record_id FROM sync_queue WHERE table_name = 'inventory')
   `);
   db.exec(`
