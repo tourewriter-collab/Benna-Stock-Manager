@@ -132,7 +132,7 @@ db.exec(`
     id TEXT PRIMARY KEY,
     order_id TEXT NOT NULL,
     inventory_item_id TEXT,
-    description TEXT NOT NULL,
+    description TEXT,
     quantity INTEGER NOT NULL CHECK(quantity > 0),
     unit_price REAL NOT NULL CHECK(unit_price >= 0),
     total REAL NOT NULL,
@@ -165,7 +165,8 @@ db.exec(`
     action TEXT NOT NULL,
     data TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    synced BOOLEAN DEFAULT 0
+    synced BOOLEAN DEFAULT 0,
+    _sync_error TEXT
   )
 `);
 
