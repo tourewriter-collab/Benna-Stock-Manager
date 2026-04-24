@@ -446,9 +446,13 @@ router.get('/pull', async (req, res) => {
             // Ignore non-UUID fallback items (like cat_ or sup_) from getting archived
             if (!local.id.includes('-')) continue;
 
-            // If local item is NOT in cloud AND it's NOT already archived locally AND it's NOT a new local item (pending)
-            if (!cloudIdSet.has(local.id) && local.is_archived === 0 && local.sync_status !== 'pending') {
-              console.log(`[Sync] Ghost Recovery: Archiving ${table} id=${local.id} (missing from cloud)`);
+            // CRITICAL FIX: Only archive items previously confirmed as synced to cloud.
+            // Items with sync_status='pending' are new local items not yet pushed — 
+            // archiving them would incorrectly remove freshly created records.
+            const hasBeenSynced = local.sync_status === 'synced';
+
+            if (!cloudIdSet.has(local.id) && local.is_archived === 0 && hasBeenSynced) {
+              console.log(`[Sync] Ghost Recovery: Archiving ${table} id=${local.id} (confirmed synced, now missing from cloud)`);
               db.prepare(`UPDATE ${table} SET is_archived = 1, sync_status = 'synced' WHERE id = ?`).run(local.id);
             }
           }

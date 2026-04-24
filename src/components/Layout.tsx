@@ -8,17 +8,11 @@ import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard } 
 import { fetchApi } from '../lib/api';
 
 const Layout: React.FC = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const { syncStatus, pendingCount, triggerSync, isOnline } = useSync();
   const location = useLocation();
   const [logo, setLogo] = React.useState<string | null>(null);
-
-  const toggleLanguage = () => {
-    const newLang = i18n.language === 'en' ? 'fr' : 'en';
-    i18n.changeLanguage(newLang);
-    localStorage.setItem('language', newLang);
-  };
 
   const isActive = (path: string) => {
     return location.pathname === path ? 'bg-navy bg-opacity-20' : '';
@@ -67,12 +61,6 @@ const Layout: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
-              <button
-                onClick={toggleLanguage}
-                className="px-3 py-2 rounded-md text-sm font-medium hover:bg-navy hover:bg-opacity-20 transition"
-              >
-                {i18n.language === 'en' ? 'FR' : 'EN'}
-              </button>
 
               <button
                 onClick={() => triggerSync()}

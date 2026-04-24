@@ -14,6 +14,7 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [stayLoggedIn, setStayLoggedIn] = useState(true);
 
   const toggleLanguage = () => {
     const newLang = i18n.language === 'en' ? 'fr' : 'en';
@@ -28,7 +29,7 @@ const Login: React.FC = () => {
 
     try {
       console.log('Login form submitted');
-      await login(email, password);
+      await login(email, password, stayLoggedIn);
       console.log('Login successful, navigating to dashboard');
       navigate('/dashboard');
     } catch (err) {
@@ -106,6 +107,19 @@ const Login: React.FC = () => {
                   )}
                 </button>
               </div>
+            </div>
+
+            <div className="flex items-center">
+              <input
+                id="stay-logged-in"
+                type="checkbox"
+                checked={stayLoggedIn}
+                onChange={(e) => setStayLoggedIn(e.target.checked)}
+                className="h-4 w-4 text-navy border-gray-300 rounded focus:ring-navy cursor-pointer"
+              />
+              <label htmlFor="stay-logged-in" className="ml-2 block text-sm text-gray-700 cursor-pointer select-none">
+                {i18n.language === 'fr' ? 'Rester connecté' : 'Stay logged in'}
+              </label>
             </div>
 
             <button

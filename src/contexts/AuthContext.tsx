@@ -10,7 +10,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, stayLoggedIn?: boolean) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -20,11 +20,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const CACHE_KEY = 'benna_cached_user';
 const TOKEN_KEY = 'token';
 
-/** Store the logged-in user profile locally for offline access */
-function cacheUser(user: User, token: string) {
+/** Store the logged-in user profile. Uses localStorage when stayLoggedIn=true, sessionStorage otherwise. */
+function cacheUser(user: User, token: string, persistent: boolean) {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(user));
-    localStorage.setItem(TOKEN_KEY, token);
+    const store = persistent ? localStorage : sessionStorage;
+    store.setItem(CACHE_KEY, JSON.stringify(user));
+    store.setItem(TOKEN_KEY, token);
+    // Clean the other store to avoid stale data
+    if (persistent) {
+      sessionStorage.removeItem(CACHE_KEY);
+      sessionStorage.removeItem(TOKEN_KEY);
+    } else {
+      localStorage.removeItem(CACHE_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+    }
   } catch (_) {}
 }
 
@@ -33,14 +42,24 @@ function clearCachedUser() {
   try {
     localStorage.removeItem(CACHE_KEY);
     localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(CACHE_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
   } catch (_) {}
 }
 
-/** Read the locally-cached user */
-function loadCachedUser(): User | null {
+/** Read the locally-cached user — checks sessionStorage first, then localStorage */
+function loadCachedUser(): { user: User; token: string } | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? (JSON.parse(raw) as User) : null;
+    // Session-only first (browser tab still open)
+    let raw = sessionStorage.getItem(CACHE_KEY);
+    let token = sessionStorage.getItem(TOKEN_KEY);
+    if (!raw || !token) {
+      // Fall back to persistent store
+      raw = localStorage.getItem(CACHE_KEY);
+      token = localStorage.getItem(TOKEN_KEY);
+    }
+    if (raw && token) return { user: JSON.parse(raw) as User, token };
+    return null;
   } catch (_) {
     return null;
   }
@@ -55,9 +74,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Attempt to restore user from cache on initial load
     const verifyToken = async () => {
       const cached = loadCachedUser();
-      const token = localStorage.getItem(TOKEN_KEY);
 
-      if (cached && token) {
+      if (cached) {
         try {
           // Verify with server
           const serverUser = await fetchApi('/auth/me');
@@ -66,8 +84,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('[Auth] Restored and verified cached user:', serverUser.email);
         } catch (error) {
           console.error('[Auth] Token verification failed:', error);
-          // Don't log out on network error, keep current state (offline support)
-          setUser(cached);
+          // Don't log out on network error — support offline access
+          setUser(cached.user);
           setIsAuthenticated(true);
         }
       }
@@ -78,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     verifyToken();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, stayLoggedIn = true) => {
     try {
       console.log('[Auth] Login attempt against local API:', email);
 
@@ -89,9 +107,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setUser(data.user);
       setIsAuthenticated(true);
-      cacheUser(data.user, data.token);
+      cacheUser(data.user, data.token, stayLoggedIn);
 
-      console.log('[Auth] Login successful');
+      console.log('[Auth] Login successful, persistent:', stayLoggedIn);
     } catch (error) {
       console.error('[Auth] Login error:', error);
       throw error;
