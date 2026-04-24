@@ -305,6 +305,18 @@ router.post('/push', async (req, res) => {
               continue;
             }
 
+            // SPECIAL CASE: Foreign key violations mean the referenced entity doesn't exist in cloud.
+            // These will never succeed without the parent record, so clear them.
+            if (error.message.includes('foreign key constraint')) {
+              console.log(`[Sync] Foreign key violation for ${table}, clearing ${items.length} orphaned items from queue.`);
+              db.transaction(() => {
+                const itemIds = items.map(it => it.id);
+                const placeholders = itemIds.map(() => '?').join(',');
+                db.prepare(`DELETE FROM sync_queue WHERE id IN (${placeholders})`).run(...itemIds);
+              })();
+              continue;
+            }
+
             // Mark individual errors in local DB for troubleshooting
             items.forEach(it => {
                try {
