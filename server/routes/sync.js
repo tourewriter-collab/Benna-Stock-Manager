@@ -333,7 +333,11 @@ router.get('/pull', async (req, res) => {
       usage_logs: 'timestamp'
     };
 
-    db.exec(`CREATE TABLE IF NOT EXISTS sync_meta (table_name TEXT PRIMARY KEY, last_pulled DATETIME)`);
+    try {
+      db.exec(`CREATE TABLE IF NOT EXISTS sync_meta (table_name TEXT PRIMARY KEY, last_pulled DATETIME)`);
+    } catch (e) {
+      console.error('[Sync] Error creating sync_meta table:', e);
+    }
     
     let totalPulled = 0;
 
@@ -485,7 +489,12 @@ router.get('/pull', async (req, res) => {
     res.json({ success: true, pulled: totalPulled });
   } catch (error) {
     console.error('[Sync] Pull error:', error);
-    res.status(500).json({ error: 'Failed to pull changes from Supabase', message: error.message });
+    res.status(500).json({ 
+      error: 'Failed to pull changes from Supabase', 
+      message: error.message,
+      stack: error.stack,
+      hint: 'Please check your Supabase credentials and network connectivity.'
+    });
   }
 });
 
