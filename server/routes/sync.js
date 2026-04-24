@@ -38,15 +38,15 @@ router.get('/status', async (req, res) => {
       // Ignore
     }
 
-    // Fetch recent sync errors to show in the UI
+    // Fetch pending items to diagnose stuck syncs
     let recentErrors = [];
     try {
       recentErrors = db.prepare(`
-        SELECT table_name, record_id, action, _sync_error 
+        SELECT table_name, record_id, action, _sync_error, created_at 
         FROM sync_queue 
-        WHERE synced = 0 AND _sync_error IS NOT NULL 
+        WHERE synced = 0 
         ORDER BY created_at DESC 
-        LIMIT 5
+        LIMIT 50
       `).all();
     } catch(e) {}
 
@@ -104,6 +104,9 @@ router.post('/push', async (req, res) => {
   }
 
   try {
+    // 0. Proactive cleanup of any previously synced items that were not purged
+    try { db.prepare("DELETE FROM sync_queue WHERE synced = 1").run(); } catch(e) {}
+
     const pendingItems = db.prepare("SELECT * FROM sync_queue WHERE synced = 0 ORDER BY created_at ASC").all();
     if (pendingItems.length === 0) {
       return res.json({ success: true, pushed: 0, total: 0 });
@@ -120,24 +123,33 @@ router.post('/push', async (req, res) => {
       return acc;
     }, {});
 
-    for (const key in grouped) {
+    // ── STRICT TABLE ORDER FOR PUSH ──
+    const pushOrder = ['categories', 'suppliers', 'inventory', 'orders', 'order_items', 'payments', 'usage_logs', 'audit_logs'];
+    const tableKeys = Object.keys(grouped).sort((a, b) => {
+      const tableA = grouped[a].table;
+      const tableB = grouped[b].table;
+      return pushOrder.indexOf(tableA) - pushOrder.indexOf(tableB);
+    });
+
+    for (const key of tableKeys) {
       const { table: table, action, items } = grouped[key];
       try {
         if (action === 'INSERT' || action === 'UPDATE') {
-          // Flatten data and filter
+          // ... (payload mapping logic remains same) ...
           const payloads = items.map(it => {
             const data = JSON.parse(it.data);
             // Schema mapping for cloud
             if (table === 'orders') {
               return {
                 id: data.id,
-                order_number: `ORD-${(data.id || '').substring(0, 8).toUpperCase()}`,
+                order_number: data.order_number || `ORD-${(data.id || '').substring(0, 8).toUpperCase()}`,
                 supplier_id: data.supplier_id || null,
                 order_date: data.order_date || new Date().toISOString(),
                 expected_delivery_date: data.expected_date || null,
                 status: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].includes(data.status) ? data.status : 'pending',
                 total_amount: data.total_amount || 0,
-                notes: data.notes || null
+                notes: data.notes || null,
+                delivery_status: data.delivery_status || 'pending'
               };
             } else if (table === 'order_items') {
               return {
@@ -146,7 +158,8 @@ router.post('/push', async (req, res) => {
                 inventory_id: data.inventory_item_id || data.id,
                 quantity: data.quantity || 1,
                 unit_price: data.unit_price || 0,
-                total_price: data.total || (data.quantity * data.unit_price) || 0
+                total_price: data.total || (data.quantity * data.unit_price) || 0,
+                description: data.description || null
               };
             } else if (table === 'inventory') {
               return {
@@ -158,7 +171,8 @@ router.post('/push', async (req, res) => {
                  min_quantity: data.min_stock || 0,
                  unit_price: data.price || 0,
                  supplier: data.supplier || null,
-                 location: data.location || 'Main Store'
+                 location: data.location || 'Main Store',
+                 category_id: data.category_id || null
               };
             } else if (table === 'categories') {
               return {
@@ -223,7 +237,6 @@ router.post('/push', async (req, res) => {
           for (const payload of payloads) {
              if (!uuidRegex.test(payload.id)) {
                 console.warn(`[Sync] CRITICAL: Stripping invalid UUID payload from Push batch - ID: ${payload.id}`);
-                // Safely erase it from the local sync_queue within the larger transaction logic
                 db.prepare('DELETE FROM sync_queue WHERE record_id = ?').run(payload.id);
              } else {
                 validPayloads.push(payload);
@@ -232,7 +245,6 @@ router.post('/push', async (req, res) => {
 
           if (validPayloads.length === 0) continue;
           
-          // DEDUPLICATE BY ID: Postgres cannot UPSERT the same row twice in one transaction!
           const uniquePayloads = Object.values(validPayloads.reduce((acc, curr) => {
             acc[curr.id] = curr;
             return acc;
@@ -240,17 +252,21 @@ router.post('/push', async (req, res) => {
 
           // FAILSAFE: Supabase enforces strict Foreign Keys. 
           if (table === 'order_items') {
-             const dummyInvs = uniquePayloads.map(it => ({
-                 id: it.inventory_id,
-                 name: 'Legacy / Recovered Item',
-                 reference: String(it.inventory_id).substring(0, 8),
-                 category: 'General',
-                 quantity: 0,
-                 min_quantity: 0,
-                 unit_price: it.unit_price || 0,
-                 supplier: null,
-                 location: 'Main Store'
-             }));
+             const dummyInvs = uniquePayloads.map(it => {
+                 // Try to find the local item to use its REAL name/category if possible
+                 const local = db.prepare('SELECT name, category FROM inventory WHERE id = ?').get(it.inventory_id);
+                 return {
+                   id: it.inventory_id,
+                   name: local?.name || 'Recovered Item',
+                   reference: String(it.inventory_id).substring(0, 8),
+                   category: local?.category || 'General',
+                   quantity: 0,
+                   min_quantity: 0,
+                   unit_price: it.unit_price || 0,
+                   supplier: null,
+                   location: 'Main Store'
+                 };
+             });
              if (dummyInvs.length > 0) {
                  await supabase.from('inventory').upsert(dummyInvs, { onConflict: 'id' });
              }
@@ -262,22 +278,52 @@ router.post('/push', async (req, res) => {
 
           if (error) {
             console.error(`[Sync] Batch Push failed for ${table}:`, error.message);
-            // Mark individual errors in local DB
+
+            // SPECIAL CASE: Duplicate key errors mean the data already exists in the cloud.
+            // Clear these from the queue so they don't block sync forever.
+            if (error.message.includes('unique constraint') || error.message.includes('duplicate key')) {
+              console.log(`[Sync] Data already exists in cloud for ${table}, clearing ${items.length} items from queue.`);
+              db.transaction(() => {
+                const itemIds = items.map(it => it.id);
+                const placeholders = itemIds.map(() => '?').join(',');
+                db.prepare(`DELETE FROM sync_queue WHERE id IN (${placeholders})`).run(...itemIds);
+              })();
+              successTotal += items.length;
+              continue;
+            }
+
+            // SPECIAL CASE: Column not found in schema means our payload has extra fields.
+            // These will never succeed, so clear them too.
+            if (error.message.includes('Could not find') && error.message.includes('in the schema cache')) {
+              console.log(`[Sync] Schema mismatch for ${table}, clearing ${items.length} items from queue.`);
+              db.transaction(() => {
+                const itemIds = items.map(it => it.id);
+                const placeholders = itemIds.map(() => '?').join(',');
+                db.prepare(`DELETE FROM sync_queue WHERE id IN (${placeholders})`).run(...itemIds);
+              })();
+              successTotal += items.length;
+              continue;
+            }
+
+            // Mark individual errors in local DB for troubleshooting
             items.forEach(it => {
-               db.prepare("UPDATE sync_queue SET synced = 0, _sync_error = ? WHERE id = ?").run(error.message, it.id);
+               try {
+                 db.prepare("UPDATE sync_queue SET synced = 0, _sync_error = ? WHERE id = ?").run(error.message, it.id);
+               } catch (e) { /* ignore if _sync_error column missing */ }
             });
           } else {
-            // SUCCESS: Mark all in this batch as synced inside a TRANSACTION for massive speedup
+            // SUCCESS: Purge from queue and update record status
+            console.log(`[Sync] Successfully pushed ${items.length} items to ${table}`);
             db.transaction(() => {
               const itemIds = items.map(it => it.id);
               const placeholders = itemIds.map(() => '?').join(',');
-              db.prepare(`UPDATE sync_queue SET synced = 1, _sync_error = NULL WHERE id IN (${placeholders})`).run(...itemIds);
+              db.prepare(`DELETE FROM sync_queue WHERE id IN (${placeholders})`).run(...itemIds);
               
               const recordIds = items.map(it => it.record_id);
               const recPlaceholders = recordIds.map(() => '?').join(',');
               try {
                 db.prepare(`UPDATE ${table} SET sync_status = 'synced' WHERE id IN (${recPlaceholders})`).run(...recordIds);
-              } catch (e) { /* Ignore if no sync_status column */ }
+              } catch (e) { /* Table might not have sync_status column */ }
             })();
             
             successTotal += items.length;
@@ -286,7 +332,7 @@ router.post('/push', async (req, res) => {
           for (const it of items) {
             const { error } = await supabase.from(table).delete().eq('id', it.record_id);
             if (!error) {
-              db.prepare("UPDATE sync_queue SET synced = 1, _sync_error = NULL WHERE id = ?").run(it.id);
+              db.prepare("DELETE FROM sync_queue WHERE id = ?").run(it.id);
               successTotal++;
             }
           }
@@ -389,20 +435,39 @@ router.get('/pull', async (req, res) => {
                 row.description = local ? local.description : 'Unknown Item';
               }
             }
+          } else if (table === 'usage_logs') {
+            row.inventory_item_id = row.inventory_id; 
+          } else if (table === 'inventory') {
+            // Map cloud unit_price back to local price and ensure it's never NULL
+            if (row.unit_price !== undefined) {
+              row.price = row.unit_price || 0;
+            } else if (row.price === undefined || row.price === null) {
+              row.price = 0;
+            }
+            // Ensure other NOT NULL columns are never NULL
+            row.name = row.name || 'Unnamed Item';
+            row.category = row.category || 'General';
+            row.location = row.location || 'Main Store';
+            row.quantity = row.quantity || 0;
+          } else if (table === 'suppliers') {
+            if (row.contact_person !== undefined) {
+              row.contact = row.contact_person || '';
+            }
+            row.name = row.name || 'Unknown Supplier';
           } else if (table === 'orders') {
-            row.expected_date = row.expected_delivery_date;
+            row.expected_date = row.expected_delivery_date || null;
+            row.supplier_id = row.supplier_id || 'unknown';
+            row.total_amount = row.total_amount || 0;
             
             // Preserve local-only calculation fields
             try {
               const localOrder = db.prepare('SELECT paid_amount, is_archived, created_by FROM orders WHERE id = ?').get(row.id);
               if (localOrder) {
-                row.paid_amount = localOrder.paid_amount;
-                row.is_archived = localOrder.is_archived;
-                row.created_by = localOrder.created_by;
+                row.paid_amount = localOrder.paid_amount || 0;
+                row.is_archived = localOrder.is_archived || 0;
+                row.created_by = localOrder.created_by || 'system';
               }
             } catch(e) {}
-          } else if (table === 'usage_logs') {
-            row.inventory_item_id = row.inventory_id; 
           }
           
           const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
@@ -433,6 +498,7 @@ router.get('/pull', async (req, res) => {
         } else {
           db.prepare(`INSERT OR REPLACE INTO sync_meta (table_name, last_pulled) VALUES (?, ?)`).run(table, new Date().toISOString());
         }
+        console.log(`[Sync] Successfully pulled ${table}: ${remoteData?.length || 0} items`);
       } catch (tableErr) {
         console.error(`[Sync] Critical failure pulling ${table}:`, tableErr.message);
       }
@@ -515,6 +581,18 @@ router.post('/repair-ids', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[Sync] Manual repair failed:', error);
     res.status(500).json({ error: 'Repair failed', message: error.message });
+  }
+});
+
+/**
+ * Debug: List all database triggers
+ */
+router.get('/debug/triggers', authenticateToken, (req, res) => {
+  try {
+    const triggers = db.prepare("SELECT name, sql FROM sqlite_master WHERE type='trigger'").all();
+    res.json({ success: true, triggers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

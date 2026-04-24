@@ -28,6 +28,11 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await fetchApi('/sync/status');
       setPendingCount(data.pendingItems);
 
+      // Log any stuck items with errors
+      if (data.recentErrors && data.recentErrors.length > 0) {
+        console.warn('[Sync] Some items are stuck in the waiting list:', data.recentErrors);
+      }
+
       // Update UI state based on backend response, but NEVER auto-trigger a sync from here
       // to avoid infinite loops if an item gets permanently stuck or the DB is empty.
       if (!data.online || !navigator.onLine) {
@@ -78,6 +83,8 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await fetchStatus();
     } catch (error: any) {
       console.error('[Sync] Sync failed:', error.message);
+      if (error.stack) console.error('[Sync] Stack trace:', error.stack);
+      if (error.hint) console.warn('[Sync] Troubleshooting Hint:', error.hint);
       if (error.details) console.error('[Sync] Diagnostic details:', error.details);
       setSyncStatus('error');
     }

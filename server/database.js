@@ -189,12 +189,33 @@ for (const table of tables) {
 try { db.exec(`ALTER TABLE inventory ADD COLUMN category_id TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE order_items ADD COLUMN delivered_quantity INTEGER DEFAULT 0`); } catch (e) {}
 try { db.exec(`ALTER TABLE orders ADD COLUMN delivery_status TEXT DEFAULT 'pending'`); } catch (e) {}
-try { db.exec(`ALTER TABLE sync_queue ADD COLUMN synced BOOLEAN DEFAULT 0`); } catch (e) {}
+try { db.exec(`ALTER TABLE sync_queue ADD COLUMN synced BOOLEAN NOT NULL DEFAULT 0`); } catch (e) {}
+try { db.exec(`ALTER TABLE sync_queue ADD COLUMN _sync_error TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE suppliers ADD COLUMN status TEXT DEFAULT 'active'`); } catch (e) {}
 try { db.exec(`ALTER TABLE usage_logs ADD COLUMN transaction_type TEXT DEFAULT 'OUT'`); } catch (e) {}
 try { db.exec(`ALTER TABLE usage_logs ADD COLUMN authorized_by_name TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE usage_logs ADD COLUMN authorized_by_title TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE usage_logs ADD COLUMN truck_id TEXT`); } catch (e) {}
+
+// Cleanup Legacy / Recovered items that are no longer needed
+try {
+  console.log('[Database] Cleaning up legacy placeholders...');
+  // Only delete if NOT in order_items AND NOT pending in sync_queue
+  db.exec(`
+    DELETE FROM inventory 
+    WHERE (name LIKE 'Legacy / Recovered Item%' OR name LIKE 'Old Stock%')
+    AND quantity = 0 
+    AND id NOT IN (SELECT DISTINCT inventory_id FROM order_items)
+    AND id NOT IN (SELECT DISTINCT record_id FROM sync_queue WHERE table_name = 'inventory')
+  `);
+  db.exec(`
+    UPDATE inventory 
+    SET name = 'Old Stock (' || SUBSTR(id, 1, 4) || ')' 
+    WHERE name LIKE 'Legacy / Recovered Item%'
+  `);
+} catch (e) {
+  console.error('[Database] Cleanup failed:', e.message);
+}
 
 // Add functional indexes for performance
 try {
@@ -325,6 +346,12 @@ function repairAllIds() {
           // 1. Create a duplicate record with new ID
           // We explicitly ensure 'id' and 'sync_status' are strings
           const newRecord = { ...row };
+          
+          // Safety fallback for NOT NULL constraints
+          if (table === 'inventory' && (newRecord.price === null || newRecord.price === undefined)) {
+            newRecord.price = 0;
+          }
+          
           newRecord[pk] = newId;
           newRecord.sync_status = 'pending';
           
@@ -459,7 +486,17 @@ export function runPostStartupMaintenance() {
     if (prune.changes > 0) console.log(`[Database] Pruned ${prune.changes} old synced items from queue.`);
   } catch (e) { /* ignore */ }
 
-  // 4. Perform one-time ID format repair (UUID conversion)
+  // 4. Diagnostic: Log all database triggers
+  try {
+    const ts = db.prepare("SELECT name, sql FROM sqlite_master WHERE type='trigger'").all();
+    if (ts.length > 0) {
+      console.log('[Database] CRITICAL DIAGNOSTIC - Triggers found:', JSON.stringify(ts, null, 2));
+    } else {
+      console.log('[Database] No triggers found.');
+    }
+  } catch (e) { /* ignore */ }
+
+  // 5. Perform one-time ID format repair (UUID conversion)
   try {
     repairAllIds();
   } catch (e) {

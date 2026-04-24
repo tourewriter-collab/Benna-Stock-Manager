@@ -45,7 +45,7 @@ const Layout: React.FC = () => {
             {/* Left: Logo + Nav Links */}
             <div className="flex items-center space-x-4 lg:space-x-8 flex-1 min-w-0">
               <div className="flex items-center space-x-2 flex-shrink-0">
-                {logo && <img src={logo} alt="Logo" className="h-7 w-7 object-contain bg-white rounded-sm p-0.5" />}
+                {logo && <img src={logo} alt="Logo" className="h-10 w-10 object-contain bg-white rounded-md p-1 shadow-sm" />}
                 <h1 className="text-lg lg:text-xl font-bold whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px] sm:max-w-none">
                   {t('app_title')}
                 </h1>

@@ -70,15 +70,21 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
         
         let errorMsg = `Server error (${res.status})`;
         let details = null;
+        let stack = null;
+        let hint = null;
         try {
           const errBody = await res.json();
-          errorMsg = errBody.error || errBody.message || errorMsg;
+          errorMsg = errBody.message || errBody.error || errorMsg;
           details = errBody.details || null;
+          stack = errBody.stack || null;
+          hint = errBody.hint || null;
         } catch (_) {}
         
         const error = new Error(errorMsg) as any;
         error.status = res.status;
         error.details = details;
+        error.stack = stack || error.stack;
+        error.hint = hint;
         throw error;
       }
 
