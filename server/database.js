@@ -218,6 +218,35 @@ try {
   console.error('[Database] Cleanup failed:', e.message);
 }
 
+// deduplicate categories (cleanup for sync duplicates)
+try {
+  const duplicates = db.prepare(`
+    SELECT name_en, COUNT(*) as count 
+    FROM categories 
+    GROUP BY name_en 
+    HAVING count > 1
+  `).all();
+
+  for (const dup of duplicates) {
+    const records = db.prepare(`SELECT id FROM categories WHERE name_en = ? ORDER BY created_at ASC`).all(dup.name_en);
+    const primaryId = records[0].id;
+    const others = records.slice(1).map(r => r.id);
+
+    console.log(`[Database] Deduplicating category "${dup.name_en}": Keeping ${primaryId}, merging ${others.length} others.`);
+
+    db.transaction(() => {
+      // Update inventory to point to the primary ID
+      const placeholders = others.map(() => '?').join(',');
+      db.prepare(`UPDATE inventory SET category_id = ? WHERE category_id IN (${placeholders})`).run(primaryId, ...others);
+      
+      // Delete the duplicate categories
+      db.prepare(`DELETE FROM categories WHERE id IN (${placeholders})`).run(...others);
+    })();
+  }
+} catch (e) {
+  console.error('[Database] Category deduplication failed:', e.message);
+}
+
 // Add functional indexes for performance
 try {
   db.exec('CREATE INDEX IF NOT EXISTS idx_inventory_category_id ON inventory(category_id)');
