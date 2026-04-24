@@ -552,6 +552,38 @@ router.get('/pull', async (req, res) => {
       }
     }
 
+    // 2. MIRROR SYNC (ID Audit): Delete local items that were deleted from Supabase
+    const mirrorTables = ['inventory', 'categories', 'suppliers', 'orders'];
+    for (const table of mirrorTables) {
+      try {
+        console.log(`[Sync] Auditing ${table} for cloud deletions...`);
+        const { data: cloudIds, error: auditError } = await supabase.from(table).select('id');
+        
+        if (auditError) {
+          console.error(`[Sync] Audit failed for ${table}:`, auditError.message);
+          continue;
+        }
+
+        const cloudIdSet = new Set(cloudIds.map(row => row.id));
+        
+        // Find local items that are 'synced' but not in cloudIdSet
+        const localItems = db.prepare(`SELECT id FROM ${table} WHERE sync_status = 'synced'`).all();
+        const toDelete = localItems.filter(li => !cloudIdSet.has(li.id));
+
+        if (toDelete.length > 0) {
+          console.log(`[Sync] Mirroring deletions for ${table}: deleting ${toDelete.length} items missing from cloud.`);
+          db.transaction(() => {
+            const deleteStmt = db.prepare(`DELETE FROM ${table} WHERE id = ?`);
+            for (const item of toDelete) {
+              deleteStmt.run(item.id);
+            }
+          })();
+        }
+      } catch (err) {
+        console.error(`[Sync] Audit error for ${table}:`, err.message);
+      }
+    }
+
     res.json({ success: true, pulled: totalPulled });
   } catch (error) {
     console.error('[Sync] Pull error:', error);
