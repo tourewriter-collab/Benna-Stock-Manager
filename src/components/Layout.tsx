@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
 import pkg from '../../package.json';
-import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, CheckCircle2 } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 
 const Layout: React.FC = () => {
@@ -26,70 +26,58 @@ const Layout: React.FC = () => {
     }).catch(console.error);
   }, []);
 
+  // ── Sync pill configuration by status ──
+  const syncPillConfig: Record<string, { bg: string; ring: string; icon: React.ReactNode; label: string }> = {
+    synced:  { bg: 'bg-emerald-500', ring: 'ring-emerald-300', icon: <CheckCircle2 size={15} />, label: t('synced') },
+    syncing: { bg: 'bg-blue-500',    ring: 'ring-blue-300',    icon: <RefreshCw size={15} className="animate-spin" />, label: t('syncing') },
+    pending: { bg: 'bg-blue-500',    ring: 'ring-blue-300',    icon: <Cloud size={15} />,        label: `${pendingCount} ${t('pending')}` },
+    error:   { bg: 'bg-red-500',     ring: 'ring-red-300',     icon: <AlertCircle size={15} />,  label: t('sync_error') },
+    offline: { bg: 'bg-gray-400',    ring: 'ring-gray-200',    icon: <CloudOff size={15} />,     label: t('offline') },
+  };
+  const pill = syncPillConfig[syncStatus] ?? syncPillConfig.synced;
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col overflow-x-hidden">
+      {/* ── Top Navigation Bar ── */}
       <nav className="bg-navy text-white shadow-lg w-full">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
           <div className="flex justify-between min-h-[4rem] py-2 gap-2">
+            {/* Left: Logo + Nav Links */}
             <div className="flex items-center space-x-4 lg:space-x-8 flex-1 min-w-0">
               <div className="flex items-center space-x-2 flex-shrink-0">
                 {logo && <img src={logo} alt="Logo" className="h-7 w-7 object-contain bg-white rounded-sm p-0.5" />}
-                <h1 className="text-lg lg:text-xl font-bold whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px] sm:max-w-none">{t('app_title')}</h1>
+                <h1 className="text-lg lg:text-xl font-bold whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px] sm:max-w-none">
+                  {t('app_title')}
+                </h1>
               </div>
+
+              {/* Full links — xl+ screens */}
               <div className="hidden xl:flex space-x-4">
-                {/* Regular links for large screens */}
-                <Link to="/dashboard" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-navy hover:bg-opacity-20 transition ${isActive('/dashboard')}`}>{t('dashboard')}</Link>
-                <Link to="/inventory" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-navy hover:bg-opacity-20 transition ${isActive('/inventory')}`}>{t('inventory')}</Link>
-                <Link to="/suppliers" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-navy hover:bg-opacity-20 transition ${isActive('/suppliers')}`}>{t('suppliers')}</Link>
-                <Link to="/orders" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-navy hover:bg-opacity-20 transition ${isActive('/orders')}`}>{t('orders')}</Link>
-                <Link to="/usage-reports" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-navy hover:bg-opacity-20 transition ${isActive('/usage-reports')}`}>{t('usage_reports')}</Link>
+                <Link to="/dashboard"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/dashboard')}`}>{t('dashboard')}</Link>
+                <Link to="/inventory"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/inventory')}`}>{t('inventory')}</Link>
+                <Link to="/suppliers"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/suppliers')}`}>{t('suppliers')}</Link>
+                <Link to="/orders"        className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/orders')}`}>{t('orders')}</Link>
+                <Link to="/usage-reports" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/usage-reports')}`}>{t('usage_reports')}</Link>
                 {user?.role === 'admin' && (
                   <>
-                    <Link to="/categories" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-navy hover:bg-opacity-20 transition ${isActive('/categories')}`}>{t('categories')}</Link>
-                    <Link to="/admin/users" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-navy hover:bg-opacity-20 transition ${isActive('/admin/users')}`}>{t('admin_users')}</Link>
+                    <Link to="/categories"  className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/categories')}`}>{t('categories')}</Link>
+                    <Link to="/admin/users" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/admin/users')}`}>{t('admin_users')}</Link>
                   </>
                 )}
-                <Link to="/settings" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-navy hover:bg-opacity-20 transition ${isActive('/settings')}`}>{t('settings')}</Link>
+                <Link to="/settings" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition ${isActive('/settings')}`}>{t('settings')}</Link>
               </div>
-              
-              {/* Fallback for mid-sized screens to avoid overflow */}
+
+              {/* Icon-only links — md–xl screens */}
               <div className="hidden md:flex xl:hidden space-x-1">
                 <Link to="/dashboard" className={`p-2 rounded-md transition ${isActive('/dashboard')}`} title={t('dashboard')}><Package size={18} /></Link>
                 <Link to="/inventory" className={`p-2 rounded-md transition ${isActive('/inventory')}`} title={t('inventory')}><Layers size={18} /></Link>
-                <Link to="/orders" className={`p-2 rounded-md transition ${isActive('/orders')}`} title={t('orders')}><CreditCard size={18} /></Link>
-                <Link to="/settings" className={`p-2 rounded-md transition ${isActive('/settings')}`} title={t('settings')}><RefreshCw size={18} /></Link>
+                <Link to="/orders"    className={`p-2 rounded-md transition ${isActive('/orders')}`}    title={t('orders')}><CreditCard size={18} /></Link>
+                <Link to="/settings"  className={`p-2 rounded-md transition ${isActive('/settings')}`}  title={t('settings')}><RefreshCw size={18} /></Link>
               </div>
             </div>
+
+            {/* Right: User name + Logout */}
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
-
-              <button
-                onClick={() => triggerSync()}
-                disabled={syncStatus === 'syncing' || !isOnline}
-                className="flex items-center space-x-1 px-3 py-2 rounded-md hover:bg-navy hover:bg-opacity-20 transition text-sm disabled:opacity-50"
-                title={syncStatus === 'error' ? 'Sync failed. Click to retry.' : 'Click to sync now'}
-              >
-                {syncStatus === 'synced' && <Cloud size={18} />}
-                {syncStatus === 'syncing' && <RefreshCw size={18} className="animate-spin" />}
-                {syncStatus === 'pending' && (
-                  <div className="relative">
-                    <Cloud size={18} />
-                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
-                    </span>
-                  </div>
-                )}
-                {syncStatus === 'offline' && <CloudOff size={18} className="text-gray-400" />}
-                {syncStatus === 'error' && <AlertCircle size={18} className="text-red-400" />}
-                <span className="hidden sm:inline-block">
-                  {syncStatus === 'synced' && t('synced')}
-                  {syncStatus === 'syncing' && t('syncing')}
-                  {syncStatus === 'pending' && `${pendingCount} ${t('pending')}`}
-                  {syncStatus === 'offline' && t('offline')}
-                  {syncStatus === 'error' && t('sync_error')}
-                </span>
-              </button>
-
               <span className="text-sm border-l border-white/20 pl-4 ml-2">{user?.name}</span>
               <button
                 onClick={logout}
@@ -102,25 +90,22 @@ const Layout: React.FC = () => {
         </div>
       </nav>
 
+      {/* ── Offline Warning Banner ── */}
       {!isOnline && (
         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
           <div className="flex">
-            <div className="flex-shrink-0">
-              <CloudOff className="h-5 w-5 text-yellow-400" aria-hidden="true" />
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-yellow-700">
-                {t('offline_warning')}
-              </p>
-            </div>
+            <CloudOff className="h-5 w-5 text-yellow-400 flex-shrink-0" aria-hidden="true" />
+            <p className="ml-3 text-sm text-yellow-700">{t('offline_warning')}</p>
           </div>
         </div>
       )}
 
+      {/* ── Page Content ── */}
       <main className="flex-grow max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <Outlet />
       </main>
 
+      {/* ── Footer ── */}
       <footer className="bg-white border-t border-gray-200 mt-auto">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <p className="text-center text-sm text-gray-600">
@@ -128,6 +113,40 @@ const Layout: React.FC = () => {
           </p>
         </div>
       </footer>
+
+      {/* ── Floating Sync Pill (bottom-right corner) ── */}
+      <button
+        onClick={() => isOnline && triggerSync()}
+        disabled={syncStatus === 'syncing' || !isOnline}
+        title={
+          syncStatus === 'error'   ? 'Sync failed — click to retry' :
+          syncStatus === 'syncing' ? 'Syncing…' :
+          syncStatus === 'offline' ? 'You are offline' :
+          'Click to sync now'
+        }
+        className={[
+          'fixed bottom-6 right-6 z-50',
+          'flex items-center gap-2 px-4 py-2.5 rounded-full',
+          'text-white text-xs font-semibold tracking-wide',
+          'shadow-lg ring-2',
+          'transition-all duration-500 ease-in-out',
+          pill.bg,
+          pill.ring,
+          'hover:scale-105 hover:shadow-xl',
+          'active:scale-95',
+          'disabled:opacity-75 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-lg',
+        ].join(' ')}
+      >
+        {pill.icon}
+        <span>{pill.label}</span>
+        {/* Pulsing dot for pending state */}
+        {syncStatus === 'pending' && (
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+          </span>
+        )}
+      </button>
     </div>
   );
 };
