@@ -27,7 +27,7 @@ router.post('/scan', authenticateToken, async (req, res) => {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
     // Fetch existing inventory item names for fuzzy matching help
     const existingItems = db.prepare('SELECT name FROM inventory WHERE is_archived = 0').all();
