@@ -111,13 +111,10 @@ const server = app.listen(PORT, () => {
   const actualPort = server.address().port;
   console.log(`[Server] Express listening on port ${actualPort}`);
   
-  // If run as a forked child process (Electron), report the port back to parent IMMEDIATELY
-  // so the renderer can start making API calls without waiting for seeding.
   if (process.send) {
     process.send({ type: 'SERVER_READY', port: actualPort });
   }
 
-  // Run non-critical maintenance AFTER announcing ready, so startup is fast
   setImmediate(() => {
     try {
       runPostStartupMaintenance();
@@ -130,9 +127,12 @@ const server = app.listen(PORT, () => {
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    // Another instance is already running -- that's fine, the window will use it
-    console.warn(`[Server] Port ${PORT} already in use -- assuming server already running`);
+    console.warn(`[Server] Port ${err.port} already in use. Retrying on random port...`);
+    // Close the failed server handle and retry on port 0 (random free port)
+    server.close();
+    server.listen(0);
   } else {
     console.error('[Server] Fatal error:', err);
   }
 });
+
