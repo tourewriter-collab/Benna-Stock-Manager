@@ -55,7 +55,6 @@
   "french": "Français",
   "data_integrity": "Intégrité des données",
   "reconcile_ledger": "Réconcilier le grand livre",
-
   "freeze_warning": "La modification est gelée après le 15",
   "sync_google_drive": "Synchroniser avec Google Drive",
   "connect_google_drive": "Connecter Google Drive",
@@ -305,5 +304,21 @@
   "system_match": "Correspondance Système",
   "apply_to_form": "Appliquer au Formulaire",
   "retry": "Réessayer",
-  "items_remaining": "articles restants"
+  "items_remaining": "articles restants",
+  "full_payment_made": "Paiement intégral effectué",
+  "mark_as_fully_paid_desc": "Enregistrer le montant total comme payé immédiatement",
+  "mark_as_fully_delivered_desc": "Recevoir tous les articles en stock immédiatement",
+  "version": "Version",
+  "general": "Général",
+  "supplier_performance_analytics": "Analyses de performance des fournisseurs",
+  "lead_time": "Délai de livraison",
+  "on_time_rate": "Taux de ponctualité",
+  "total_volume": "Volume total",
+  "performance": "Performance",
+  "full_payment_made_desc": "Marquer la commande comme entièrement payée à la création",
+  "high_balance_desc": "Détermine quelles commandes apparaissent dans le widget 'Solde Élevé' du tableau de bord.",
+  "gemini_ai_key": "Clé API Gemini AI",
+  "gemini_warning": "La modification ou la suppression de cette clé brisera complètement la fonctionnalité de numérisation de documents par IA.",
+  "show_total_stock_value": "Afficher la valeur totale du stock",
+  "show_total_stock_value_desc": "Afficher la valeur monétaire calculée de tous les articles en inventaire sur le tableau de bord."
 }

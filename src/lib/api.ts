@@ -89,6 +89,13 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
       }
 
       if (res.status === 204) return null;
+      
+      // Support for different response types (e.g., blob for downloads)
+      const responseType = (options as any).responseType;
+      if (responseType === 'blob') {
+        return res.blob();
+      }
+      
       return res.json();
     } catch (err: any) {
       lastError = err;

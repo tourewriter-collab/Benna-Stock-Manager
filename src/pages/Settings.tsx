@@ -2,25 +2,43 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchApi } from '../lib/api';
-import { formatPrice } from '../utils/currency';
-import { Cloud, RefreshCw, AlertCircle, ShieldAlert, CheckCircle2, XCircle } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Settings as SettingsIcon, Truck, Tags, Activity, RefreshCw, AlertCircle, Download, Users } from 'lucide-react';
+import CategoryManager from '../components/settings/CategoryManager';
+import SupplierManager from '../components/settings/SupplierManager';
+import AdminUsers from '../pages/AdminUsers';
+
+type Tab = 'general' | 'suppliers' | 'categories' | 'diagnostics' | 'users';
 
 const Settings: React.FC = () => {
-  const { t, i18n } = useTranslation();
-  const { user, logout } = useAuth();
+  const { t } = useTranslation();
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<Tab>((searchParams.get('tab') as Tab) || 'general');
+
+  // Sync state if URL changes externally
+  useEffect(() => {
+    const tab = searchParams.get('tab') as Tab;
+    if (tab && tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
   const [showExportModal, setShowExportModal] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
   const [isElectron, setIsElectron] = useState(false);
   const [appVersion, setAppVersion] = useState('');
-  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error'>('idle');
-  const [updateInfo, setUpdateInfo] = useState<any>(null);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [errorMessage, setErrorMessage] = useState('');
+
 
   const [settings, setSettings] = useState({
     high_balance_threshold: '100000',
+    show_total_stock_value: 'true',
     company_logo: '',
     gemini_api_key: ''
   });
@@ -28,734 +46,256 @@ const Settings: React.FC = () => {
   const [diagLoading, setDiagLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState<any>(null);
   const [isPurging, setIsPurging] = useState(false);
-  const [resetConfirmText, setResetConfirmText] = useState('');
 
+  const isAdmin = user?.role === 'admin';
   const canExport = user?.role === 'admin' || user?.role === 'audit_manager';
 
   useEffect(() => {
     if (window.electron) {
       setIsElectron(true);
-
-      window.electron.updates.getAppVersion().then((info) => {
-        setAppVersion(info.version);
-      });
-
-      window.electron.updates.onUpdateChecking(() => {
-        setUpdateStatus('checking');
-        setErrorMessage('');
-      });
-
-      window.electron.updates.onUpdateAvailable((info) => {
-        setUpdateStatus('available');
-        setUpdateInfo(info);
-      });
-
-      window.electron.updates.onUpdateNotAvailable((info) => {
-        setUpdateStatus('not-available');
-        setUpdateInfo(info);
-      });
-
-      window.electron.updates.onUpdateError((error) => {
-        setUpdateStatus('error');
-        setErrorMessage(error.message);
-      });
-
-      window.electron.updates.onDownloadProgress((progress) => {
-        setUpdateStatus('downloading');
-        setDownloadProgress(Math.round(progress.percent));
-      });
-
-      window.electron.updates.onUpdateDownloaded((info) => {
-        setUpdateStatus('downloaded');
-        setUpdateInfo(info);
-      });
+      window.electron.updates.getAppVersion().then((info) => setAppVersion(info.version));
     }
     fetchSettings();
-    if (user?.role === 'admin') {
-      fetchDiagnostics();
-    }
+    if (isAdmin) fetchDiagnostics();
   }, []);
 
   const fetchDiagnostics = async () => {
     setDiagLoading(true);
     try {
-      const data = await fetchApi('/sync/diagnostics', {
-        headers: { 'x-navigator-online': String(navigator.onLine) }
-      });
+      const data = await fetchApi('/sync/diagnostics', { headers: { 'x-navigator-online': String(navigator.onLine) } });
       setDiagnostics(data);
-    } catch (err) {
-      console.error('Failed to fetch diagnostics:', err);
-    } finally {
-      setDiagLoading(false);
-    }
+    } catch (err) { console.error('Failed diagnostics:', err); }
+    finally { setDiagLoading(false); }
   };
 
   const fetchSettings = async () => {
     try {
       const data = await fetchApi('/settings');
-      if (data) {
-        setSettings({
-          high_balance_threshold: data.high_balance_threshold || '100000',
-          company_logo: data.company_logo || '',
-          gemini_api_key: data.gemini_api_key || ''
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching settings:', error);
-    }
+      if (data) setSettings({ 
+        high_balance_threshold: data.high_balance_threshold || '100000', 
+        show_total_stock_value: data.show_total_stock_value !== undefined ? String(data.show_total_stock_value) : 'true',
+        company_logo: data.company_logo || '', 
+        gemini_api_key: data.gemini_api_key || '' 
+      });
+    } catch (error) { console.error('Error fetching settings:', error); }
   };
 
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
-      await fetchApi('/settings', {
-        method: 'POST',
-        body: JSON.stringify(settings)
-      });
+      await fetchApi('/settings', { method: 'POST', body: JSON.stringify(settings) });
       alert(t('settings_saved'));
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      alert(t('error'));
-    } finally {
-      setSaving(false);
-    }
+    } catch (error) { alert(t('error')); }
+    finally { setSaving(false); }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setSettings({ ...settings, company_logo: reader.result as string });
-      };
+      reader.onloadend = () => setSettings({ ...settings, company_logo: reader.result as string });
       reader.readAsDataURL(file);
     }
   };
 
-  const handleCheckForUpdates = async () => {
-    if (!window.electron) return;
-
-    setUpdateStatus('checking');
-    setErrorMessage('');
-
-    const result = await window.electron.updates.checkForUpdates();
-
-    if (!result.success) {
-      setUpdateStatus('error');
-      setErrorMessage(result.message || 'Failed to check for updates');
-    }
-  };
-
-  const handleDownloadUpdate = async () => {
-    if (!window.electron) return;
-
-    const result = await window.electron.updates.downloadUpdate();
-
-    if (!result.success) {
-      setUpdateStatus('error');
-      setErrorMessage(result.message || 'Failed to download update');
-    }
-  };
-
-  const handleInstallUpdate = async () => {
-    if (!window.electron) return;
-
-    await window.electron.updates.installUpdate();
-  };
-
   const handlePurgeLocal = async () => {
-    if (!confirm(t('confirm_factory_reset'))) return;
+    if (!confirm(t('confirm_purge') || "Are you sure you want to purge local data? This will trigger a full re-sync.")) return;
     setIsPurging(true);
     try {
-      await fetchApi('/settings/purge-local', { method: 'POST' });
-      alert(t('purge_success'));
-      // Trigger a sync immediately after purge
+      await fetchApi('/sync/purge', { method: 'POST' });
       window.location.reload();
-    } catch (err) {
-      alert(t('error'));
-    } finally {
-      setIsPurging(false);
-    }
-  };
-
-  const handleLanguageChange = (lang: string) => {
-    i18n.changeLanguage(lang);
-    localStorage.setItem('language', lang);
+    } catch (error) { alert(t('error')); setIsPurging(false); }
   };
 
   const handleExport = async () => {
     try {
-      const queryParams = new URLSearchParams();
-      if (startDate) queryParams.append('start_date', startDate);
-      if (endDate) queryParams.append('end_date', endDate);
-
-      const logs = await fetchApi(`/api/reports/audit-logs?${queryParams.toString()}`);
-
-      const ExcelJS = (await import('exceljs')).default;
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Audit Logs');
-
-      worksheet.columns = [
-        { header: 'Timestamp', key: 'timestamp', width: 20 },
-        { header: 'User', key: 'user', width: 30 },
-        { header: 'Action', key: 'action', width: 15 },
-        { header: 'Table', key: 'table', width: 15 },
-        { header: 'Record ID', key: 'recordId', width: 36 },
-        { header: 'Old Values', key: 'oldValues', width: 30 },
-        { header: 'New Values', key: 'newValues', width: 30 },
-      ];
-
-      logs.forEach((log: any) => {
-        const formatValues = (values: any) => {
-          if (!values) return '';
-          const valObj = typeof values === 'string' ? JSON.parse(values) : values;
-          const formatted = { ...valObj };
-          if (formatted.price && typeof formatted.price === 'number') {
-            formatted.price = formatPrice(formatted.price);
-          }
-          return JSON.stringify(formatted);
-        };
-
-        worksheet.addRow({
-          timestamp: new Date(log.timestamp).toLocaleString(),
-          user: log.user_email || 'Unknown',
-          action: log.action,
-          table: log.table_name,
-          recordId: log.record_id,
-          oldValues: formatValues(log.old_values),
-          newValues: formatValues(log.new_values),
-        });
-      });
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
-      const url = window.URL.createObjectURL(blob);
+      const url = `/api/audit/export?start_date=${startDate}&end_date=${endDate}`;
+      const response = await fetchApi(url, { responseType: 'blob' } as any);
+      const downloadUrl = window.URL.createObjectURL(new Blob([response]));
       const link = document.createElement('a');
-      link.href = url;
-      link.download = `audit_logs_${startDate}_to_${endDate}.xlsx`;
+      link.href = downloadUrl;
+      link.setAttribute('download', `audit_logs_${startDate}_to_${endDate}.csv`);
+      document.body.appendChild(link);
       link.click();
-      window.URL.revokeObjectURL(url);
-
+      link.remove();
       setShowExportModal(false);
-    } catch (error) {
-      console.error('Error exporting:', error);
-    }
+    } catch (error) { alert(t('error_exporting')); }
   };
 
+  const TabButton = ({ id, label, icon: Icon }: { id: Tab, label: string, icon: any }) => (
+    <button
+      onClick={() => handleTabChange(id)}
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold transition-all ${
+        activeTab === id 
+        ? 'bg-blue-100 text-blue-900 shadow-sm border border-blue-200' 
+        : 'text-gray-500 hover:bg-gray-100'
+      }`}
+    >
+      <Icon size={18} className={activeTab === id ? 'text-blue-700' : 'text-gray-400'} />
+      {label}
+    </button>
+  );
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">{t('settings')}</h1>
-
-      <div className="space-y-6">
-        {(user?.role === 'admin' || user?.role === 'audit_manager') && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-              <span className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">🛡️</span>
-              {t('data_integrity')}
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-gray-600 mb-2">
-                  Automatically sync the physical stock quantity with the transaction ledger. Run this if your reports show inconsistent balances.
-                </p>
-                <button
-                  onClick={async () => {
-                    if (confirm('Run ledger reconciliation? This will audit all stock and fix any ledger discrepancies.')) {
-                      try {
-                        await fetchApi('/api/inventory/reconcile', { method: 'POST' });
-                        alert('Reconciliation complete!');
-                      } catch (err) {
-                        alert('Reconciliation failed: ' + err.message);
-                      }
-                    }
-                  }}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors shadow-sm text-sm font-medium"
-                >
-                  {t('reconcile_ledger')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold mb-4">{t('language')}</h2>
-          <div className="flex space-x-4">
-            <button
-              onClick={() => handleLanguageChange('en')}
-              className={`px-4 py-2 rounded-md ${
-                i18n.language === 'en' ? 'bg-navy text-white' : 'bg-gray-200 text-gray-800'
-              }`}
-            >
-              {t('english')}
-            </button>
-            <button
-              onClick={() => handleLanguageChange('fr')}
-              className={`px-4 py-2 rounded-md ${
-                i18n.language === 'fr' ? 'bg-navy text-white' : 'bg-gray-200 text-gray-800'
-              }`}
-            >
-              {t('french')}
-            </button>
-          </div>
-        </div>
-
-        {isElectron && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">{t('software_updates')}</h2>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">{t('current_version')}</p>
-                  <p className="text-lg font-semibold text-gray-900">{appVersion || t('loading')}</p>
-                </div>
-
-                <button
-                  onClick={handleCheckForUpdates}
-                  disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
-                  className="px-4 py-2 bg-navy text-white rounded-md hover:bg-opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {updateStatus === 'checking' ? t('checking') : t('check_for_updates')}
-                </button>
-              </div>
-
-                <div className="text-xs text-gray-500 italic mt-2">
-                  {t('update_note')}
-                </div>
-
-              {updateStatus === 'checking' && (
-                <div className="text-blue-600">
-                  <span>{t('checking_for_updates')}</span>
-                </div>
-              )}
-
-              {updateStatus === 'available' && updateInfo && (
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                  <h3 className="font-semibold text-blue-900">{t('update_available')}</h3>
-                  <p className="text-sm text-blue-700 mt-1">
-                    {t('update_version_available', { version: updateInfo.version })}
-                  </p>
-                  {updateInfo.releaseNotes && (
-                    <p className="text-sm text-blue-600 mt-2 whitespace-pre-line">
-                      {typeof updateInfo.releaseNotes === 'string' 
-                        ? updateInfo.releaseNotes.replace(/<[^>]*>?/gm, '') 
-                        : Array.isArray(updateInfo.releaseNotes) 
-                          ? updateInfo.releaseNotes.map((n: any) => (n.note || '').replace(/<[^>]*>?/gm, '')).join('\n')
-                          : ''}
-                    </p>
-                  )}
-                  <button
-                    onClick={handleDownloadUpdate}
-                    className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    {t('download_update')}
-                  </button>
-                </div>
-              )}
-
-              {updateStatus === 'downloading' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                  <h3 className="font-semibold text-blue-900">{t('downloading_update')}</h3>
-                  <div className="mt-2">
-                    <div className="w-full bg-blue-200 rounded-full h-2.5">
-                      <div
-                        className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                        style={{ width: `${downloadProgress}%` }}
-                      ></div>
-                    </div>
-                    <p className="text-sm text-blue-700 mt-1">{downloadProgress}{t('percent_complete')}</p>
-                  </div>
-                </div>
-              )}
-
-              {updateStatus === 'downloaded' && updateInfo && (
-                <div className="bg-green-50 border border-green-200 rounded-md p-4">
-                  <h3 className="font-semibold text-green-900">{t('update_ready')}</h3>
-                  <p className="text-sm text-green-700 mt-1">
-                    {t('update_ready_message', { version: updateInfo.version })}
-                  </p>
-                  <button
-                    onClick={handleInstallUpdate}
-                    className="mt-3 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                  >
-                    {t('restart_and_install')}
-                  </button>
-                </div>
-              )}
-
-              {updateStatus === 'not-available' && (
-                <div className="text-green-600">
-                  <span>{t('up_to_date')}</span>
-                </div>
-              )}
-
-              {updateStatus === 'error' && errorMessage && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                  <h3 className="font-semibold text-red-900">{t('update_error')}</h3>
-                  <p className="text-sm text-red-700 mt-1">{errorMessage}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
+    <div className="flex flex-col md:flex-row gap-8">
+      {/* ── Sidebar ── */}
+      <aside className="w-full md:w-64 space-y-2 flex-shrink-0">
+        <h1 className="text-2xl font-bold text-[#001f3f] mb-6 px-4">{t('settings')}</h1>
+        <TabButton id="general" label={t('general')} icon={SettingsIcon} />
+        <TabButton id="suppliers" label={t('suppliers')} icon={Truck} />
+        <TabButton id="categories" label={t('categories')} icon={Tags} />
+        {isAdmin && <TabButton id="users" label={t('admin_users')} icon={Users} />}
+        {isAdmin && <TabButton id="diagnostics" label={t('performance')} icon={Activity} />}
+        
         {canExport && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">{t('export_audit_logs')}</h2>
-            <p className="text-gray-600 mb-4">{t('export_audit_logs_description')}</p>
+          <div className="pt-6 border-t border-gray-200 mt-6">
             <button
               onClick={() => setShowExportModal(true)}
-              className="px-4 py-2 bg-navy text-white rounded-md hover:bg-opacity-90"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold text-navy bg-white border border-gray-200 hover:bg-gray-50 transition-all"
             >
-              {t('export')}
+              <Download size={18} />
+              {t('export_audit_logs')}
             </button>
           </div>
         )}
+      </aside>
 
-        {user?.role === 'admin' && (
-          <div className="bg-white rounded-lg shadow-md p-6 border border-red-200">
-            <h2 className="text-xl font-semibold mb-2 text-red-700">{t('factory_reset')}</h2>
-            <p className="text-gray-600 mb-4 bg-red-50 p-3 rounded text-sm text-red-800 border border-red-100">
-              {t('factory_reset_description')}
-            </p>
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-red-700 mb-1">
-                {i18n.language === 'fr'
-                  ? 'Tapez SUPPRIMER pour confirmer :'
-                  : 'Type DELETE to confirm:'}
-              </label>
-              <input
-                type="text"
-                value={resetConfirmText}
-                onChange={(e) => setResetConfirmText(e.target.value)}
-                placeholder={i18n.language === 'fr' ? 'SUPPRIMER' : 'DELETE'}
-                className="w-full px-3 py-2 border border-red-300 rounded-md focus:ring-red-500 focus:border-red-500 text-sm"
-              />
-            </div>
-            <div className="flex space-x-4">
-              <button
-                onClick={async () => {
-                  const expected = i18n.language === 'fr' ? 'SUPPRIMER' : 'DELETE';
-                  if (resetConfirmText !== expected) {
-                    alert(i18n.language === 'fr'
-                      ? `Veuillez taper exactement "${expected}" pour confirmer.`
-                      : `Please type "${expected}" exactly to confirm.`);
-                    return;
-                  }
-                  if (!confirm(t('confirm_factory_reset'))) return;
-                  
-                  try {
-                    await fetchApi('/settings/factory-reset', { method: 'DELETE' });
-                    alert(t('factory_reset_success'));
-                    logout();
-                    window.location.hash = '#/login';
-                    window.location.reload();
-                  } catch (error) {
-                    console.error('Error during factory reset:', error);
-                    alert(t('factory_reset_error'));
-                  }
-                }}
-                disabled={resetConfirmText !== (i18n.language === 'fr' ? 'SUPPRIMER' : 'DELETE')}
-                className="px-4 py-2 bg-red-600 text-white font-bold rounded-md hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {t('execute_factory_reset')}
+      {/* ── Content Area ── */}
+      <main className="flex-grow bg-white rounded-2xl shadow-sm border border-gray-100 p-8 min-h-[70vh]">
+        {activeTab === 'general' && (
+          <div className="max-w-2xl space-y-8">
+            <section className="space-y-6">
+              <h2 className="text-xl font-bold text-[#001f3f]">{t('application_settings')}</h2>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('company_logo')}</label>
+                <div className="flex items-center gap-6 p-4 border border-gray-100 rounded-xl bg-gray-50/50">
+                  <div className="h-20 w-20 bg-white rounded-lg shadow-sm border border-gray-100 flex items-center justify-center p-2">
+                    {settings.company_logo ? (
+                      <img src={settings.company_logo} alt="Logo" className="max-h-full max-w-full object-contain" />
+                    ) : (
+                      <div className="text-[10px] text-gray-300 font-bold uppercase text-center">{t('no_data')}</div>
+                    )}
+                  </div>
+                  <input type="file" accept="image/*" onChange={handleLogoUpload} className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-black file:bg-navy file:text-white hover:file:bg-opacity-90" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('high_balance_threshold')} (GNF)</label>
+                <input type="number" value={settings.high_balance_threshold} onChange={e => setSettings({ ...settings, high_balance_threshold: e.target.value })} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" />
+                <p className="mt-1 text-xs text-gray-400">{t('high_balance_desc')}</p>
+              </div>
+
+              <div className="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50/50">
+                <div>
+                  <label className="block text-sm font-bold text-gray-900">{t('show_total_stock_value')}</label>
+                  <p className="text-xs text-gray-500">{t('show_total_stock_value_desc')}</p>
+                </div>
+                <button
+                  onClick={() => setSettings({ ...settings, show_total_stock_value: settings.show_total_stock_value === 'true' ? 'false' : 'true' })}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    settings.show_total_stock_value === 'true' ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      settings.show_total_stock_value === 'true' ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="bg-orange-50 border border-orange-200 p-5 rounded-xl">
+                <div className="flex items-start gap-3 mb-4">
+                  <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0" />
+                  <div className="space-y-1">
+                    <label className="block text-sm font-bold text-orange-900">{t('gemini_ai_key')}</label>
+                    <p className="text-xs text-orange-800 leading-relaxed">{t('gemini_warning')}</p>
+                  </div>
+                </div>
+                <input type="password" value={settings.gemini_api_key} onChange={e => setSettings({ ...settings, gemini_api_key: e.target.value })} className="w-full px-4 py-2 border border-orange-200 rounded-lg bg-white" placeholder="AIzaSy..." />
+              </div>
+
+              <button onClick={handleSaveSettings} disabled={saving} className="w-full py-3 bg-navy text-white rounded-xl font-bold shadow-lg shadow-navy/20 hover:bg-opacity-90 transition disabled:opacity-50">
+                {saving ? t('saving') : t('save_settings')}
               </button>
-            </div>
+
+              {isElectron && (
+                <div className="pt-6 border-t border-gray-100 mt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">{t('version')}</div>
+                      <div className="text-lg font-black text-navy">{appVersion}</div>
+                    </div>
+                    <div className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-[10px] font-black uppercase border border-green-100">
+                      {t('up_to_date')}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
           </div>
         )}
 
-        {user?.role === 'admin' && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold flex items-center">
-                <Cloud className="w-5 h-5 mr-2 text-navy" />
-                {t('cloud_connectivity')}
-              </h2>
-              <button 
-                onClick={fetchDiagnostics}
-                disabled={diagLoading}
-                className="text-navy hover:text-opacity-80 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-5 h-5 ${diagLoading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
+        {activeTab === 'suppliers' && <SupplierManager />}
+        {activeTab === 'categories' && <CategoryManager />}
+        {activeTab === 'users' && isAdmin && <AdminUsers />}
 
-            {diagnostics ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium text-gray-600">{t('internet_status')}</span>
-                    {diagnostics.isOnline ? (
-                      <span className="flex items-center text-green-600 text-sm font-bold">
-                        <CheckCircle2 className="w-4 h-4 mr-1" /> Online
-                      </span>
-                    ) : (
-                      <span className="flex items-center text-red-600 text-sm font-bold">
-                        <XCircle className="w-4 h-4 mr-1" /> Offline
-                      </span>
-                    )}
+        {activeTab === 'diagnostics' && isAdmin && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-bold text-[#001f3f]">{t('performance')}</h2>
+            
+            {diagLoading ? (
+              <div className="animate-pulse space-y-4">
+                {[1, 2, 3].map(i => <div key={i} className="h-12 bg-gray-100 rounded-lg w-full"></div>)}
+              </div>
+            ) : diagnostics ? (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="text-[10px] uppercase font-black text-gray-400 mb-1">Local Pending</div>
+                    <div className="text-2xl font-black text-navy">{diagnostics.local_count}</div>
                   </div>
-                  
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium text-gray-600">{t('supabase_config')}</span>
-                    {diagnostics.hasUrl && diagnostics.hasServiceKey ? (
-                      <span className="flex items-center text-green-600 text-sm font-bold">
-                        <CheckCircle2 className="w-4 h-4 mr-1" /> Configured
-                      </span>
-                    ) : (
-                      <span className="flex items-center text-red-600 text-sm font-bold">
-                        <ShieldAlert className="w-4 h-4 mr-1" /> {t('credentials_missing')}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg md:col-span-2">
-                    <span className="text-sm font-medium text-gray-600">Pending Sync Items</span>
-                    <span className={`text-sm font-bold ${diagnostics.pendingItems > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                      {diagnostics.pendingItems} {t('items')}
-                    </span>
+                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div className="text-[10px] uppercase font-black text-gray-400 mb-1">{t('sync_now')}</div>
+                    <div className="text-2xl font-black text-green-600">{(diagnostics.sync_errors?.length || 0) === 0 ? 'Healthy' : 'Issues'}</div>
                   </div>
                 </div>
 
-                {diagnostics.pendingItems > 0 && diagnostics.configured && diagnostics.isOnline && (
-                  <div className="flex justify-center">
-                    <button
-                      onClick={async () => {
-                        setDiagLoading(true);
-                        try {
-                          await fetchApi('/sync/push', { method: 'POST' });
-                          await fetchApi('/sync/pull', { method: 'GET' });
-                          fetchDiagnostics();
-                        } catch (err) {
-                           console.error("Manual sync failed:", err);
-                        } finally {
-                          setDiagLoading(false);
-                        }
-                      }}
-                      disabled={diagLoading}
-                      className="flex items-center px-4 py-2 bg-navy text-white rounded-md hover:bg-opacity-90 transition disabled:opacity-50"
-                    >
-                      <RefreshCw className={`w-4 h-4 mr-2 ${diagLoading ? 'animate-spin' : ''}`} />
-                      Sync Now
-                    </button>
-                  </div>
-                )}
-
-                {!diagnostics.configured && (
-                   <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-start">
-                     <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-                     <div>
-                       <p className="font-bold">Connection Failed</p>
-                       <p>{diagnostics.errorMessage || "The application cannot reach Supabase. Check your .env file and internet connection."}</p>
-                     </div>
-                   </div>
-                )}
-
-                {diagnostics.configured && diagnostics.isOnline && (
-                   <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-start">
-                     <CheckCircle2 className="w-5 h-5 mr-2 flex-shrink-0" />
-                     <p>{t('connection_stable')}</p>
-                   </div>
-                )}
-
-                {diagnostics.diagAttempts && diagnostics.diagAttempts.length > 0 && (
-                  <div className="pt-4 border-t border-gray-100">
-                    <h3 className="text-sm font-bold text-gray-900 mb-2">Technical Details</h3>
-                    <div className="bg-gray-800 text-gray-300 p-3 rounded-lg text-[10px] font-mono overflow-auto max-h-48 leading-relaxed">
-                      <div className="mb-2 text-blue-400"># System Context</div>
-                      <div>CWD: {diagnostics.cwd}</div>
-                      <div>RESOURCES: {diagnostics.resourcesPath}</div>
-                      <div>NODE: {diagnostics.nodeVersion}</div>
-                      <div className="mt-2 mb-2 text-blue-400"># Env File Checks</div>
-                      {diagnostics.diagAttempts.map((attempt: any, idx: number) => (
-                        <div key={idx} className="mb-1">
-                          <span className={attempt.success ? 'text-green-400' : 'text-red-400'}>
-                            [{attempt.success ? 'PASS' : 'FAIL'}]
-                          </span>{' '}
-                          {attempt.path}
-                          {!attempt.success && attempt.error && (
-                            <span className="text-gray-500"> ({attempt.error})</span>
-                          )}
-                        </div>
-                      ))}
-                      <div className="mt-2 text-blue-400"># Supabase Identity</div>
-                      <div>URL: {diagnostics.env.VITE_SUPABASE_URL || 'NOT SET'}</div>
-                      <div>KEY: {diagnostics.env.SUPABASE_SERVICE_ROLE_KEY || 'NOT SET'}</div>
-                    </div>
-                  </div>
-                )}
-
-                {diagnostics.recentErrors && diagnostics.recentErrors.length > 0 && (
-                  <div className="pt-4 border-t border-gray-100">
-                    <h3 className="text-sm font-bold text-red-700 mb-2 flex items-center">
-                      <ShieldAlert className="w-4 h-4 mr-2" />
-                      Sync Health: Issues Detected
-                    </h3>
-                    <div className="space-y-2">
-                      {diagnostics.recentErrors.map((error: any, idx: number) => (
-                        <div key={idx} className="p-2 bg-red-50 border border-red-100 rounded text-[10px]">
-                          <div className="font-bold text-red-800 uppercase mb-1">
-                            {error.table_name} • {error.action} • {error.record_id.substring(0, 8)}...
-                          </div>
-                          <div className="text-red-700 font-mono break-all">
-                            {error._sync_error}
-                          </div>
-                        </div>
-                      ))}
-                      <div className="flex space-x-3 pt-2">
-                        <button
-                          onClick={async () => {
-                            if (!confirm("This will convert all legacy item IDs to UUIDs to fix cloud sync. This is safe but will refresh your views. Continue?")) return;
-                            setDiagLoading(true);
-                            try {
-                              await fetchApi('/sync/repair-ids', { method: 'POST' });
-                              alert("ID repair triggered! Please wait a moment and refresh.");
-                              fetchDiagnostics();
-                            } catch (err) {
-                              alert("Repair failed. Check logs.");
-                            } finally {
-                              setDiagLoading(false);
-                            }
-                          }}
-                          className="px-3 py-1.5 bg-red-100 text-red-700 rounded text-xs font-bold hover:bg-red-200"
-                        >
-                          Repair All IDs
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div className="pt-4 border-t border-gray-100">
+                <div className="pt-6 border-t border-gray-100">
                   <h3 className="text-sm font-bold text-gray-900 mb-2">{t('purge_local_data')}</h3>
                   <p className="text-xs text-gray-500 mb-4">{t('purge_description')}</p>
-                  <button 
-                    onClick={handlePurgeLocal}
-                    disabled={isPurging}
-                    className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 text-sm font-bold transition disabled:opacity-50"
-                  >
+                  <button onClick={handlePurgeLocal} disabled={isPurging} className="flex items-center px-6 py-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 text-sm font-bold transition disabled:opacity-50">
                     <RefreshCw className={`w-4 h-4 mr-2 ${isPurging ? 'animate-spin' : ''}`} />
                     {isPurging ? t('loading') : t('execute_purge')}
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="py-4 text-center text-gray-500 text-sm italic">
-                {diagLoading ? t('loading') : "Failed to load cloud diagnostics."}
-              </div>
+              <div className="text-center py-12 text-gray-500 italic">{t('error')}</div>
             )}
           </div>
         )}
+      </main>
 
-        {user?.role === 'admin' && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">{t('application_settings')}</h2>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('company_logo')}
-                </label>
-                <div className="flex items-center space-x-4">
-                  {settings.company_logo && (
-                    <img 
-                      src={settings.company_logo} 
-                      alt="Logo" 
-                      className="h-16 w-16 object-contain border rounded p-1" 
-                    />
-                  )}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-navy file:text-white hover:file:bg-opacity-90"
-                  />
-                </div>
-              </div>
-
-              <div className="bg-orange-50 border border-orange-200 p-4 rounded-md">
-                <div className="flex items-start mb-3">
-                  <AlertCircle className="w-5 h-5 text-orange-600 mr-2 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <label className="block text-sm font-bold text-orange-900">
-                      Gemini API Key (Advanced)
-                    </label>
-                    <p className="text-xs text-orange-800 mt-1">
-                      <strong>WARNING:</strong> Do not tamper with this key unless strictly necessary. Altering or removing it will completely break the AI Document Scanning functionality in the app.
-                    </p>
-                  </div>
-                </div>
-                <input
-                  type="password"
-                  placeholder="AIzaSy..."
-                  value={settings.gemini_api_key}
-                  onChange={(e) => setSettings({ ...settings, gemini_api_key: e.target.value })}
-                  className="w-full px-3 py-2 border border-orange-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('high_balance_threshold')} (GNF)
-                </label>
-                <input
-                  type="number"
-                  value={settings.high_balance_threshold}
-                  onChange={(e) => setSettings({ ...settings, high_balance_threshold: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md focus:ring-navy focus:border-navy"
-                />
-              </div>
-
-              <button
-                onClick={handleSaveSettings}
-                disabled={saving}
-                className="w-full px-4 py-2 bg-navy text-white rounded-md hover:bg-opacity-90 disabled:opacity-50"
-              >
-                {saving ? t('saving') : t('save_settings')}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
+      {/* ── Export Modal ── */}
       {showExportModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold mb-4">{t('export_audit_logs')}</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl">
+            <h2 className="text-2xl font-bold text-navy mb-6">{t('export_audit_logs')}</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">{t('start_date')}</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md"
-                />
+                <label className="block text-sm font-bold text-gray-700 mb-2">{t('start_date')}</label>
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">{t('end_date')}</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md"
-                />
+                <label className="block text-sm font-bold text-gray-700 mb-2">{t('end_date')}</label>
+                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
-              <div className="flex justify-end space-x-3">
-                <button
-                  onClick={() => setShowExportModal(false)}
-                  className="px-4 py-2 border rounded-md hover:bg-gray-50"
-                >
-                  {t('cancel')}
-                </button>
-                <button
-                  onClick={handleExport}
-                  className="px-4 py-2 bg-navy text-white rounded-md hover:bg-opacity-90"
-                >
-                  {t('download')}
-                </button>
+              <div className="flex gap-3 pt-6">
+                <button onClick={handleExport} className="flex-1 bg-navy text-white py-3 rounded-xl font-bold shadow-lg shadow-navy/20">{t('download')}</button>
+                <button onClick={() => setShowExportModal(false)} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold">{t('cancel')}</button>
               </div>
             </div>
           </div>

@@ -134,6 +134,7 @@ db.exec(`
     paid_amount REAL DEFAULT 0,
     status TEXT CHECK(status IN ('pending', 'partial', 'paid', 'cancelled')) DEFAULT 'pending',
     delivery_status TEXT DEFAULT 'pending',
+    actual_delivery_date DATE,
     notes TEXT,
     created_by TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -142,6 +143,13 @@ db.exec(`
     is_archived BOOLEAN NOT NULL DEFAULT 0
   )
 `);
+
+// Migration: Add actual_delivery_date if it doesn't exist
+try {
+  db.exec("ALTER TABLE orders ADD COLUMN actual_delivery_date DATE");
+} catch (e) {
+  // Column likely already exists
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS order_items (
@@ -228,6 +236,7 @@ if (!checkAdmin) {
 // Default Settings
 const seedSettings = [
   { key: 'high_balance_threshold', value: '100000' },
+  { key: 'show_total_stock_value', value: 'true' },
   { key: 'company_logo', value: '' },
   { key: 'db_created_at', value: new Date().toISOString() }
 ];

@@ -82,6 +82,7 @@ const Dashboard: React.FC = () => {
   const [categoryStats, setCategoryStats] = useState<CategoryStat[]>([]);
   const [lowStockItems, setLowStockItems] = useState<StockItem[]>([]);
   const [outOfStockItems, setOutOfStockItems] = useState<StockItem[]>([]);
+  const [appSettings, setAppSettings] = useState<any>(null);
 
   const isFr = i18n.language.startsWith('fr');
 
@@ -93,7 +94,12 @@ const Dashboard: React.FC = () => {
 
   const refreshData = () => {
     setLoading(true);
-    Promise.all([fetchStats(), fetchRecentItems(), fetchOutstandingPayments()]).finally(() => {
+    Promise.all([
+      fetchStats(), 
+      fetchRecentItems(), 
+      fetchOutstandingPayments(),
+      fetchApi('/settings').then(setAppSettings).catch(() => {})
+    ]).finally(() => {
       setLoading(false);
     });
   };
@@ -219,7 +225,12 @@ const Dashboard: React.FC = () => {
       clickable: true,
       onClick: () => navigate('/orders?unpaid=true'),
     },
-  ];
+  ].filter(card => {
+    if (card.id === 'totalValue') {
+      return appSettings?.show_total_stock_value !== 'false';
+    }
+    return true;
+  });
 
   // ── Panel renderers ───────────────────────────────────────────────────────
 

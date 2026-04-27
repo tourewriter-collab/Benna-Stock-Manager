@@ -144,7 +144,13 @@ export default function UsageReports() {
       timestamp: new Date(evt.timestamp).toLocaleString(),
     }));
 
-    exportToPdf(columns, data, `usage_reports_${filters.start_date}_to_${filters.end_date}.pdf`, t('usage_reports') || 'Usage Reports', logo);
+    const today = new Date().toLocaleDateString(i18n.language === 'fr' ? 'fr-FR' : 'en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    exportToPdf(columns, data, `usage_reports_${filters.start_date}_to_${filters.end_date}.pdf`, `${t('usage_reports')} - ${today}`, logo);
   };
 
   if (loading) {
@@ -300,8 +306,7 @@ export default function UsageReports() {
                   </th>
                   <th className="px-6 py-4 text-green-600">{t('stock_received') || 'Received (+)'}</th>
                   <th className="px-6 py-4 text-red-600">{t('quantity_changed') || 'Used (-)'}</th>
-                  <th className="px-6 py-4 font-bold">{t('current_stock')}</th>
-                  <th className="px-6 py-4">{t('usage_rate')}</th>
+                  <th className="px-6 py-4 font-bold text-blue-900">{t('current_stock') || 'Current Live Stock'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
@@ -311,21 +316,12 @@ export default function UsageReports() {
                       <div className="font-semibold text-gray-900">{item.name}</div>
                       <div className="text-xs text-gray-500">{i18n.language === 'fr' ? item.category?.name_fr : item.category?.name_en}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 text-center">{item.initial_stock}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 text-center bg-green-50/20">+{item.received}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600 text-center bg-red-50/20">-{item.usage}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${item.current_stock > 0 ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-500'}`}>
+                      <span className={`px-3 py-1 rounded-full text-sm font-bold shadow-sm ${item.current_stock > 0 ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'}`}>
                         {item.current_stock}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-navy h-full" style={{ width: `${Math.min(parseFloat(item.usage_percentage), 100)}%` }} />
-                        </div>
-                        <span className="text-xs font-bold text-gray-700">{item.usage_percentage}%</span>
-                      </div>
                     </td>
                   </tr>
                 ))}

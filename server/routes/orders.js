@@ -2,9 +2,22 @@ import express from 'express';
 import db from '../database.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { logUsage } from './inventory.js';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 const router = express.Router();
+
+// Recalculates and saves the payment status of an order based on actual payments
+function recalculateOrderPaymentStatus(orderId) {
+  const order = db.prepare('SELECT total_amount, delivery_status FROM orders WHERE id = ?').get(orderId);
+  if (!order) return;
+  const payments = db.prepare('SELECT COALESCE(SUM(amount), 0) as val FROM payments WHERE order_id = ?').get(orderId);
+  const totalPaid = payments.val || 0;
+  let newStatus = totalPaid <= 0 ? 'pending' : totalPaid >= order.total_amount ? 'paid' : 'partial';
+  const isArchived = newStatus === 'paid' && order.delivery_status === 'delivered' ? 1 : 0;
+  db.prepare('UPDATE orders SET paid_amount = ?, status = ?, is_archived = ?, sync_status = \'pending\', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(totalPaid, newStatus, isArchived, orderId);
+  const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run('orders', orderId, 'UPDATE', JSON.stringify(updated));
+}
 
 const logAudit = (userId, action, recordId, oldValues, newValues, ipAddress) => {
   db.prepare(
@@ -190,7 +203,7 @@ router.get('/summary/outstanding', authenticateToken, (req, res) => {
 
 // Create order
 router.post('/', authenticateToken, (req, res) => {
-  const createOrderTransaction = db.transaction((userId, supplierId, expectedDate, notes, items, ipAddress) => {
+  const createOrderTransaction = db.transaction((userId, supplierId, expectedDate, notes, items, markAsPaid, markAsDelivered, ipAddress) => {
     const total_amount = items.reduce((sum, item) => {
       const q = Number(item.quantity) || 0;
       const p = Number(item.unit_price) || 0;
@@ -202,11 +215,12 @@ router.post('/', authenticateToken, (req, res) => {
     }
 
     const orderId = crypto.randomUUID();
+    const initialDeliveryStatus = markAsDelivered ? 'delivered' : 'pending';
 
     db.prepare(`
-      INSERT INTO orders (id, supplier_id, expected_date, total_amount, notes, created_by, sync_status, delivery_status, is_archived) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-    `).run(orderId, supplierId, expectedDate || null, total_amount, notes || null, String(userId), 'pending', 'pending');
+      INSERT INTO orders (id, supplier_id, expected_date, total_amount, notes, created_by, sync_status, delivery_status, is_archived, actual_delivery_date) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+    `).run(orderId, supplierId, expectedDate || null, total_amount, notes || null, String(userId), 'pending', initialDeliveryStatus, markAsDelivered ? new Date().toISOString() : null);
 
     const newOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
 
@@ -217,7 +231,8 @@ router.post('/', authenticateToken, (req, res) => {
     const orderItems = items.map(item => {
       const itemId = crypto.randomUUID();
       const q = Number(item.quantity) || 0;
-      const d = Number(item.delivered_quantity) || 0;
+      let d = Number(item.delivered_quantity) || 0;
+      if (markAsDelivered) d = q; // Force full delivery if flag is set
       const p = Number(item.unit_price) || 0;
       const total = q * p;
       
@@ -238,6 +253,7 @@ router.post('/', authenticateToken, (req, res) => {
         db.prepare(`
           UPDATE inventory 
           SET last_updated = CURRENT_TIMESTAMP,
+              sync_status = 'pending',
               supplier = COALESCE(NULLIF(supplier, ''), ?)
           WHERE id = ?
         `).run(supplierName, inventoryId);
@@ -275,7 +291,7 @@ router.post('/', authenticateToken, (req, res) => {
       if (d > 0) {
         const oldQty = currentInv.quantity;
         const newQty = oldQty + d;
-        db.prepare('UPDATE inventory SET quantity = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?')
+        db.prepare('UPDATE inventory SET quantity = ?, sync_status = \'pending\', last_updated = CURRENT_TIMESTAMP WHERE id = ?')
           .run(newQty, inventoryId);
         
         const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(inventoryId);
@@ -299,17 +315,41 @@ router.post('/', authenticateToken, (req, res) => {
       return inserted;
     });
 
+    if (markAsPaid) {
+      const paymentId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO payments (id, order_id, amount, payment_date, method, created_by, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(paymentId, orderId, total_amount, new Date().toISOString(), 'cash', String(userId), 'pending');
+      
+      const p = db.prepare('SELECT * FROM payments WHERE id = ?').get(paymentId);
+      db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+        'payments', paymentId, 'INSERT', JSON.stringify(p)
+      );
+      
+      db.prepare('UPDATE orders SET paid_amount = ?, status = ? WHERE id = ?').run(total_amount, 'paid', orderId);
+      
+      // Auto-archive if both paid and delivered
+      if (markAsDelivered) {
+        db.prepare('UPDATE orders SET is_archived = 1 WHERE id = ?').run(orderId);
+      }
+    }
 
-    logAudit(Number(userId), 'created', orderId, null, newOrder, ipAddress);
+    const finalOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    // Update the sync queue with the final state of the order
+    db.prepare('UPDATE sync_queue SET data = ? WHERE table_name = ? AND record_id = ?').run(
+      JSON.stringify(finalOrder), 'orders', orderId
+    );
 
-    newOrder.items = orderItems;
-    newOrder.supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(supplierId);
-
-    return newOrder;
+    logAudit(Number(userId), 'created', orderId, null, { ...finalOrder, items: orderItems }, ipAddress);
+    
+    finalOrder.items = orderItems;
+    finalOrder.supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(supplierId);
+    return finalOrder;
   });
 
   try {
-    const { supplier_id, expected_date, notes, items } = req.body;
+    const { supplier_id, expected_date, notes, items, mark_as_paid, mark_as_delivered } = req.body;
 
     if (!supplier_id || !items || items.length === 0) {
       return res.status(400).json({ message: 'Supplier and items are required' });
@@ -319,7 +359,16 @@ router.post('/', authenticateToken, (req, res) => {
       return res.status(403).json({ message: 'Users cannot create orders' });
     }
 
-    const order = createOrderTransaction(req.user.id, supplier_id, expected_date, notes, items, req.ip);
+    const order = createOrderTransaction(
+      req.user.id, 
+      supplier_id, 
+      expected_date, 
+      notes, 
+      items, 
+      mark_as_paid, 
+      mark_as_delivered,
+      req.ip
+    );
     res.status(201).json(order);
   } catch (error) {
     console.error('Error creating order:', error);
@@ -469,7 +518,7 @@ router.post('/:id', authenticateToken, (req, res) => {
     if (d > 0) {
       const oldQty = currentInv.quantity;
       const newQty = oldQty + d;
-      db.prepare('UPDATE inventory SET quantity = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?')
+      db.prepare('UPDATE inventory SET quantity = ?, sync_status = \'pending\', last_updated = CURRENT_TIMESTAMP WHERE id = ?')
         .run(newQty, inventoryId);
       
       const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(inventoryId);
@@ -619,9 +668,8 @@ router.post('/:orderId/items/:itemId/link', authenticateToken, (req, res) => {
 
     // If there was already a delivered quantity, we need to retroactively add it to the inventory!
     if (orderItem.delivered_quantity > 0) {
-      db.prepare(
-        'UPDATE inventory SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?'
-      ).run(orderItem.delivered_quantity, inventory_item_id);
+      db.prepare('UPDATE inventory SET quantity = quantity + ?, sync_status = \'pending\', last_updated = CURRENT_TIMESTAMP WHERE id = ?')
+        .run(orderItem.delivered_quantity, inventory_item_id);
 
       const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(inventory_item_id);
       db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -672,11 +720,11 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
       WHERE id = ? AND order_id = ?
     `).run(delivered_quantity, itemId, orderId);
 
-    // If linked to an inventory item, update the physical stock
+    // If linked to an inventory item, update the physical stock AND the price
     if (delta !== 0 && oldItem.inventory_item_id) {
       const result = db.prepare(
-        'UPDATE inventory SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?'
-      ).run(delta, oldItem.inventory_item_id);
+        'UPDATE inventory SET quantity = quantity + ?, price = ?, sync_status = \'pending\', last_updated = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(delta, oldItem.unit_price, oldItem.inventory_item_id);
 
       const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(oldItem.inventory_item_id);
       db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -721,13 +769,25 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
       finalArchived = 1;
     }
 
-    db.prepare('UPDATE orders SET delivery_status = ?, is_archived = ?, sync_status = \'pending\', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newDeliveryStatus, finalArchived, orderId);
-    const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
-      'orders', orderId, 'UPDATE', JSON.stringify(updatedOrder)
-    );
+    db.prepare(`
+      UPDATE orders 
+      SET delivery_status = ?,
+          actual_delivery_date = COALESCE(actual_delivery_date, CASE WHEN ? = 'delivered' THEN CURRENT_TIMESTAMP ELSE NULL END),
+          sync_status = 'pending', 
+          sync_updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(newDeliveryStatus, newDeliveryStatus, orderId);
+
+    // Recompute full payment status so order moves from pending → partial → paid correctly
+    recalculateOrderPaymentStatus(orderId);
 
     logAudit(Number(req.user.id), 'updated_delivery', itemId, oldItem, { delivered_quantity }, req.ip);
+    res.json(updatedItem);
+  } catch (error) {
+    console.error('Error updating delivery status:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
 // Mark entire order as delivered
 router.put('/:id/deliver-all', authenticateToken, (req, res) => {
@@ -748,8 +808,8 @@ router.put('/:id/deliver-all', authenticateToken, (req, res) => {
         // Update inventory if linked
         if (item.inventory_item_id) {
           db.prepare(
-            'UPDATE inventory SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?'
-          ).run(remaining, item.inventory_item_id);
+            'UPDATE inventory SET quantity = quantity + ?, price = ?, sync_status = \'pending\', last_updated = CURRENT_TIMESTAMP WHERE id = ?'
+          ).run(remaining, item.unit_price, item.inventory_item_id);
 
           const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(item.inventory_item_id);
           db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -767,19 +827,18 @@ router.put('/:id/deliver-all', authenticateToken, (req, res) => {
       }
     }
 
-    // Update order delivery status
-    db.prepare('UPDATE orders SET delivery_status = ?, sync_status = \'pending\', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('delivered', id);
+    // Update order delivery status and recompute payment status
+    db.prepare(`
+      UPDATE orders 
+      SET delivery_status = 'delivered', 
+          actual_delivery_date = COALESCE(actual_delivery_date, CURRENT_TIMESTAMP),
+          sync_status = 'pending', 
+          sync_updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `).run(id);
+    recalculateOrderPaymentStatus(id);
     
-    // Check if we should archive (if also fully paid)
-    const order = db.prepare('SELECT status FROM orders WHERE id = ?').get(id);
-    if (order.status === 'paid') {
-      db.prepare('UPDATE orders SET is_archived = 1 WHERE id = ?').run(id);
-    }
-
-    const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
-      'orders', id, 'UPDATE', JSON.stringify(updatedOrder)
-    );
+    // recalculateOrderPaymentStatus above already handles archiving + sync_queue
 
     logAudit(Number(req.user.id), 'delivered_all', id, null, null, req.ip);
     res.json({ message: 'Order marked as fully delivered' });

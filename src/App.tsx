@@ -33,18 +33,14 @@ function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="inventory" element={<Inventory />} />
-              <Route path="suppliers" element={<Suppliers />} />
+              <Route path="suppliers" element={<Navigate to="/settings?tab=suppliers" replace />} />
               <Route path="orders" element={<Orders />} />
               <Route path="orders/new" element={<CreateOrder />} />
               <Route path="orders/:id" element={<OrderDetail />} />
               <Route path="usage-reports" element={<UsageReports />} />
               <Route
                 path="categories"
-                element={
-                  <ProtectedRoute requiredRole="admin">
-                    <Categories />
-                  </ProtectedRoute>
-                }
+                element={<Navigate to="/settings?tab=categories" replace />}
               />
               <Route
                 path="admin/users"

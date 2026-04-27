@@ -235,4 +235,36 @@ router.delete('/:id/permanent', authenticateToken, (req, res) => {
   }
 });
 
+// Get supplier performance analytics
+router.get('/performance/stats', authenticateToken, (req, res) => {
+  try {
+    const stats = db.prepare(`
+      SELECT 
+        s.id,
+        s.name,
+        COUNT(o.id) as total_orders,
+        SUM(o.total_amount) as total_spent,
+        AVG(CASE 
+          WHEN o.actual_delivery_date IS NOT NULL AND o.order_date IS NOT NULL 
+          THEN (julianday(o.actual_delivery_date) - julianday(o.order_date)) 
+          ELSE NULL 
+        END) as avg_lead_time,
+        SUM(CASE 
+          WHEN o.delivery_status = 'delivered' AND o.actual_delivery_date <= o.expected_date 
+          THEN 1 ELSE 0 
+        END) * 100.0 / NULLIF(COUNT(CASE WHEN o.delivery_status = 'delivered' AND o.expected_date IS NOT NULL THEN 1 END), 0) as on_time_rate
+      FROM suppliers s
+      LEFT JOIN orders o ON s.id = o.supplier_id
+      WHERE s.is_archived = 0
+      GROUP BY s.id
+      ORDER BY total_spent DESC
+    `).all();
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching supplier performance:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 export default router;

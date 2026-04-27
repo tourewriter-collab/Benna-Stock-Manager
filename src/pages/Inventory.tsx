@@ -276,7 +276,13 @@ const Inventory: React.FC = () => {
       category: getCategoryName(item.category)
     }));
 
-    exportToPdf(columns, data, 'inventory.pdf', t('inventory') || 'Inventory');
+    const today = new Date().toLocaleDateString(i18n.language === 'fr' ? 'fr-FR' : 'en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    exportToPdf(columns, data, `inventory_${new Date().toISOString().split('T')[0]}.pdf`, `${t('inventory')} - ${today}`);
   };
 
   return (

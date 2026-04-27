@@ -29,8 +29,11 @@ export default function CreateOrder() {
   const [categories, setCategories] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     supplier_id: '',
-    expected_date: '',
-    notes: ''
+    order_date: new Date().toISOString().split('T')[0],
+    expected_date: new Date().toISOString().split('T')[0],
+    notes: '',
+    mark_as_paid: false,
+    mark_as_delivered: false
   });
   const [items, setItems] = useState<OrderItem[]>([{
     localId: crypto.randomUUID(),
@@ -236,6 +239,38 @@ export default function CreateOrder() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
               />
             </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-blue-50/50 rounded-lg border border-blue-100">
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={formData.mark_as_paid}
+                onChange={(e) => setFormData({ ...formData, mark_as_paid: e.target.checked })}
+                className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-[#001f3f] group-hover:text-blue-700 transition-colors">
+                  {t('full_payment_made') || 'Full Payment Made'}
+                </span>
+                <span className="text-xs text-gray-500">{t('mark_as_fully_paid_desc') || 'Record total amount as paid immediately'}</span>
+              </div>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={formData.mark_as_delivered}
+                onChange={(e) => setFormData({ ...formData, mark_as_delivered: e.target.checked })}
+                className="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+              />
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-[#001f3f] group-hover:text-blue-700 transition-colors">
+                  {t('fully_delivered') || 'Fully Delivered'}
+                </span>
+                <span className="text-xs text-gray-500">{t('mark_as_fully_delivered_desc') || 'Receive all items into stock immediately'}</span>
+              </div>
+            </label>
           </div>
 
           <div className="mt-4">

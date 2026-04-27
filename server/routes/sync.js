@@ -151,7 +151,9 @@ router.post('/push', async (req, res) => {
                 status: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].includes(data.status) ? data.status : 'pending',
                 total_amount: data.total_amount || 0,
                 notes: data.notes || null,
-                delivery_status: data.delivery_status || 'pending'
+                delivery_status: data.delivery_status || 'pending',
+                actual_delivery_date: data.actual_delivery_date || null,
+                paid_amount: data.paid_amount || 0
               };
             } else if (table === 'order_items') {
               return {
@@ -161,7 +163,8 @@ router.post('/push', async (req, res) => {
                 quantity: data.quantity || 1,
                 unit_price: data.unit_price || 0,
                 total_price: data.total || (data.quantity * data.unit_price) || 0,
-                description: data.description || null
+                description: data.description || null,
+                delivered_quantity: data.delivered_quantity || 0
               };
             } else if (table === 'inventory') {
               return {
@@ -437,6 +440,7 @@ router.get('/pull', async (req, res) => {
             row.quantity = q;
             row.unit_price = p;
             row.total = Number(row.total_price) || (q * p);
+            row.delivered_quantity = Number(row.delivered_quantity) || 0;
             
             // RECOVERY logic for missing descriptions (ghost recovery)
             if (!row.description) {
@@ -477,9 +481,13 @@ router.get('/pull', async (req, res) => {
             try {
               const localOrder = db.prepare('SELECT paid_amount, is_archived, created_by FROM orders WHERE id = ?').get(row.id);
               if (localOrder) {
-                row.paid_amount = localOrder.paid_amount || 0;
+                row.paid_amount = Number(row.paid_amount) || localOrder.paid_amount || 0;
                 row.is_archived = localOrder.is_archived || 0;
                 row.created_by = localOrder.created_by || 'system';
+                row.actual_delivery_date = row.actual_delivery_date || localOrder.actual_delivery_date || null;
+              } else {
+                row.paid_amount = Number(row.paid_amount) || 0;
+                row.actual_delivery_date = row.actual_delivery_date || null;
               }
             } catch(e) {}
           }

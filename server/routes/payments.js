@@ -1,7 +1,7 @@
 import express from 'express';
 import db from '../database.js';
 import { authenticateToken } from '../middleware/auth.js';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 const router = express.Router();
 

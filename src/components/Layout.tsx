@@ -43,7 +43,7 @@ const Layout: React.FC = () => {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between min-h-[4rem] py-2 gap-x-4 gap-y-2">
             {/* Left: Logo + Nav Links */}
-            <div className="flex items-center space-x-3 lg:space-x-6 flex-1 min-w-0">
+            <div className="flex items-center space-x-2 xl:space-x-6 flex-1 min-w-0">
               <div className="flex items-center space-x-2 flex-shrink-0">
                 {logo && <img src={logo} alt="Logo" className="h-8 w-8 lg:h-10 lg:w-10 object-contain bg-white rounded-md p-1 shadow-sm" />}
                 <h1 className="text-base lg:text-xl font-bold whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] sm:max-w-[200px] lg:max-w-none">
@@ -51,24 +51,17 @@ const Layout: React.FC = () => {
                 </h1>
               </div>
 
-              {/* Full links — xxl+ screens (using 1400px as a safer threshold) */}
-              <div className="hidden 2xl:flex space-x-2 lg:space-x-4">
+              {/* Full links — lg+ screens */}
+              <div className="hidden lg:flex space-x-1 xl:space-x-2">
                 <Link to="/dashboard"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/dashboard')}`}>{t('dashboard')}</Link>
                 <Link to="/inventory"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/inventory')}`}>{t('inventory')}</Link>
-                <Link to="/suppliers"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/suppliers')}`}>{t('suppliers')}</Link>
                 <Link to="/orders"        className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/orders')}`}>{t('orders')}</Link>
                 <Link to="/usage-reports" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/usage-reports')}`}>{t('usage_reports')}</Link>
-                {user?.role === 'admin' && (
-                  <>
-                    <Link to="/categories"  className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/categories')}`}>{t('categories')}</Link>
-                    <Link to="/admin/users" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/admin/users')}`}>{t('admin_users')}</Link>
-                  </>
-                )}
                 <Link to="/settings" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/settings')}`}>{t('settings')}</Link>
               </div>
 
-              {/* Icon-only links — md to 2xl screens */}
-              <div className="hidden md:flex 2xl:hidden space-x-1">
+              {/* Icon-only links — md to lg screens */}
+              <div className="hidden md:flex lg:hidden space-x-1">
                 <Link to="/dashboard" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/dashboard')}`} title={t('dashboard')}><Package size={18} /></Link>
                 <Link to="/inventory" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/inventory')}`} title={t('inventory')}><Layers size={18} /></Link>
                 <Link to="/orders"    className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/orders')}`}    title={t('orders')}><CreditCard size={18} /></Link>
@@ -77,17 +70,8 @@ const Layout: React.FC = () => {
               </div>
             </div>
 
-            {/* Right: Sync Status + User name + Logout */}
+            {/* Right: User name + Logout */}
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 ml-auto">
-              {/* Sync Pill */}
-              <div 
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] lg:text-xs font-bold text-white shadow-sm ring-1 ring-inset ${pill.bg} ${pill.ring} transition-all duration-300 hidden sm:flex`}
-                title={pill.label}
-              >
-                {pill.icon}
-                <span className="whitespace-nowrap uppercase tracking-wider">{pill.label}</span>
-              </div>
-
               <div className="hidden sm:flex flex-col items-end border-l border-white/20 pl-4 min-w-[80px]">
                 <span className="text-[10px] font-bold text-blue-200 uppercase tracking-tighter leading-none mb-0.5">{user?.role}</span>
                 <span className="text-xs lg:text-sm font-medium truncate max-w-[80px] lg:max-w-[150px]">{user?.name}</span>
