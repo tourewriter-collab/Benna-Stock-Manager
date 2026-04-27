@@ -440,11 +440,11 @@ const Dashboard: React.FC = () => {
             ref={panelRef}
             className={[
               'overflow-hidden transition-all duration-300 ease-in-out mb-6',
-              activePanel ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0',
+              activePanel ? 'opacity-100' : 'max-h-0 opacity-0',
             ].join(' ')}
             aria-live="polite"
           >
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 max-h-[500px] overflow-y-auto custom-scrollbar">
               {renderPanelContent()}
             </div>
           </div>

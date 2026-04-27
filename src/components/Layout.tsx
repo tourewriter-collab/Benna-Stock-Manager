@@ -77,15 +77,25 @@ const Layout: React.FC = () => {
               </div>
             </div>
 
-            {/* Right: User name + Logout */}
+            {/* Right: Sync Status + User name + Logout */}
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 ml-auto">
-              <div className="hidden sm:flex flex-col items-end border-l border-white/20 pl-4">
-                <span className="text-xs font-bold text-blue-200 uppercase tracking-tighter leading-none mb-1">{user?.role}</span>
-                <span className="text-sm font-medium truncate max-w-[100px] lg:max-w-[150px]">{user?.name}</span>
+              {/* Sync Pill */}
+              <div 
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] lg:text-xs font-bold text-white shadow-sm ring-1 ring-inset ${pill.bg} ${pill.ring} transition-all duration-300 hidden sm:flex`}
+                title={pill.label}
+              >
+                {pill.icon}
+                <span className="whitespace-nowrap uppercase tracking-wider">{pill.label}</span>
               </div>
+
+              <div className="hidden sm:flex flex-col items-end border-l border-white/20 pl-4 min-w-[80px]">
+                <span className="text-[10px] font-bold text-blue-200 uppercase tracking-tighter leading-none mb-0.5">{user?.role}</span>
+                <span className="text-xs lg:text-sm font-medium truncate max-w-[80px] lg:max-w-[150px]">{user?.name}</span>
+              </div>
+              
               <button
                 onClick={logout}
-                className="px-3 py-1.5 lg:px-4 lg:py-2 bg-white text-navy rounded-md text-sm font-bold hover:bg-gray-100 transition shadow-sm whitespace-nowrap"
+                className="px-3 py-1.5 lg:px-4 lg:py-2 bg-white text-navy rounded-md text-xs lg:text-sm font-bold hover:bg-gray-100 transition shadow-sm whitespace-nowrap"
               >
                 {t('logout')}
               </button>
