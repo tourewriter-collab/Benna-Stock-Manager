@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, MapPin, Archive, ArchiveRestore, RefreshCw, BarChart3, Clock, CheckCircle2 } from 'lucide-react';
+import { Plus, CreditCard as Edit2, Trash2, Phone, Mail, MapPin, Archive, ArchiveRestore, RefreshCw, BarChart3, Clock } from 'lucide-react';
 import { fetchApi } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSync } from '../../contexts/SyncContext';
