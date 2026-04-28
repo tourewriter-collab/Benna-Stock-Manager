@@ -306,6 +306,61 @@ router.delete('/:id', authenticateToken, (req, res) => {
   }
 });
 
+router.post('/:id/consume', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { quantity, authorized_by_name, authorized_by_title, truck_id, notes } = req.body;
+
+  if (req.user.role === 'user') {
+    return res.status(403).json({ error: 'Only admins and audit managers can record usage' });
+  }
+
+  const amount = parseInt(quantity);
+  if (isNaN(amount) || amount <= 0) {
+    return res.status(400).json({ error: 'Invalid quantity' });
+  }
+
+  try {
+    const item = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    if (item.quantity < amount) {
+      return res.status(400).json({ error: 'Insufficient stock' });
+    }
+
+    const previousQuantity = item.quantity;
+    const newQuantity = previousQuantity - amount;
+
+    const consumeTransaction = db.transaction(() => {
+      // Update inventory
+      db.prepare(
+        'UPDATE inventory SET quantity = ?, last_updated = CURRENT_TIMESTAMP, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(newQuantity, 'pending', id);
+
+      const updatedItem = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
+
+      // Record to sync queue
+      db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+        'inventory', id, 'UPDATE', JSON.stringify(updatedItem)
+      );
+
+      // Log usage
+      logUsage(req.user.id, id, item.name, previousQuantity, newQuantity, 'OUT', authorized_by_name, authorized_by_title, truck_id);
+
+      logAudit(req.user.id, 'consumed', id, { quantity: previousQuantity }, { quantity: newQuantity, notes }, req.ip);
+
+      return updatedItem;
+    });
+
+    const result = consumeTransaction();
+    res.json(result);
+  } catch (error) {
+    console.error('Consume stock error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
 router.get('/stats/summary', authenticateToken, (req, res) => {
   try {
     const totalItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE is_archived = 0').get().count;

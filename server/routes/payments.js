@@ -73,37 +73,56 @@ router.post('/', authenticateToken, (req, res) => {
       return res.status(403).json({ message: 'Users cannot create payments' });
     }
 
-    const order = db.prepare('SELECT total_amount, paid_amount, status, delivery_status FROM orders WHERE id = ?').get(order_id);
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
+    const paymentTransaction = db.transaction((order_id, amount, payment_date, method, reference, notes, mark_as_delivered, userId) => {
+      const order = db.prepare('SELECT total_amount, paid_amount, status, delivery_status FROM orders WHERE id = ?').get(order_id);
+      if (!order) {
+        throw new Error('Order not found');
+      }
 
-    if (order.status === 'paid') {
-      return res.status(400).json({ message: 'This order is already fully paid and finalized.' });
-    }
+      if (order.status === 'paid') {
+        throw new Error('This order is already fully paid and finalized.');
+      }
 
-    // Use rounding to 2 decimal places to avoid floating point errors
-    const totalAmount = Math.round(parseFloat(order.total_amount) * 100) / 100;
-    const currentPaid = Math.round(parseFloat(order.paid_amount) * 100) / 100;
-    const paymentAmount = Math.round(parseFloat(amount) * 100) / 100;
-    
-    if (currentPaid + paymentAmount > totalAmount + 0.01) {
-      return res.status(400).json({ message: 'Payment amount exceeds order balance' });
-    }
+      // Use rounding to 2 decimal places to avoid floating point errors
+      const totalAmount = Math.round(parseFloat(order.total_amount) * 100) / 100;
+      const currentPaid = Math.round(parseFloat(order.paid_amount) * 100) / 100;
+      const paymentAmount = Math.round(parseFloat(amount) * 100) / 100;
+      
+      if (currentPaid + paymentAmount > totalAmount + 0.01) {
+        throw new Error('Payment amount exceeds order balance');
+      }
 
-    const id = crypto.randomUUID();
-    const pDate = payment_date || new Date().toISOString();
+      // Duplicate prevention: check for same amount/reference added very recently (last 60 seconds)
+      const recentDuplicate = db.prepare(`
+        SELECT id FROM payments 
+        WHERE order_id = ? AND amount = ? 
+        AND (reference = ? OR (notes = ? AND ? IS NULL))
+        AND timestamp > datetime('now', '-1 minute')
+      `).get(order_id, amount, reference || '---', notes || '---', reference || null);
 
-    db.prepare(`
-      INSERT INTO payments (id, order_id, amount, payment_date, method, reference, notes, created_by, sync_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, order_id, amount, pDate, method || 'cash', reference || null, notes || null, req.user.id, 'pending');
+      if (recentDuplicate) {
+        throw new Error('A duplicate payment was detected. Please wait a moment before trying again.');
+      }
 
-    const payment = db.prepare('SELECT * FROM payments WHERE id = ?').get(id);
+      const id = crypto.randomUUID();
+      const pDate = payment_date || new Date().toISOString();
 
-    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
-      'payments', id, 'INSERT', JSON.stringify(payment)
-    );
+      db.prepare(`
+        INSERT INTO payments (id, order_id, amount, payment_date, method, reference, notes, created_by, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, order_id, amount, pDate, method || 'cash', reference || null, notes || null, userId, 'pending');
+
+      const payment = db.prepare('SELECT * FROM payments WHERE id = ?').get(id);
+
+      db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+        'payments', id, 'INSERT', JSON.stringify(payment)
+      );
+
+      return { payment, order };
+    });
+
+    const { payment, order } = paymentTransaction(order_id, amount, payment_date, method, reference, notes, mark_as_delivered, req.user.id);
+    const id = payment.id;
 
     // HANDLE DELIVERY INTEGRATION
     if (mark_as_delivered && order.delivery_status !== 'delivered') {

@@ -338,7 +338,7 @@ export default function OrderDetail() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="font-medium text-gray-700">{t('supplier')}:</span>
-                <p className="text-gray-900">{order.supplier.name}</p>
+                <p className="text-gray-900">{order.supplier?.name || t('unknown_supplier') || 'Unknown Supplier'}</p>
               </div>
               <div>
                 <span className="font-medium text-gray-700">{t('order_date')}:</span>

@@ -46,6 +46,17 @@ const Settings: React.FC = () => {
   const [diagLoading, setDiagLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState<any>(null);
   const [isPurging, setIsPurging] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetOptions, setResetOptions] = useState({
+    inventory: true,
+    orders: true,
+    payments: true,
+    usage: true,
+    base_data: false,
+    audit: true
+  });
 
   const isAdmin = user?.role === 'admin';
   const canExport = user?.role === 'admin' || user?.role === 'audit_manager';
@@ -105,6 +116,37 @@ const Settings: React.FC = () => {
       await fetchApi('/sync/purge', { method: 'POST' });
       window.location.reload();
     } catch (error) { alert(t('error')); setIsPurging(false); }
+  };
+
+  const handleFullReset = async () => {
+    if (!resetPassword) {
+      alert("Password is required");
+      return;
+    }
+    
+    setIsResetting(true);
+    try {
+      console.log('[Settings] Triggering Full Reset with options:', resetOptions);
+      const response = await fetchApi('/settings/full-reset', { 
+        method: 'POST', 
+        body: JSON.stringify({ 
+          password: resetPassword,
+          options: resetOptions
+        }) 
+      });
+      console.log('[Settings] Reset response:', response);
+      alert("Selected data has been erased. The application will now reload.");
+      
+      // Clear any local caches that might persist
+      localStorage.removeItem('benna_inventory_cache');
+      localStorage.removeItem('benna_dashboard_stats');
+      
+      window.location.reload();
+    } catch (error: any) {
+      console.error('[Settings] Reset failed:', error);
+      alert(error.message || "Reset failed. Check your password.");
+      setIsResetting(false);
+    }
   };
 
   const handleExport = async () => {
@@ -275,6 +317,24 @@ const Settings: React.FC = () => {
             ) : (
               <div className="text-center py-12 text-gray-500 italic">{t('error')}</div>
             )}
+
+            <div className="pt-6 border-t border-red-100 bg-red-50/30 p-6 rounded-2xl mt-8">
+              <div className="flex items-center gap-2 text-red-700 mb-2">
+                <AlertCircle size={18} />
+                <h3 className="text-sm font-bold uppercase tracking-wider">Danger Zone</h3>
+              </div>
+              <p className="text-xs text-red-600 mb-4">
+                This will permanently erase ALL data from the LOCAL database and the CLOUD (Supabase). 
+                This action is irreversible. Use only if you want to start fresh.
+              </p>
+              <button 
+                onClick={() => setShowResetModal(true)} 
+                className="flex items-center px-6 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 text-sm font-bold shadow-lg shadow-red-200 transition"
+              >
+                <Activity className="w-4 h-4 mr-2" />
+                Full Reset (Local + Cloud)
+              </button>
+            </div>
           </div>
         )}
       </main>
@@ -296,6 +356,74 @@ const Settings: React.FC = () => {
               <div className="flex gap-3 pt-6">
                 <button onClick={handleExport} className="flex-1 bg-navy text-white py-3 rounded-xl font-bold shadow-lg shadow-navy/20">{t('download')}</button>
                 <button onClick={() => setShowExportModal(false)} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold">{t('cancel')}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reset Confirmation Modal ── */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-red-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl border-2 border-red-100">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <AlertCircle size={32} />
+              <h2 className="text-2xl font-black uppercase tracking-tight">Nuclear Reset</h2>
+            </div>
+            
+            <p className="text-gray-600 mb-6 text-sm leading-relaxed">
+              Select the data you want to <span className="font-bold text-red-600">PERMANENTLY ERASE</span> from both this device and the cloud.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 mb-6 bg-red-50/50 p-4 rounded-xl border border-red-100">
+              {Object.entries(resetOptions).map(([key, value]) => (
+                <label key={key} className="flex items-center gap-2 cursor-pointer group">
+                  <div className="relative flex items-center">
+                    <input 
+                      type="checkbox" 
+                      checked={value} 
+                      onChange={() => setResetOptions({ ...resetOptions, [key]: !value })}
+                      className="peer h-5 w-5 appearance-none rounded border-2 border-red-200 checked:bg-red-600 checked:border-red-600 transition-all cursor-pointer"
+                    />
+                    <svg className="absolute h-3 w-3 text-white opacity-0 peer-checked:opacity-100 top-1 left-1 pointer-events-none transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-700 group-hover:text-red-700 transition-colors">
+                    {key.replace('_', ' ')}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase mb-2">Confirm Admin Password</label>
+                <input 
+                  type="password" 
+                  value={resetPassword} 
+                  onChange={e => setResetPassword(e.target.value)} 
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3 border-2 border-gray-100 rounded-xl focus:border-red-500 outline-none transition-all"
+                />
+              </div>
+
+              <div className="flex flex-col gap-3 pt-4">
+                <button 
+                  onClick={handleFullReset} 
+                  disabled={isResetting || !resetPassword || !Object.values(resetOptions).some(v => v)}
+                  className="w-full bg-red-600 text-white py-4 rounded-xl font-black uppercase tracking-widest shadow-xl shadow-red-200 hover:bg-red-700 disabled:opacity-50 transition-all flex items-center justify-center"
+                >
+                  {isResetting ? <RefreshCw className="animate-spin mr-2" /> : null}
+                  Confirm & Erase Selected Data
+                </button>
+                <button 
+                  onClick={() => { setShowResetModal(false); setResetPassword(''); }} 
+                  disabled={isResetting}
+                  className="w-full bg-gray-100 text-gray-500 py-3 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  {t('cancel')}
+                </button>
               </div>
             </div>
           </div>

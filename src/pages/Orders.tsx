@@ -272,7 +272,7 @@ export default function Orders() {
                   {new Date(order.order_date).toLocaleDateString()}
                 </td>
                 <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {order.supplier.name}
+                  {order.supplier?.name || <span className="text-gray-400 italic">Unknown Supplier</span>}
                 </td>
                 <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                   {formatCurrency(order.total_amount)}

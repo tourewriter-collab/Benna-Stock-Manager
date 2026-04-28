@@ -207,22 +207,15 @@ const Inventory: React.FC = () => {
       if (usageAmount <= 0) return;
       
       const payload = {
-        name: item.name,
-        category_id: item.category_id,
-        category: getCategoryName(item.category),
-        quantity: Math.max(0, item.quantity - usageAmount), // Prevent negative stock
-        price: item.price,
-        supplier: typeof item.supplier === 'object' && item.supplier !== null ? (item.supplier as any).id : (item.supplier || ''),
-        location: item.location,
-        min_stock: item.min_stock,
-        max_stock: item.max_stock,
+        quantity: usageAmount,
         authorized_by_name: authName,
         authorized_by_title: authTitle,
-        truck_id: truckId
+        truck_id: truckId,
+        notes: `Recorded via Inventory UI for truck ${truckId}`
       };
 
-      await fetchApi(`/inventory/${item.id}`, {
-        method: 'PUT',
+      await fetchApi(`/inventory/${item.id}/consume`, {
+        method: 'POST',
         body: JSON.stringify(payload)
       });
 
@@ -232,6 +225,22 @@ const Inventory: React.FC = () => {
       if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error recording usage:', error);
+      alert(t('error_recording_usage') || 'Error recording usage. Please check stock levels.');
+    }
+  };
+
+  const handleReconcile = async () => {
+    if (!confirm('This will audit all items and adjust stock levels to match the usage history (ledger). Continue?')) return;
+    try {
+      setLoading(true);
+      const res = await fetchApi('/inventory/reconcile', { method: 'POST' });
+      alert(res.message || 'Reconciliation completed successfully');
+      fetchItems();
+    } catch (error) {
+      console.error('Reconciliation failed:', error);
+      alert('Failed to reconcile inventory');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -304,6 +313,16 @@ const Inventory: React.FC = () => {
             <Download className="w-4 h-4" />
             Excel
           </button>
+          {user?.role === 'admin' && (
+            <button
+              onClick={handleReconcile}
+              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition flex items-center ml-2"
+              title="Fix items showing 0 quantity but having history"
+            >
+              <AlertCircle className="w-4 h-4 mr-2" />
+              Repair Inventory
+            </button>
+          )}
           <button
             onClick={() => {
               setEditingItem(null);

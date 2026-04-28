@@ -10,6 +10,7 @@ interface UsageEvent {
   quantity_changed: number;
   previous_quantity: number;
   new_quantity: number;
+  cumulative_stock?: number;
   user_name: string;
   user_email: string;
   transaction_type: 'IN' | 'OUT';
@@ -63,7 +64,7 @@ export default function UsageReports() {
       if (filters.end_date) queryParams.append('end_date', filters.end_date);
       if (filters.category_id) queryParams.append('category_id', filters.category_id);
       
-      const data = await fetchApi(`/api/reports/usage?${queryParams.toString()}`);
+      const data = await fetchApi(`/api/reports/usage-summary?${queryParams.toString()}`);
       setUsageSummary(data || []);
     } catch (error) {
       console.error('Error fetching usage summary:', error);
@@ -106,7 +107,7 @@ export default function UsageReports() {
       { header: t('item_name') || 'Item Name', key: 'item_name', width: 30 },
       { header: t('previous_stock') || 'Initial Stock', key: 'previous_quantity', width: 15 },
       { header: t('quantity_changed') || 'Quantity Used', key: 'quantity_changed', width: 15 },
-      { header: t('new_stock') || 'Remaining Stock', key: 'new_quantity', width: 15 },
+      { header: t('new_stock') || 'Remaining Stock', key: 'cumulative_stock', width: 15 },
       { header: t('type') || 'Type', key: 'transaction_type', width: 15 },
       { header: t('authorized_by') || 'Authorized By', key: 'authorized_by', width: 25 },
       { header: 'Truck', key: 'truck_id', width: 15 },
@@ -129,7 +130,7 @@ export default function UsageReports() {
       { header: t('item_name') || 'Item Name', key: 'item_name' },
       { header: t('previous_stock') || 'Initial Stock', key: 'previous_quantity' },
       { header: t('quantity_changed') || 'Quantity Used', key: 'quantity_changed' },
-      { header: t('new_stock') || 'Remaining Stock', key: 'new_quantity' },
+      { header: t('new_stock') || 'Remaining Stock', key: 'cumulative_stock' },
       { header: t('type') || 'Type', key: 'transaction_type' },
       { header: t('authorized_by') || 'Authorized By', key: 'authorized_by' },
       { header: 'Truck', key: 'truck_id' },
@@ -311,9 +312,9 @@ export default function UsageReports() {
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
                 {usageSummary.map((item) => {
-                  // Calculate what the stock was before this period started
-                  // If end_date is today, initial = current + used - received
-                  const initialStock = item.current_stock + item.usage - item.received;
+                  const initialStock = item.initial_stock || 0;
+                  const currentStock = item.current_stock || 0;
+                  const liveStock = item.live_stock || 0;
                   
                   return (
                     <tr key={item.id} className="hover:bg-gray-50 transition-colors">
@@ -327,9 +328,14 @@ export default function UsageReports() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 text-center bg-green-50/20">+{item.received}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600 text-center bg-red-50/20">-{item.usage}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className={`px-3 py-1 rounded-full text-sm font-bold shadow-sm ${item.current_stock > 0 ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'}`}>
-                          {item.current_stock}
-                        </span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`px-3 py-1 rounded-full text-sm font-bold shadow-sm ${currentStock > 0 ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'}`}>
+                            {currentStock}
+                          </span>
+                          <span className="text-[10px] text-gray-400 uppercase font-medium">
+                            Live: {liveStock}
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -393,7 +399,7 @@ export default function UsageReports() {
                     {event.transaction_type === 'OUT' ? `-${event.quantity_changed}` : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
-                    {event.new_quantity}
+                    {event.cumulative_stock ?? event.new_quantity}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                     {event.authorized_by_name ? (

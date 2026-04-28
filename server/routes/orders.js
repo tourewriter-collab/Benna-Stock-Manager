@@ -233,6 +233,7 @@ router.post('/', authenticateToken, (req, res) => {
       const q = Number(item.quantity) || 0;
       let d = Number(item.delivered_quantity) || 0;
       if (markAsDelivered) d = q; // Force full delivery if flag is set
+      if (d > q) d = q; // CAP: Cannot deliver more than ordered
       const p = Number(item.unit_price) || 0;
       const total = q * p;
       
@@ -709,6 +710,10 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
     const oldItem = db.prepare('SELECT * FROM order_items WHERE id = ? AND order_id = ?').get(itemId, orderId);
     if (!oldItem) {
       return res.status(404).json({ message: 'Item not found' });
+    }
+
+    if (delivered_quantity > oldItem.quantity) {
+      return res.status(400).json({ message: 'Delivered quantity cannot exceed ordered quantity' });
     }
 
     const oldDelivered = oldItem.delivered_quantity || 0;

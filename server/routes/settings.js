@@ -1,4 +1,5 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
 import db from '../database.js';
 import { authenticateToken, requireRole } from '../middleware/auth.js';
 
@@ -97,6 +98,98 @@ router.post('/purge-local', authenticateToken, requireRole('admin'), (req, res) 
     res.json({ message: 'Local data purged. App will re-pull from cloud on next sync.' });
   } catch (error) {
     res.status(500).json({ error: 'Purge failed', message: error.message });
+  }
+});
+
+// Full Reset (Cloud + Local) - Admin only, requires password
+router.post('/full-reset', authenticateToken, requireRole('admin'), async (req, res) => {
+  const { password, options } = req.body;
+  
+  if (!password) {
+    return res.status(400).json({ error: 'Admin password is required for full reset' });
+  }
+
+  try {
+    // 1. Verify password
+    const user = db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
+    if (!user || !bcrypt.compareSync(password, user.password)) {
+      return res.status(401).json({ error: 'Invalid admin password' });
+    }
+
+    // Map options to tables (ORDER MATTERS for foreign keys)
+    const tableMap = {
+      usage: ['usage_logs'],
+      payments: ['payments'],
+      orders: ['order_items', 'orders'],
+      inventory: ['inventory'],
+      base_data: ['categories', 'suppliers'],
+      audit: ['audit_logs']
+    };
+
+    // We define a strict deletion order to avoid FK issues in the cloud
+    const deletionPriority = [
+      'usage_logs', 'payments', 'order_items', 'orders', 
+      'inventory', 'categories', 'suppliers', 'audit_logs'
+    ];
+
+    const selectedOptions = Object.entries(options || {})
+      .filter(([_, enabled]) => enabled)
+      .map(([opt, _]) => opt);
+
+    const tablesToClear = deletionPriority.filter(table => {
+      return selectedOptions.some(opt => tableMap[opt]?.includes(table));
+    });
+
+    console.log('[Settings] Starting Full Reset. Options:', options);
+    console.log('[Settings] Final tables to clear (ordered):', tablesToClear);
+
+    if (tablesToClear.length === 0) {
+      return res.status(400).json({ error: 'No data categories selected for reset' });
+    }
+
+    // 2. Clear Local Database
+    try {
+      db.pragma('foreign_keys = OFF');
+      const localTransaction = db.transaction(() => {
+        for (const table of tablesToClear) {
+          console.log(`[Settings] Clearing local table: ${table}`);
+          db.prepare(`DELETE FROM ${table}`).run();
+        }
+        
+        // If inventory or base data was cleared, we should also clear sync state
+        if (options.inventory || options.base_data || options.orders) {
+          console.log('[Settings] Clearing sync metadata...');
+          db.prepare("DELETE FROM sync_queue").run();
+          db.prepare("DELETE FROM sync_meta").run();
+          db.prepare("DELETE FROM settings WHERE key NOT IN ('db_created_at', 'company_name')").run();
+        }
+      });
+      localTransaction();
+      db.pragma('foreign_keys = ON');
+      console.log('[Settings] Local database cleared successfully.');
+    } catch (localError) {
+      db.pragma('foreign_keys = ON');
+      console.error('[Settings] Local reset failed:', localError);
+      throw new Error(`Local reset failed: ${localError.message}`);
+    }
+
+    // 3. Clear Cloud Database (if configured)
+    const { supabase, isSupabaseConfigured } = await import('../supabaseClient.js');
+    if (isSupabaseConfigured()) {
+      console.log(`[Settings] Resetting cloud tables: ${tablesToClear.join(', ')}`);
+      for (const table of tablesToClear) {
+        // Use a filter that matches all rows (UUID neq zero)
+        const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        if (error) {
+          console.warn(`[Settings] Cloud reset failed for ${table}:`, error.message);
+        }
+      }
+    }
+
+    res.json({ message: 'Selective reset successful. Data cleared on local and cloud.' });
+  } catch (error) {
+    console.error('Error during full reset:', error);
+    res.status(500).json({ error: 'Full reset failed', message: error.message });
   }
 });
 

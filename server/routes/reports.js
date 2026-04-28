@@ -4,18 +4,29 @@ import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Get usage report
-router.get('/usage', authenticateToken, (req, res) => {
+// Get usage report summary
+router.get('/usage-summary', authenticateToken, (req, res) => {
   try {
     const { start_date, end_date, category_id } = req.query;
 
     let sql = `
       SELECT 
         ul.item_name,
-        -- Period sums (between start_date and end_date)
+        -- Period sums
         SUM(CASE WHEN ul.transaction_type = 'IN' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_in,
-        SUM(CASE WHEN ul.transaction_type = 'OUT' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ABS(ul.quantity_changed) ELSE 0 END) as period_out,
-        (SELECT new_quantity FROM usage_logs latest WHERE LOWER(TRIM(latest.item_name)) = LOWER(TRIM(ul.item_name)) ORDER BY latest.timestamp DESC LIMIT 1) as live_stock,
+        SUM(CASE WHEN ul.transaction_type = 'OUT' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_out,
+        
+        -- Current Live Stock (latest value in inventory table)
+        MAX(i.quantity) as live_stock,
+        
+        -- Initial stock: sum of all IN - OUT before the start date
+        COALESCE((
+          SELECT SUM(CASE WHEN transaction_type = 'IN' THEN quantity_changed ELSE -quantity_changed END)
+          FROM usage_logs 
+          WHERE LOWER(TRIM(item_name)) = LOWER(TRIM(ul.item_name)) 
+          AND (? IS NULL OR timestamp < ?)
+        ), 0) as initial_stock,
+
         MAX(i.category_id) as category_id,
         MAX(c.name_en) as name_en,
         MAX(c.name_fr) as name_fr
@@ -24,13 +35,17 @@ router.get('/usage', authenticateToken, (req, res) => {
       LEFT JOIN categories c ON i.category_id = c.id
       WHERE 1=1
     `;
+    const sDate = start_date || null;
+    const eDate = end_date ? `${end_date} 23:59:59` : null;
+
     const params = [
-      start_date || null, start_date || null, end_date ? `${end_date} 23:59:59` : null, end_date ? `${end_date} 23:59:59` : null,
-      start_date || null, start_date || null, end_date ? `${end_date} 23:59:59` : null, end_date ? `${end_date} 23:59:59` : null
+      sDate, sDate, eDate, eDate, // IN
+      sDate, sDate, eDate, eDate, // OUT
+      sDate, sDate                // initial_stock (all before start_date)
     ];
 
     if (category_id) {
-      sql += ` AND (i.category_id = ? OR i.category_id IS NULL)`;
+      sql += ` AND i.category_id = ?`;
       params.push(category_id);
     }
 
@@ -39,22 +54,23 @@ router.get('/usage', authenticateToken, (req, res) => {
     const items = db.prepare(sql).all(...params);
 
     const usageReport = items.map(item => {
-      const periodIn = item.period_in || 0;
-      const periodOut = item.period_out || 0;
-      const liveStock = item.live_stock || 0;
-      
+      const pIn = item.period_in || 0;
+      const pOut = item.period_out || 0;
+      const initial = Math.max(0, item.initial_stock || 0);
+      const current = initial + pIn - pOut;
+
       return {
-        id: item.item_name, // ID is now the name since items are grouped
+        id: item.item_name,
         name: item.item_name,
         category_id: item.category_id,
         category: item.name_en ? { id: item.category_id, name_en: item.name_en, name_fr: item.name_fr } : null,
-        received: periodIn,
-        usage: periodOut,
-        current_stock: liveStock
+        received: pIn,
+        usage: pOut,
+        initial_stock: initial,
+        current_stock: current, // The stock at the end of the period
+        live_stock: item.live_stock || 0 // The stock right now
       };
     });
-
-
 
     res.json(usageReport);
   } catch (error) {
@@ -63,34 +79,48 @@ router.get('/usage', authenticateToken, (req, res) => {
   }
 });
 
-// Get recent usage events
+// Get recent usage events with cumulative stock calculation
 router.get('/usage-events', authenticateToken, (req, res) => {
   try {
     const { start_date, end_date, category_id, limit = 100 } = req.query;
     
+    // We use a window function to calculate cumulative stock per item
     let sql = `
-      SELECT ul.*, u.name as user_name, u.email as user_email
-      FROM usage_logs ul
-      LEFT JOIN users u ON ul.user_id = u.id
-      LEFT JOIN inventory i ON ul.inventory_item_id = i.id
-      WHERE 1=1
+      WITH EventHistory AS (
+        SELECT 
+          ul.*,
+          u.name as user_name,
+          u.email as user_email,
+          SUM(CASE WHEN ul.transaction_type = 'IN' THEN ul.quantity_changed ELSE -ul.quantity_changed END) 
+            OVER (PARTITION BY LOWER(TRIM(ul.item_name)) ORDER BY ul.timestamp, ul.id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as cumulative_stock
+        FROM usage_logs ul
+        LEFT JOIN users u ON ul.user_id = u.id
+        LEFT JOIN inventory i ON ul.inventory_item_id = i.id
+        WHERE 1=1
     `;
     const params = [];
 
-    if (start_date) {
-      sql += ` AND ul.timestamp >= ?`;
-      params.push(start_date);
-    }
-    if (end_date) {
-      sql += ` AND ul.timestamp <= ?`;
-      params.push(`${end_date} 23:59:59`);
-    }
     if (category_id) {
       sql += ` AND i.category_id = ?`;
       params.push(category_id);
     }
 
-    sql += ` ORDER BY ul.timestamp DESC LIMIT ?`;
+    sql += `
+      )
+      SELECT * FROM EventHistory
+      WHERE 1=1
+    `;
+
+    if (start_date) {
+      sql += ` AND timestamp >= ?`;
+      params.push(start_date);
+    }
+    if (end_date) {
+      sql += ` AND timestamp <= ?`;
+      params.push(`${end_date} 23:59:59`);
+    }
+
+    sql += ` ORDER BY timestamp DESC LIMIT ?`;
     params.push(parseInt(limit));
 
     const logs = db.prepare(sql).all(...params);
@@ -185,7 +215,6 @@ router.get('/audit-logs', authenticateToken, (req, res) => {
       params.push(start_date);
     }
     if (end_date) {
-      // Add end of day for comparison
       sql += ` AND al.timestamp <= ?`;
       params.push(`${end_date} 23:59:59`);
     }

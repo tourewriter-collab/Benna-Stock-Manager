@@ -327,26 +327,32 @@ export function reconcileLedger(force = false) {
     console.log('[Database] Running Ledger Reconciliation Audit...');
     const items = db.prepare('SELECT id, name, quantity FROM inventory').all();
     let adjustmentsMade = 0;
+    
     for (const item of items) {
+      // Calculate true balance from logs
       const ledger = db.prepare(`
         SELECT 
           SUM(CASE WHEN transaction_type = 'IN' THEN quantity_changed ELSE 0 END) as total_in,
           SUM(CASE WHEN transaction_type = 'OUT' THEN quantity_changed ELSE 0 END) as total_out
         FROM usage_logs WHERE inventory_item_id = ?
       `).get(item.id);
-      const balance = (ledger.total_in || 0) - (ledger.total_out || 0);
-      const diff = item.quantity - balance;
-      if (diff !== 0) {
-        const type = diff > 0 ? 'IN' : 'OUT';
-        const absDiff = Math.abs(diff);
-        const logId = crypto.randomUUID();
-        const backdatedTimestamp = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-        db.prepare(`
-          INSERT INTO usage_logs (id, inventory_item_id, item_name, quantity_changed, previous_quantity, new_quantity, transaction_type, timestamp, authorized_by_name)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(logId, item.id, item.name, absDiff, balance, item.quantity, type, backdatedTimestamp, 'SYSTEM_RECONCILE');
-        const newLog = db.prepare('SELECT * FROM usage_logs WHERE id = ?').get(logId);
-        db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run('usage_logs', logId, 'INSERT', JSON.stringify(newLog));
+      
+      const trueBalance = (ledger.total_in || 0) - (ledger.total_out || 0);
+      
+      if (item.quantity !== trueBalance) {
+        console.log(`[Database] Reconciling ${item.name}: ${item.quantity} -> ${trueBalance}`);
+        
+        // Update inventory to match ledger
+        db.prepare('UPDATE inventory SET quantity = ?, sync_status = "pending", sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+          .run(trueBalance, item.id);
+          
+        const updatedItem = db.prepare('SELECT * FROM inventory WHERE id = ?').get(item.id);
+        
+        // Record to sync queue
+        db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+          'inventory', item.id, 'UPDATE', JSON.stringify(updatedItem)
+        );
+        
         adjustmentsMade++;
       }
     }
