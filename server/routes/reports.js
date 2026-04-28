@@ -15,7 +15,7 @@ router.get('/usage', authenticateToken, (req, res) => {
         -- Period sums (between start_date and end_date)
         SUM(CASE WHEN ul.transaction_type = 'IN' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_in,
         SUM(CASE WHEN ul.transaction_type = 'OUT' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ABS(ul.quantity_changed) ELSE 0 END) as period_out,
-        (SELECT SUM(quantity) FROM inventory inv WHERE LOWER(TRIM(inv.name)) = LOWER(TRIM(ul.item_name))) as live_stock,
+        (SELECT new_quantity FROM usage_logs latest WHERE LOWER(TRIM(latest.item_name)) = LOWER(TRIM(ul.item_name)) ORDER BY latest.timestamp DESC LIMIT 1) as live_stock,
         MAX(i.category_id) as category_id,
         MAX(c.name_en) as name_en,
         MAX(c.name_fr) as name_fr
@@ -72,7 +72,7 @@ router.get('/usage-events', authenticateToken, (req, res) => {
       SELECT ul.*, u.name as user_name, u.email as user_email
       FROM usage_logs ul
       LEFT JOIN users u ON ul.user_id = u.id
-      JOIN inventory i ON ul.inventory_item_id = i.id
+      LEFT JOIN inventory i ON ul.inventory_item_id = i.id
       WHERE 1=1
     `;
     const params = [];
