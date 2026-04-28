@@ -171,11 +171,10 @@ router.post('/push', async (req, res) => {
                  id: data.id,
                  name: data.name,
                  reference: (data.id || '').substring(0, 8),
-                 category: data.category || 'General',
                  quantity: data.quantity || 0,
-                 min_quantity: data.min_stock || 0,
+                 min_stock: data.min_stock || 0,
                  unit_price: data.price || 0,
-                 supplier: data.supplier || null,
+                 supplier_id: data.supplier || null,
                  location: data.location || 'Main Store',
                  category_id: data.category_id || null
               };
@@ -453,20 +452,31 @@ router.get('/pull', async (req, res) => {
                 row.description = local ? local.description : 'Unknown Item';
               }
             }
+          } else if (table === 'payments') {
+            // Duplicate prevention for payments (if same order, amount, and reference already exists)
+            if (row.order_id && row.amount) {
+              const existing = db.prepare('SELECT id FROM payments WHERE order_id = ? AND amount = ? AND (reference = ? OR (reference IS NULL AND ? IS NULL))').get(row.order_id, row.amount, row.reference || null, row.reference || null);
+              if (existing && existing.id !== row.id) {
+                console.log(`[Sync] Skipping duplicate payment pull: ${row.id} (already exists as ${existing.id})`);
+                continue; 
+              }
+            }
+            row.method = row.payment_method || 'cash';
           } else if (table === 'usage_logs') {
             row.inventory_item_id = row.inventory_id; 
           } else if (table === 'inventory') {
-            // Map cloud unit_price back to local price and ensure it's never NULL
-            if (row.unit_price !== undefined) {
-              row.price = row.unit_price || 0;
-            } else if (row.price === undefined || row.price === null) {
-              row.price = 0;
+            // Map cloud unit_price back to local price
+            if (row.unit_price !== undefined && row.unit_price !== null) {
+              row.price = row.unit_price;
             }
-            // Ensure other NOT NULL columns are never NULL
+            // Ensure other NOT NULL columns are handled
             row.name = row.name || 'Unnamed Item';
-            row.category = row.category || 'General';
             row.location = row.location || 'Main Store';
-            row.quantity = row.quantity || 0;
+            if (row.quantity === undefined || row.quantity === null) {
+              // Try to preserve local quantity if pull doesn't have it (shouldn't happen but safe)
+              const local = db.prepare('SELECT quantity FROM inventory WHERE id = ?').get(row.id);
+              row.quantity = local ? local.quantity : 0;
+            }
           } else if (table === 'suppliers') {
             if (row.contact_person !== undefined) {
               row.contact = row.contact_person || '';
@@ -485,9 +495,6 @@ router.get('/pull', async (req, res) => {
                 row.is_archived = localOrder.is_archived || 0;
                 row.created_by = localOrder.created_by || 'system';
                 row.actual_delivery_date = row.actual_delivery_date || localOrder.actual_delivery_date || null;
-              } else {
-                row.paid_amount = Number(row.paid_amount) || 0;
-                row.actual_delivery_date = row.actual_delivery_date || null;
               }
             } catch(e) {}
           }
