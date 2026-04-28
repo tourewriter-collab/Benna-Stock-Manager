@@ -310,21 +310,30 @@ export default function UsageReports() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {usageSummary.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-semibold text-gray-900">{item.name}</div>
-                      <div className="text-xs text-gray-500">{i18n.language === 'fr' ? item.category?.name_fr : item.category?.name_en}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 text-center bg-green-50/20">+{item.received}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600 text-center bg-red-50/20">-{item.usage}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <span className={`px-3 py-1 rounded-full text-sm font-bold shadow-sm ${item.current_stock > 0 ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'}`}>
-                        {item.current_stock}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {usageSummary.map((item) => {
+                  // Calculate what the stock was before this period started
+                  // If end_date is today, initial = current + used - received
+                  const initialStock = item.current_stock + item.usage - item.received;
+                  
+                  return (
+                    <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-semibold text-gray-900">{item.name}</div>
+                        <div className="text-xs text-gray-500">{i18n.language === 'fr' ? item.category?.name_fr : item.category?.name_en}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-600 text-center bg-gray-50/50">
+                        {initialStock}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600 text-center bg-green-50/20">+{item.received}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600 text-center bg-red-50/20">-{item.usage}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold shadow-sm ${item.current_stock > 0 ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'}`}>
+                          {item.current_stock}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
