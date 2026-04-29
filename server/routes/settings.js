@@ -178,8 +178,8 @@ router.post('/full-reset', authenticateToken, requireRole('admin'), async (req, 
     if (isSupabaseConfigured()) {
       console.log(`[Settings] Resetting cloud tables: ${tablesToClear.join(', ')}`);
       for (const table of tablesToClear) {
-        // Use a filter that matches all rows (UUID neq zero)
-        const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        // Use a type-agnostic filter that matches all rows (id is not null)
+        const { error } = await supabase.from(table).delete().not('id', 'is', null);
         if (error) {
           console.warn(`[Settings] Cloud reset failed for ${table}:`, error.message);
         }

@@ -627,4 +627,61 @@ router.get('/debug/triggers', authenticateToken, (req, res) => {
   }
 });
 
+/**
+ * RECONCILE operation: compare local IDs with cloud IDs and delete orphans.
+ * This is the ONLY way to detect hard-deletions from other machines.
+ */
+router.post('/reconcile-deletions', authenticateToken, async (req, res) => {
+  if (!isSupabaseConfigured()) {
+    return res.status(400).json({ error: 'Supabase is not configured' });
+  }
+
+  try {
+    const tablesToReconcile = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs'];
+    const results = {};
+
+    for (const table of tablesToReconcile) {
+      console.log(`[Sync] Reconciling deletions for ${table}...`);
+      
+      // 1. Fetch ALL IDs from cloud for this table
+      const { data: remoteIds, error } = await supabase.from(table).select('id');
+      
+      if (error) {
+        console.error(`[Sync] Failed to fetch remote IDs for ${table}:`, error.message);
+        results[table] = { status: 'error', message: error.message };
+        continue;
+      }
+
+      const cloudIdSet = new Set(remoteIds.map(r => String(r.id)));
+      
+      // 2. Fetch all local IDs
+      const localIds = db.prepare(`SELECT id FROM ${table}`).all().map(r => String(r.id));
+      
+      // 3. Find orphans (local exists, cloud does not)
+      const orphans = localIds.filter(id => !cloudIdSet.has(id));
+      
+      if (orphans.length > 0) {
+        console.log(`[Sync] Found ${orphans.length} orphans in ${table}. Deleting...`);
+        
+        const deleteStmt = db.prepare(`DELETE FROM ${table} WHERE id = ?`);
+        const transaction = db.transaction((ids) => {
+          for (const id of ids) {
+            deleteStmt.run(id);
+          }
+        });
+        
+        transaction(orphans);
+        results[table] = { status: 'success', deleted: orphans.length };
+      } else {
+        results[table] = { status: 'success', deleted: 0 };
+      }
+    }
+
+    res.json({ message: 'Reconciliation complete', results });
+  } catch (error) {
+    console.error('[Sync] Reconciliation failed:', error);
+    res.status(500).json({ error: 'Reconciliation failed', message: error.message });
+  }
+});
+
 export default router;

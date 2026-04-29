@@ -308,10 +308,38 @@ const Settings: React.FC = () => {
                 <div className="pt-6 border-t border-gray-100">
                   <h3 className="text-sm font-bold text-gray-900 mb-2">{t('purge_local_data')}</h3>
                   <p className="text-xs text-gray-500 mb-4">{t('purge_description')}</p>
-                  <button onClick={handlePurgeLocal} disabled={isPurging} className="flex items-center px-6 py-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 text-sm font-bold transition disabled:opacity-50">
-                    <RefreshCw className={`w-4 h-4 mr-2 ${isPurging ? 'animate-spin' : ''}`} />
-                    {isPurging ? t('loading') : t('execute_purge')}
-                  </button>
+                  <div className="flex flex-col md:flex-row gap-4">
+                <button
+                  onClick={handleRepairInventory}
+                  disabled={isRepairing}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isRepairing ? 'animate-spin' : ''}`} />
+                  {isRepairing ? t('settings.diagnostics.repairing') : t('settings.diagnostics.repair_inventory')}
+                </button>
+
+                <button
+                  onClick={async () => {
+                    if (!confirm("This will compare all local data with the cloud and remove items that no longer exist in Supabase. Continue?")) return;
+                    setIsRepairing(true);
+                    try {
+                      const res = await fetchApi('/sync/reconcile-deletions', { method: 'POST' });
+                      console.log('[Sync] Reconciliation results:', res);
+                      alert("Reconciliation complete. Any 'ghost' items have been removed.");
+                      window.location.reload();
+                    } catch (error: any) {
+                      alert("Reconciliation failed: " + error.message);
+                    } finally {
+                      setIsRepairing(false);
+                    }
+                  }}
+                  disabled={isRepairing}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  <Database className="w-4 h-4" />
+                  Reconcile Cloud Deletions
+                </button>
+              </div>
                 </div>
               </div>
             ) : (
