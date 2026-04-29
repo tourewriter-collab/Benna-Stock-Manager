@@ -270,9 +270,24 @@ const Settings: React.FC = () => {
                       <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">{t('version')}</div>
                       <div className="text-lg font-black text-navy">{appVersion}</div>
                     </div>
-                    <div className="px-3 py-1 bg-green-50 text-green-700 rounded-full text-[10px] font-black uppercase border border-green-100">
-                      {t('up_to_date')}
-                    </div>
+                    
+                    <button 
+                      onClick={async () => {
+                        setDiagLoading(true);
+                        try {
+                          await window.electron.updates.checkForUpdates();
+                        } catch (err) {
+                          console.error("Manual check failed:", err);
+                        } finally {
+                          setDiagLoading(false);
+                        }
+                      }}
+                      disabled={diagLoading}
+                      className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-black uppercase border border-blue-100 hover:bg-blue-100 transition-colors flex items-center gap-2"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${diagLoading ? 'animate-spin' : ''}`} />
+                      Check for Updates
+                    </button>
                   </div>
                 </div>
               )}

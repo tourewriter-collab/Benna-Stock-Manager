@@ -6,6 +6,7 @@ import { useSync } from '../contexts/SyncContext';
 import pkg from '../../package.json';
 import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, CheckCircle2, TrendingDown } from 'lucide-react';
 import { fetchApi } from '../lib/api';
+import UpdaterOverlay from './UpdaterOverlay';
 
 const Layout: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -165,6 +166,9 @@ const Layout: React.FC = () => {
           </span>
         )}
       </button>
+
+      {/* ── Updater Overlay ── */}
+      <UpdaterOverlay />
     </div>
   );
 };
