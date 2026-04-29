@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchApi } from '../lib/api';
 import { useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Truck, Tags, Activity, RefreshCw, AlertCircle, Download, Users } from 'lucide-react';
+import { Settings as SettingsIcon, Truck, Tags, Activity, RefreshCw, AlertCircle, Download, Users, Database } from 'lucide-react';
 import CategoryManager from '../components/settings/CategoryManager';
 import SupplierManager from '../components/settings/SupplierManager';
 import AdminUsers from '../pages/AdminUsers';
@@ -45,7 +45,7 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [diagLoading, setDiagLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState<any>(null);
-  const [isPurging, setIsPurging] = useState(false);
+  const [isRepairing, setIsRepairing] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
@@ -69,6 +69,19 @@ const Settings: React.FC = () => {
     fetchSettings();
     if (isAdmin) fetchDiagnostics();
   }, []);
+
+  const handleRepairInventory = async () => {
+    setIsRepairing(true);
+    try {
+      await fetchApi('/sync/reconcile-ledger', { method: 'POST' });
+      alert(t('inventory_repaired') || "Inventory levels have been recalculated from logs.");
+      fetchDiagnostics();
+    } catch (error) {
+      alert(t('error'));
+    } finally {
+      setIsRepairing(false);
+    }
+  };
 
   const fetchDiagnostics = async () => {
     setDiagLoading(true);
@@ -102,20 +115,13 @@ const Settings: React.FC = () => {
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setSettings({ ...settings, company_logo: reader.result as string });
-      reader.readAsDataURL(file);
-    }
-  };
+    if (!file) return;
 
-  const handlePurgeLocal = async () => {
-    if (!confirm(t('confirm_purge') || "Are you sure you want to purge local data? This will trigger a full re-sync.")) return;
-    setIsPurging(true);
-    try {
-      await fetchApi('/sync/purge', { method: 'POST' });
-      window.location.reload();
-    } catch (error) { alert(t('error')); setIsPurging(false); }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSettings(prev => ({ ...prev, company_logo: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleFullReset = async () => {
@@ -275,7 +281,7 @@ const Settings: React.FC = () => {
                       onClick={async () => {
                         setDiagLoading(true);
                         try {
-                          await window.electron.updates.checkForUpdates();
+                          await window.electron?.updates.checkForUpdates();
                         } catch (err) {
                           console.error("Manual check failed:", err);
                         } finally {

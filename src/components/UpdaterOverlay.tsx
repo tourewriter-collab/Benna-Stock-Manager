@@ -48,7 +48,7 @@ const UpdaterOverlay: React.FC = () => {
   const handleDownload = async () => {
     try {
       setStatus('downloading');
-      await window.electron.updates.downloadUpdate();
+      await window.electron?.updates.downloadUpdate();
     } catch (err: any) {
       setError(err.message);
       setStatus('error');
@@ -56,7 +56,7 @@ const UpdaterOverlay: React.FC = () => {
   };
 
   const handleInstall = () => {
-    window.electron.updates.installUpdate();
+    window.electron?.updates.installUpdate();
   };
 
   if (!visible) return null;
