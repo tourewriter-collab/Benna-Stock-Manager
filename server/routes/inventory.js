@@ -171,18 +171,27 @@ router.post('/', authenticateToken, (req, res) => {
   }
 
   try {
+    // Duplicate check
+    const existing = db.prepare('SELECT * FROM inventory WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND LOWER(TRIM(location)) = LOWER(TRIM(?))').get(name, location || 'Main Store');
+    if (existing) {
+      return res.status(400).json({ 
+        message: 'An item with this name already exists in this location. Please update the existing item instead.',
+        existingItem: existing 
+      });
+    }
+
     const result = db.prepare(
       'INSERT INTO inventory (name, category, category_id, quantity, price, supplier, location, min_stock, max_stock, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       name,
-      category || 'Uncategorized', // Fallback for the NOT NULL column
+      category || 'General', // Fallback for the NOT NULL column
       category_id || null,
-      quantity,
-      price,
+      quantity || 0,
+      price || 0,
       supplier || null,
-      location,
-      min_stock || 10,
-      max_stock || 100,
+      location || 'Main Store',
+      min_stock || 0,
+      max_stock || 0,
       'pending'
     );
 

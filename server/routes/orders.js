@@ -258,6 +258,7 @@ router.post('/', authenticateToken, (req, res) => {
               supplier = COALESCE(NULLIF(supplier, ''), ?)
           WHERE id = ?
         `).run(supplierName, inventoryId);
+        // Refetch right before use to avoid stale data if multiple items in one order refer to same inventory ID
         currentInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(inventoryId);
       } else {
         let catId = item.category_id;
@@ -295,9 +296,10 @@ router.post('/', authenticateToken, (req, res) => {
         db.prepare('UPDATE inventory SET quantity = ?, sync_status = \'pending\', last_updated = CURRENT_TIMESTAMP WHERE id = ?')
           .run(newQty, inventoryId);
         
-        const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(inventoryId);
+        // Re-read currentInv after update so subsequent items in the same order see the new quantity
+        currentInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(inventoryId);
         db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
-          'inventory', inventoryId, 'UPDATE', JSON.stringify(updatedInv)
+          'inventory', inventoryId, 'UPDATE', JSON.stringify(currentInv)
         );
 
         // Log the inflow in usage_logs

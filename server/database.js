@@ -320,6 +320,9 @@ export function repairAllIds() {
 
 export function reconcileLedger(force = false) {
   try {
+    // 0. Deduplicate inventory first to prevent doubling from migrated IDs
+    deduplicateInventory();
+
     if (!force) {
       const alreadyDone = db.prepare("SELECT value FROM app_config WHERE key = 'ledger_reconciled'").get();
       if (alreadyDone && alreadyDone.value === 'true') return;
@@ -358,10 +361,60 @@ export function reconcileLedger(force = false) {
     }
     db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)").run('ledger_reconciled', 'true');
     console.log(`[Database] Reconciliation complete. Items adjusted: ${adjustmentsMade}`);
+}
+
+/**
+ * Merges duplicate inventory items (same name/location) that may have been created
+ * during sync or ID migrations. 
+ */
+export function deduplicateInventory() {
+  try {
+    console.log('[Database] Checking for duplicate inventory items...');
+    const items = db.prepare('SELECT id, name, location, quantity FROM inventory').all();
+    const seen = new Map();
+    let mergedCount = 0;
+
+    for (const item of items) {
+      const key = `${item.name.toLowerCase().trim()}|${(item.location || 'Main Store').toLowerCase().trim()}`;
+      if (seen.has(key)) {
+        const originalId = seen.get(key);
+        const duplicateId = item.id;
+        
+        console.log(`[Database] Merging duplicate: ${item.name} (${duplicateId} -> ${originalId})`);
+        
+        // 1. Move all logs to the original ID
+        db.prepare('UPDATE usage_logs SET inventory_item_id = ? WHERE inventory_item_id = ?').run(originalId, duplicateId);
+        
+        // 2. Move all order items to the original ID
+        db.prepare('UPDATE order_items SET inventory_item_id = ? WHERE inventory_item_id = ?').run(originalId, duplicateId);
+        
+        // 3. Update sync queue for the moved records
+        db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name IN ('usage_logs', 'order_items') AND (record_id = ? OR data LIKE ?)").run(
+           duplicateId, originalId, duplicateId, `%${duplicateId}%`
+        );
+
+        // 4. Delete the duplicate inventory item
+        db.prepare('DELETE FROM inventory WHERE id = ?').run(duplicateId);
+        
+        // 5. Mark duplicate for deletion in cloud
+        db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+          'inventory', duplicateId, 'DELETE', JSON.stringify({ id: duplicateId })
+        );
+
+        mergedCount++;
+      } else {
+        seen.set(key, item.id);
+      }
+    }
+    
+    if (mergedCount > 0) {
+      console.log(`[Database] Deduplication complete. Merged ${mergedCount} duplicates.`);
+    }
   } catch (error) {
-    console.error('[Database] Reconciliation failed:', error);
+    console.error('[Database] Deduplication failed:', error);
   }
 }
+
 
 export function runPostStartupMaintenance() {
   console.log('[Database] Starting post-startup maintenance...');

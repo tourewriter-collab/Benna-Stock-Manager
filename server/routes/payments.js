@@ -140,17 +140,24 @@ router.post('/', authenticateToken, (req, res) => {
 
           // Update inventory if linked
           if (item.inventory_item_id) {
-            db.prepare(
-              'UPDATE inventory SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?'
-            ).run(remaining, item.inventory_item_id);
+            // Fetch current state inside loop to prevent race conditions if multiple items share same ID
+            const currentInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(item.inventory_item_id);
+            if (currentInv) {
+              const oldQty = currentInv.quantity;
+              const newQty = oldQty + remaining;
+              
+              db.prepare(
+                'UPDATE inventory SET quantity = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?'
+              ).run(newQty, item.inventory_item_id);
 
-            const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(item.inventory_item_id);
-            db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
-              'inventory', item.inventory_item_id, 'UPDATE', JSON.stringify(updatedInv)
-            );
+              const updatedInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(item.inventory_item_id);
+              db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+                'inventory', item.inventory_item_id, 'UPDATE', JSON.stringify(updatedInv)
+              );
 
-            // Log inflow
-            logUsage(req.user.id, item.inventory_item_id, updatedInv.name, updatedInv.quantity - remaining, updatedInv.quantity, 'IN');
+              // Log inflow
+              logUsage(req.user.id, item.inventory_item_id, updatedInv.name, oldQty, newQty, 'IN');
+            }
           }
 
           const updatedItem = db.prepare('SELECT * FROM order_items WHERE id = ?').get(item.id);
