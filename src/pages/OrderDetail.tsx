@@ -82,7 +82,7 @@ export default function OrderDetail() {
     if (id) {
       fetchOrder();
     }
-  }, [id]);
+  }, [id, lastSyncedAt]);
 
   const fetchOrder = async () => {
     try {

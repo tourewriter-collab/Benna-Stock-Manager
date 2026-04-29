@@ -72,7 +72,7 @@ const Inventory: React.FC = () => {
 
   useEffect(() => {
     fetchItems();
-  }, [debouncedSearch, categoryFilter, showArchived, currentPage]);
+  }, [debouncedSearch, categoryFilter, showArchived, currentPage, lastSyncedAt]);
 
   const fetchSuppliers = async () => {
     try {
