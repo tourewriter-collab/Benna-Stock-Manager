@@ -147,6 +147,9 @@ app.whenReady().then(async () => {
 
   if (app.isPackaged) {
     autoUpdater.autoDownload = false;
+    // CRITICAL: Differential downloads often get stuck at 0% on Windows due to blockmap issues.
+    // Disabling it forces a full reliable download of the new installer.
+    autoUpdater.disableDifferentialDownload = true;
     autoUpdater.checkForUpdatesAndNotify();
   }
 });
@@ -202,6 +205,7 @@ autoUpdater.on('error', (err) => {
 });
 
 autoUpdater.on('download-progress', (progress) => {
+  log.info(`[Updater] Download progress: ${Math.round(progress.percent)}% (${progress.transferred}/${progress.total})`);
   if (mainWindow) mainWindow.webContents.send('download-progress', progress);
 });
 
