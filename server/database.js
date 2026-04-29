@@ -388,15 +388,21 @@ export function deduplicateInventory() {
         // 2. Move all order items to the original ID
         db.prepare('UPDATE order_items SET inventory_item_id = ? WHERE inventory_item_id = ?').run(originalId, duplicateId);
         
-        // 3. Update sync queue for the moved records
+        // 3. Update inventory quantity: sum them up
+        const duplicateItem = db.prepare('SELECT quantity FROM inventory WHERE id = ?').get(duplicateId);
+        if (duplicateItem && duplicateItem.quantity > 0) {
+          db.prepare('UPDATE inventory SET quantity = quantity + ?, sync_status = "pending" WHERE id = ?').run(duplicateItem.quantity, originalId);
+        }
+
+        // 4. Update sync queue for the moved records
         db.prepare("UPDATE sync_queue SET data = REPLACE(data, ?, ?) WHERE table_name IN ('usage_logs', 'order_items') AND (record_id = ? OR data LIKE ?)").run(
            duplicateId, originalId, duplicateId, `%${duplicateId}%`
         );
 
-        // 4. Delete the duplicate inventory item
+        // 5. Delete the duplicate inventory item
         db.prepare('DELETE FROM inventory WHERE id = ?').run(duplicateId);
         
-        // 5. Mark duplicate for deletion in cloud
+        // 6. Mark duplicate for deletion in cloud
         db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
           'inventory', duplicateId, 'DELETE', JSON.stringify({ id: duplicateId })
         );
@@ -410,6 +416,31 @@ export function deduplicateInventory() {
     if (mergedCount > 0) {
       console.log(`[Database] Deduplication complete. Merged ${mergedCount} duplicates.`);
     }
+
+    // 7. Deduplicate usage logs themselves (same item, same user, same time, same quantity)
+    console.log('[Database] Checking for duplicate usage logs...');
+    const duplicateLogs = db.prepare(`
+      SELECT id FROM usage_logs 
+      WHERE id NOT IN (
+        SELECT MIN(id) 
+        FROM usage_logs 
+        GROUP BY inventory_item_id, user_id, timestamp, quantity_changed, transaction_type
+      )
+    `).all();
+
+    if (duplicateLogs.length > 0) {
+      console.log(`[Database] Removing ${duplicateLogs.length} duplicate usage logs...`);
+      const deleteStmt = db.prepare('DELETE FROM usage_logs WHERE id = ?');
+      const queueStmt = db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)');
+      
+      db.transaction(() => {
+        for (const log of duplicateLogs) {
+          deleteStmt.run(log.id);
+          queueStmt.run('usage_logs', log.id, 'DELETE', JSON.stringify({ id: log.id }));
+        }
+      })();
+    }
+
   } catch (error) {
     console.error('[Database] Deduplication failed:', error);
   }

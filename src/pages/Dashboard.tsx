@@ -227,7 +227,7 @@ const Dashboard: React.FC = () => {
     },
   ].filter(card => {
     if (card.id === 'totalValue') {
-      return appSettings?.show_total_stock_value !== 'false';
+      return !appSettings || appSettings.show_total_stock_value !== 'false';
     }
     return true;
   });
