@@ -192,6 +192,10 @@ ipcMain.handle('install-update', () => {
   autoUpdater.quitAndInstall();
 });
 
+autoUpdater.on('checking-for-update', () => {
+  if (mainWindow) mainWindow.webContents.send('update-checking');
+});
+
 autoUpdater.on('update-available', (info) => {
   if (mainWindow) mainWindow.webContents.send('update-available', info);
 });
@@ -206,7 +210,7 @@ autoUpdater.on('error', (err) => {
 
 autoUpdater.on('download-progress', (progress) => {
   log.info(`[Updater] Download progress: ${Math.round(progress.percent)}% (${progress.transferred}/${progress.total})`);
-  if (mainWindow) mainWindow.webContents.send('download-progress', progress);
+  if (mainWindow) mainWindow.webContents.send('update-download-progress', progress);
 });
 
 autoUpdater.on('update-downloaded', (info) => {
