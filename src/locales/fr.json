@@ -238,6 +238,8 @@
   "restart_and_install": "Redémarrer et installer",
   "up_to_date": "Vous utilisez la dernière version",
   "update_error": "Erreur de mise à jour",
+  "update_error_generic": "Une erreur est survenue lors de la mise à jour",
+  "please_do_not_close_app": "Veuillez ne pas fermer l'application",
   "export_audit_logs_description": "Exporter les journaux d'audit vers Excel pour analyse",
   "google_drive_not_configured": "La synchronisation Google Drive n'est pas encore configurée",
   "application_settings": "Paramètres de l'application",

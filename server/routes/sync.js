@@ -213,6 +213,7 @@ router.post('/push', async (req, res) => {
                  previous_quantity: data.previous_quantity,
                  new_quantity: data.new_quantity,
                  transaction_type: data.transaction_type || 'OUT',
+                 user_id: data.user_id || null,
                  authorized_by_name: data.authorized_by_name,
                  authorized_by_title: data.authorized_by_title,
                  truck_id: data.truck_id,
@@ -463,12 +464,34 @@ router.get('/pull', async (req, res) => {
             }
             row.method = row.payment_method || 'cash';
           } else if (table === 'usage_logs') {
-            row.inventory_item_id = row.inventory_id; 
+            row.inventory_item_id = row.inventory_id || row.inventory_item_id || 'unknown'; 
+            row.item_name = row.item_name || 'Unknown Item';
+            row.quantity_changed = row.quantity_changed !== undefined ? row.quantity_changed : 0;
+            row.previous_quantity = row.previous_quantity !== undefined ? row.previous_quantity : 0;
+            row.new_quantity = row.new_quantity !== undefined ? row.new_quantity : 0;
+            row.transaction_type = row.transaction_type || 'OUT';
+            row.user_id = row.user_id || null;
           } else if (table === 'inventory') {
             // Map cloud unit_price back to local price
             if (row.unit_price !== undefined && row.unit_price !== null) {
               row.price = row.unit_price;
             }
+            row.price = row.price !== undefined && row.price !== null ? row.price : 0;
+            
+            // Handle category missing from cloud (NOT NULL locally)
+            if (!row.category) {
+              if (row.category_id) {
+                try {
+                  const cat = db.prepare('SELECT name_en FROM categories WHERE id = ?').get(row.category_id);
+                  row.category = cat ? cat.name_en : 'General';
+                } catch(e) {
+                  row.category = 'General';
+                }
+              } else {
+                row.category = 'General';
+              }
+            }
+            
             // Ensure other NOT NULL columns are handled
             row.name = row.name || 'Unnamed Item';
             row.location = row.location || 'Main Store';
@@ -512,11 +535,16 @@ router.get('/pull', async (req, res) => {
 
         // Execute pull batch in a TRANSACTION
         if (batchOps.length > 0) {
-          db.transaction(() => {
-            for (const op of batchOps) {
-               db.prepare(op.sql).run(...op.params);
-            }
-          })();
+          db.pragma('foreign_keys = OFF');
+          try {
+            db.transaction(() => {
+              for (const op of batchOps) {
+                 db.prepare(op.sql).run(...op.params);
+              }
+            })();
+          } finally {
+            db.pragma('foreign_keys = ON');
+          }
         }
 
         if (timeCol) {

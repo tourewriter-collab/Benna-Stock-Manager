@@ -11,7 +11,8 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
 
     let sql = `
       SELECT 
-        ul.item_name,
+        ul.inventory_item_id,
+        COALESCE(MAX(i.name), MAX(ul.item_name)) as item_name,
         -- Period sums
         SUM(CASE WHEN ul.transaction_type = 'IN' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_in,
         SUM(CASE WHEN ul.transaction_type = 'OUT' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_out,
@@ -23,7 +24,7 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
         COALESCE((
           SELECT SUM(CASE WHEN transaction_type = 'IN' THEN quantity_changed ELSE -quantity_changed END)
           FROM usage_logs 
-          WHERE LOWER(TRIM(item_name)) = LOWER(TRIM(ul.item_name)) 
+          WHERE inventory_item_id = ul.inventory_item_id 
           AND (? IS NULL OR timestamp < ?)
         ), 0) as initial_stock,
 
@@ -49,7 +50,7 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
       params.push(category_id);
     }
 
-    sql += ` GROUP BY LOWER(TRIM(ul.item_name)) ORDER BY period_out DESC, ul.item_name ASC`;
+    sql += ` GROUP BY ul.inventory_item_id ORDER BY period_out DESC, item_name ASC`;
 
     const items = db.prepare(sql).all(...params);
 
@@ -60,7 +61,7 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
       const current = initial + pIn - pOut;
 
       return {
-        id: item.item_name,
+        id: item.inventory_item_id || item.item_name,
         name: item.item_name,
         category_id: item.category_id,
         category: item.name_en ? { id: item.category_id, name_en: item.name_en, name_fr: item.name_fr } : null,
@@ -92,7 +93,8 @@ router.get('/usage-events', authenticateToken, (req, res) => {
           u.name as user_name,
           u.email as user_email,
           SUM(CASE WHEN ul.transaction_type = 'IN' THEN ul.quantity_changed ELSE -ul.quantity_changed END) 
-            OVER (PARTITION BY LOWER(TRIM(ul.item_name)) ORDER BY ul.timestamp, ul.id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as cumulative_stock
+            OVER (PARTITION BY ul.inventory_item_id ORDER BY ul.timestamp, ul.id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as cumulative_stock,
+          COALESCE(i.name, ul.item_name) as current_item_name
         FROM usage_logs ul
         LEFT JOIN users u ON ul.user_id = u.id
         LEFT JOIN inventory i ON ul.inventory_item_id = i.id

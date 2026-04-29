@@ -154,13 +154,12 @@ router.post('/full-reset', authenticateToken, requireRole('admin'), async (req, 
         for (const table of tablesToClear) {
           console.log(`[Settings] Clearing local table: ${table}`);
           db.prepare(`DELETE FROM ${table}`).run();
+          db.prepare(`DELETE FROM sync_meta WHERE table_name = ?`).run(table);
+          db.prepare(`DELETE FROM sync_queue WHERE table_name = ?`).run(table);
         }
         
-        // If inventory or base data was cleared, we should also clear sync state
+        // If base data was cleared, we might also clear some global settings
         if (options.inventory || options.base_data || options.orders) {
-          console.log('[Settings] Clearing sync metadata...');
-          db.prepare("DELETE FROM sync_queue").run();
-          db.prepare("DELETE FROM sync_meta").run();
           db.prepare("DELETE FROM settings WHERE key NOT IN ('db_created_at', 'company_name')").run();
         }
       });
@@ -178,11 +177,28 @@ router.post('/full-reset', authenticateToken, requireRole('admin'), async (req, 
     if (isSupabaseConfigured()) {
       console.log(`[Settings] Resetting cloud tables: ${tablesToClear.join(', ')}`);
       for (const table of tablesToClear) {
-        // Use a type-agnostic filter that matches all rows (id is not null)
-        const { error } = await supabase.from(table).delete().not('id', 'is', null);
-        if (error) {
-          console.warn(`[Settings] Cloud reset failed for ${table}:`, error.message);
+        let hasMore = true;
+        let deleteCount = 0;
+        while (hasMore) {
+          const { data: items, error: fetchErr } = await supabase.from(table).select('id').limit(1000);
+          if (fetchErr) {
+            console.warn(`[Settings] Cloud fetch failed for ${table}:`, fetchErr.message);
+            break;
+          }
+          if (!items || items.length === 0) {
+            hasMore = false;
+            break;
+          }
+          const ids = items.map(r => r.id);
+          const { error: delErr } = await supabase.from(table).delete().in('id', ids);
+          if (delErr) {
+            console.warn(`[Settings] Cloud delete failed for ${table}:`, delErr.message);
+            break;
+          }
+          deleteCount += ids.length;
+          if (items.length < 1000) hasMore = false;
         }
+        console.log(`[Settings] Deleted ${deleteCount} rows from cloud table ${table}`);
       }
     }
 

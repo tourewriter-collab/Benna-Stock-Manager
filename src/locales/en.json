@@ -239,6 +239,8 @@
   "restart_and_install": "Restart and Install",
   "up_to_date": "You are running the latest version",
   "update_error": "Update Error",
+  "update_error_generic": "An error occurred during update",
+  "please_do_not_close_app": "Please do not close the application",
   "export_audit_logs_description": "Export audit logs to Excel for analysis",
   "google_drive_not_configured": "Google Drive sync is not yet configured",
   "application_settings": "Application Settings",

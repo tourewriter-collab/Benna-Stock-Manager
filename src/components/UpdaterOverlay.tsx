@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Download, RefreshCw, X, AlertCircle, CheckCircle2, ArrowUpCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const UpdaterOverlay: React.FC = () => {
+  const { t } = useTranslation();
   const [updateInfo, setUpdateInfo] = useState<any>(null);
   const [status, setStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error'>('idle');
   const [progress, setProgress] = useState<number>(0);
@@ -24,7 +26,7 @@ const UpdaterOverlay: React.FC = () => {
 
     window.electron.updates.onUpdateError((err: any) => {
       console.error('[Updater] Error:', err);
-      setError(err.message || 'An error occurred during update');
+      setError(err.message || t('update_error_generic') || 'An error occurred during update');
       setStatus('error');
       setVisible(true);
     });
@@ -43,7 +45,7 @@ const UpdaterOverlay: React.FC = () => {
     window.electron.updates.checkForUpdates().catch(err => {
         console.error("[Updater] Initial check failed:", err);
     });
-  }, []);
+  }, [t]);
 
   const handleDownload = async () => {
     try {
@@ -68,7 +70,7 @@ const UpdaterOverlay: React.FC = () => {
         <div className="bg-navy p-4 flex items-center justify-between">
           <div className="flex items-center gap-2 text-white">
             <ArrowUpCircle className="w-5 h-5 text-blue-400" />
-            <span className="font-bold text-sm tracking-tight">Software Update</span>
+            <span className="font-bold text-sm tracking-tight">{t('software_updates')}</span>
           </div>
           <button 
             onClick={() => setVisible(false)}
@@ -83,15 +85,15 @@ const UpdaterOverlay: React.FC = () => {
           {status === 'available' && (
             <div className="space-y-4">
               <div>
-                <h3 className="font-bold text-gray-900">New Version Available!</h3>
-                <p className="text-xs text-gray-500 mt-1">Version {updateInfo?.version} is ready to download.</p>
+                <h3 className="font-bold text-gray-900">{t('update_available')}</h3>
+                <p className="text-xs text-gray-500 mt-1">{t('update_version_available', { version: updateInfo?.version })}</p>
               </div>
               <button 
                 onClick={handleDownload}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition shadow-lg shadow-blue-200"
               >
                 <Download size={16} />
-                Download Update
+                {t('download_update')}
               </button>
             </div>
           )}
@@ -99,7 +101,7 @@ const UpdaterOverlay: React.FC = () => {
           {status === 'downloading' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-gray-900">Downloading...</span>
+                <span className="text-sm font-bold text-gray-900">{t('downloading_update')}...</span>
                 <span className="text-xs font-black text-blue-600">{Math.round(progress)}%</span>
               </div>
               <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -109,7 +111,7 @@ const UpdaterOverlay: React.FC = () => {
                 />
               </div>
               <p className="text-[10px] text-gray-400 text-center uppercase font-bold tracking-widest italic">
-                Please do not close the application
+                {t('please_do_not_close_app') || 'Please do not close the application'}
               </p>
             </div>
           )}
@@ -119,8 +121,8 @@ const UpdaterOverlay: React.FC = () => {
               <div className="flex items-center gap-3 text-emerald-600">
                 <CheckCircle2 size={24} />
                 <div>
-                  <h3 className="font-bold text-gray-900">Update Ready!</h3>
-                  <p className="text-xs text-gray-500">The new version has been downloaded.</p>
+                  <h3 className="font-bold text-gray-900">{t('update_ready')}</h3>
+                  <p className="text-xs text-gray-500">{t('update_ready_message', { version: updateInfo?.version })}</p>
                 </div>
               </div>
               <button 
@@ -128,7 +130,7 @@ const UpdaterOverlay: React.FC = () => {
                 className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition shadow-lg shadow-emerald-200"
               >
                 <RefreshCw size={16} />
-                Install & Restart
+                {t('restart_and_install')}
               </button>
             </div>
           )}
@@ -138,7 +140,7 @@ const UpdaterOverlay: React.FC = () => {
               <div className="flex items-center gap-3 text-red-600">
                 <AlertCircle size={24} />
                 <div>
-                  <h3 className="font-bold text-gray-900">Update Failed</h3>
+                  <h3 className="font-bold text-gray-900">{t('update_error')}</h3>
                   <p className="text-xs text-gray-500 truncate max-w-[200px]">{error}</p>
                 </div>
               </div>
@@ -146,7 +148,7 @@ const UpdaterOverlay: React.FC = () => {
                 onClick={() => setVisible(false)}
                 className="w-full py-2 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-200 transition"
               >
-                Close
+                {t('close')}
               </button>
             </div>
           )}
