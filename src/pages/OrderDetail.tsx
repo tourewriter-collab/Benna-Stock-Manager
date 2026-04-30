@@ -47,7 +47,7 @@ interface Order {
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { isOnline, triggerSync, refreshStatus, lastSyncedAt } = useSync();
   const navigate = useNavigate();
