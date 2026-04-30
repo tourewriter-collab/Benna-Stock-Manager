@@ -49,7 +49,7 @@ export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { isOnline, triggerSync, refreshStatus } = useSync();
+  const { isOnline, triggerSync, refreshStatus, lastSyncedAt } = useSync();
   const navigate = useNavigate();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,7 +59,9 @@ export default function OrderDetail() {
   const [itemForm, setItemForm] = useState({
     description: '',
     quantity: 1,
-    unit_price: 0
+    unit_price: 0,
+    inventory_item_id: undefined as string | undefined,
+    category_id: undefined as string | undefined
   });
   const [paymentForm, setPaymentForm] = useState({
     amount: 0,
@@ -77,6 +79,41 @@ export default function OrderDetail() {
   const canEdit = user?.role === 'admin' || user?.role === 'audit_manager';
   const canUpdateDelivery = canEdit || user?.role === 'user';
   const balance = order ? Math.max(0, Math.round((order.total_amount - order.paid_amount) * 100) / 100) : 0;
+
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchInventory();
+    fetchCategories();
+  }, []);
+
+  const fetchInventory = async () => {
+    try {
+      const data = await fetchApi('/api/inventory');
+      setInventory(data?.items || []);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const data = await fetchApi('/api/categories');
+      const uniqueData: any[] = [];
+      const seenNames = new Set();
+      (data || []).forEach((cat: any) => {
+        const nameKey = (cat.name_en || '').toLowerCase().trim();
+        if (!seenNames.has(nameKey) && nameKey !== '') {
+          seenNames.add(nameKey);
+          uniqueData.push(cat);
+        }
+      });
+      setCategories(uniqueData);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   useEffect(() => {
     if (id) {
@@ -162,7 +199,9 @@ export default function OrderDetail() {
     setItemForm({
       description: item.description,
       quantity: item.quantity,
-      unit_price: item.unit_price
+      unit_price: item.unit_price,
+      inventory_item_id: item.inventory_item_id || undefined,
+      category_id: undefined
     });
     setShowItemModal(true);
   };
@@ -260,7 +299,9 @@ export default function OrderDetail() {
     setItemForm({
       description: '',
       quantity: 1,
-      unit_price: 0
+      unit_price: 0,
+      inventory_item_id: undefined,
+      category_id: undefined
     });
   };
 
@@ -575,11 +616,55 @@ export default function OrderDetail() {
                 </label>
                 <input
                   type="text"
+                  list="order-detail-inventory-list"
                   required
                   value={itemForm.description}
-                  onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const matched = inventory.find(inv => inv.name.toLowerCase() === value.toLowerCase());
+                    if (matched) {
+                      setItemForm({
+                        ...itemForm,
+                        description: value,
+                        unit_price: matched.price,
+                        inventory_item_id: matched.id,
+                        category_id: undefined
+                      });
+                    } else {
+                      setItemForm({
+                        ...itemForm,
+                        description: value,
+                        inventory_item_id: undefined
+                      });
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                  placeholder={t('search_or_type_product')}
                 />
+                <datalist id="order-detail-inventory-list">
+                  {inventory.map((inv) => (
+                    <option key={inv.id} value={inv.name}>
+                      {formatCurrency(inv.price)} - {typeof inv.category === 'object' ? (inv.category?.name_en || 'General') : (inv.category || 'General')}
+                    </option>
+                  ))}
+                </datalist>
+                {!itemForm.inventory_item_id && itemForm.description.length > 0 && !editingItem && (
+                  <div className="mt-2">
+                    <select
+                      value={itemForm.category_id || ''}
+                      onChange={(e) => setItemForm({ ...itemForm, category_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent bg-blue-50 text-sm"
+                      required
+                    >
+                      <option value="">{t('select_category')} (Required for new items)</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {i18n.language === 'fr' ? cat.name_fr : cat.name_en}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div>

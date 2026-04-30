@@ -361,6 +361,9 @@ export function reconcileLedger(force = false) {
     }
     db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)").run('ledger_reconciled', 'true');
     console.log(`[Database] Reconciliation complete. Items adjusted: ${adjustmentsMade}`);
+  } catch (error) {
+    console.error('[Database] Reconciliation failed:', error);
+  }
 }
 
 /**

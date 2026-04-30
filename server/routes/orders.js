@@ -20,17 +20,23 @@ function recalculateOrderPaymentStatus(orderId) {
 }
 
 const logAudit = (userId, action, recordId, oldValues, newValues, ipAddress) => {
-  db.prepare(
-    'INSERT INTO audit_logs (user_id, action, table_name, record_id, old_values, new_values, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(
-    userId,
-    action,
-    'orders',
-    recordId,
-    oldValues ? JSON.stringify(oldValues) : null,
-    newValues ? JSON.stringify(newValues) : null,
-    ipAddress
-  );
+  try {
+    const auditId = crypto.randomUUID();
+    db.prepare(
+      'INSERT INTO audit_logs (id, user_id, action, table_name, record_id, old_values, new_values, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      auditId,
+      Number(userId) || 0,
+      action,
+      'orders',
+      recordId,
+      oldValues ? JSON.stringify(oldValues) : null,
+      newValues ? JSON.stringify(newValues) : null,
+      ipAddress
+    );
+  } catch (e) {
+    console.warn('[Audit] Failed to write audit log (non-fatal):', e.message);
+  }
 };
 
 // Get all orders with filters
@@ -303,7 +309,7 @@ router.post('/', authenticateToken, (req, res) => {
         );
 
         // Log the inflow in usage_logs
-        logUsage(userId, inventoryId, updatedInv.name, oldQty, newQty, 'IN');
+        logUsage(userId, inventoryId, currentInv.name, oldQty, newQty, 'IN');
       }
 
       db.prepare(`
@@ -344,8 +350,6 @@ router.post('/', authenticateToken, (req, res) => {
       JSON.stringify(finalOrder), 'orders', orderId
     );
 
-    logAudit(Number(userId), 'created', orderId, null, { ...finalOrder, items: orderItems }, ipAddress);
-    
     finalOrder.items = orderItems;
     finalOrder.supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(supplierId);
     return finalOrder;
@@ -372,10 +376,13 @@ router.post('/', authenticateToken, (req, res) => {
       mark_as_delivered,
       req.ip
     );
+    // logAudit outside the transaction so failures don't roll back the order
+    logAudit(req.user.id, 'created', order.id, null, order, req.ip);
     res.status(201).json(order);
   } catch (error) {
-    console.error('Error creating order:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Error creating order:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ message: error.message || 'Server error', error: error.message });
   }
 });
 

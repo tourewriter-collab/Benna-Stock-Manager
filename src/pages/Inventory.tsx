@@ -33,7 +33,7 @@ interface InventoryItem {
 const Inventory: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
-  const { refreshStatus, triggerSync, isOnline } = useSync();
+  const { refreshStatus, triggerSync, isOnline, lastSyncedAt } = useSync();
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryFilter = searchParams.get('category_id') || '';
   const showArchived = searchParams.get('archived') === 'true';

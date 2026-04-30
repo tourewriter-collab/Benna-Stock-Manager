@@ -6,17 +6,23 @@ import * as crypto from 'crypto';
 const router = express.Router();
 
 const logAudit = (userId, action, recordId, oldValues, newValues, ipAddress) => {
-  db.prepare(
-    'INSERT INTO audit_logs (user_id, action, table_name, record_id, old_values, new_values, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(
-    userId,
-    action,
-    'payments',
-    recordId,
-    oldValues ? JSON.stringify(oldValues) : null,
-    newValues ? JSON.stringify(newValues) : null,
-    ipAddress
-  );
+  try {
+    const auditId = crypto.randomUUID();
+    db.prepare(
+      'INSERT INTO audit_logs (id, user_id, action, table_name, record_id, old_values, new_values, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      auditId,
+      Number(userId) || 0,
+      action,
+      'payments',
+      recordId,
+      oldValues ? JSON.stringify(oldValues) : null,
+      newValues ? JSON.stringify(newValues) : null,
+      ipAddress
+    );
+  } catch (e) {
+    console.warn('[Audit] Failed to write audit log (non-fatal):', e.message);
+  }
 };
 
 // Get all payments for an order
@@ -50,7 +56,7 @@ function recalculateOrderPaymentStatus(orderId) {
     newStatus = 'pending';
   }
 
-  db.prepare('UPDATE orders SET paid_amount = ?, status = ?, is_archived = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(totalPaid, newStatus, isArchived, orderId);
+  db.prepare('UPDATE orders SET paid_amount = ?, status = ?, is_archived = ?, sync_status = \'pending\', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(totalPaid, newStatus, isArchived, orderId);
   
   const updatedOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
@@ -97,7 +103,7 @@ router.post('/', authenticateToken, (req, res) => {
         SELECT id FROM payments 
         WHERE order_id = ? AND amount = ? 
         AND (reference = ? OR (notes = ? AND ? IS NULL))
-        AND timestamp > datetime('now', '-1 minute')
+        AND created_at > datetime('now', '-1 minute')
       `).get(order_id, amount, reference || '---', notes || '---', reference || null);
 
       if (recentDuplicate) {

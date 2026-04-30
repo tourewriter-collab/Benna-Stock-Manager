@@ -6,17 +6,23 @@ import * as crypto from 'crypto';
 const router = express.Router();
 
 const logAudit = (userId, action, recordId, oldValues, newValues, ipAddress) => {
-  db.prepare(
-    'INSERT INTO audit_logs (user_id, action, table_name, record_id, old_values, new_values, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).run(
-    userId,
-    action,
-    'inventory',
-    recordId,
-    oldValues ? JSON.stringify(oldValues) : null,
-    newValues ? JSON.stringify(newValues) : null,
-    ipAddress
-  );
+  try {
+    const auditId = crypto.randomUUID();
+    db.prepare(
+      'INSERT INTO audit_logs (id, user_id, action, table_name, record_id, old_values, new_values, ip_address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      auditId,
+      Number(userId) || 0,
+      action,
+      'inventory',
+      recordId,
+      oldValues ? JSON.stringify(oldValues) : null,
+      newValues ? JSON.stringify(newValues) : null,
+      ipAddress
+    );
+  } catch (e) {
+    console.warn('[Audit] Failed to write audit log (non-fatal):', e.message);
+  }
 };
 
 export const logUsage = (userId, inventoryId, itemName, oldQty, newQty, transactionType = 'OUT', authName = null, authTitle = null, truckId = null) => {

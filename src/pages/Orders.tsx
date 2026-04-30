@@ -4,7 +4,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Eye, ListFilter as Filter, AlertTriangle } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { useSync } from '../contexts/SyncContext';
 import { formatCurrency } from '../utils/currency';
 
 interface Order {
@@ -25,7 +24,6 @@ interface Order {
 export default function Orders() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { lastSyncedAt } = useSync();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -62,7 +60,7 @@ export default function Orders() {
 
   useEffect(() => {
     fetchOrders();
-  }, [filters, lastSyncedAt]);
+  }, [filters]);
 
   const fetchSuppliers = async () => {
     try {

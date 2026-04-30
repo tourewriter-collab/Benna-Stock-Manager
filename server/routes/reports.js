@@ -9,18 +9,24 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
   try {
     const { start_date, end_date, category_id } = req.query;
 
+    const sDate = start_date || null;
+    const eDate = end_date ? `${end_date} 23:59:59` : null;
+
     let sql = `
       SELECT 
         ul.inventory_item_id,
-        COALESCE(MAX(i.name), MAX(ul.item_name)) as item_name,
-        -- Period sums
+        COALESCE(i.name, MAX(ul.item_name)) as item_name,
+        
+        -- Period IN (received)
         SUM(CASE WHEN ul.transaction_type = 'IN' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_in,
+        
+        -- Period OUT (used)
         SUM(CASE WHEN ul.transaction_type = 'OUT' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_out,
         
-        -- Current Live Stock (latest value in inventory table)
-        MAX(i.quantity) as live_stock,
+        -- Live stock directly from inventory (single value per item id)
+        i.quantity as live_stock,
         
-        -- Initial stock: sum of all IN - OUT before the start date
+        -- Initial stock: net movement BEFORE the start date
         COALESCE((
           SELECT SUM(CASE WHEN transaction_type = 'IN' THEN quantity_changed ELSE -quantity_changed END)
           FROM usage_logs 
@@ -28,21 +34,19 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
           AND (? IS NULL OR timestamp < ?)
         ), 0) as initial_stock,
 
-        MAX(i.category_id) as category_id,
-        MAX(c.name_en) as name_en,
-        MAX(c.name_fr) as name_fr
+        i.category_id as category_id,
+        c.name_en as name_en,
+        c.name_fr as name_fr
       FROM usage_logs ul
-      LEFT JOIN inventory i ON ul.inventory_item_id = i.id
+      JOIN inventory i ON ul.inventory_item_id = i.id
       LEFT JOIN categories c ON i.category_id = c.id
-      WHERE 1=1
+      WHERE ul.inventory_item_id IS NOT NULL
     `;
-    const sDate = start_date || null;
-    const eDate = end_date ? `${end_date} 23:59:59` : null;
 
     const params = [
       sDate, sDate, eDate, eDate, // IN
       sDate, sDate, eDate, eDate, // OUT
-      sDate, sDate                // initial_stock (all before start_date)
+      sDate, sDate                // initial_stock
     ];
 
     if (category_id) {
@@ -50,7 +54,7 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
       params.push(category_id);
     }
 
-    sql += ` GROUP BY ul.inventory_item_id ORDER BY period_out DESC, item_name ASC`;
+    sql += ` GROUP BY ul.inventory_item_id, i.id, i.name, i.quantity, i.category_id, c.name_en, c.name_fr ORDER BY period_out DESC, item_name ASC`;
 
     const items = db.prepare(sql).all(...params);
 
@@ -58,18 +62,18 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
       const pIn = item.period_in || 0;
       const pOut = item.period_out || 0;
       const initial = Math.max(0, item.initial_stock || 0);
-      const current = initial + pIn - pOut;
+      const periodEndStock = initial + pIn - pOut;
 
       return {
-        id: item.inventory_item_id || item.item_name,
+        id: item.inventory_item_id,
         name: item.item_name,
         category_id: item.category_id,
         category: item.name_en ? { id: item.category_id, name_en: item.name_en, name_fr: item.name_fr } : null,
         received: pIn,
         usage: pOut,
         initial_stock: initial,
-        current_stock: current, // The stock at the end of the period
-        live_stock: item.live_stock || 0 // The stock right now
+        current_stock: periodEndStock,   // Calculated balance for the period
+        live_stock: item.live_stock ?? 0  // The real-time inventory quantity
       };
     });
 
