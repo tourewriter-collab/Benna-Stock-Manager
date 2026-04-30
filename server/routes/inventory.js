@@ -121,6 +121,137 @@ router.get('/', authenticateToken, (req, res) => {
   }
 });
 
+router.get('/stats/summary', authenticateToken, (req, res) => {
+  try {
+    const totalItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE is_archived = 0').get().count;
+    const lowStockItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE quantity <= min_stock AND quantity > 0 AND is_archived = 0').get().count;
+    const outOfStockItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE quantity = 0 AND is_archived = 0').get().count;
+    const totalValue = db.prepare('SELECT SUM(quantity * price) as value FROM inventory WHERE is_archived = 0').get().value || 0;
+
+    res.json({
+      totalItems,
+      lowStockItems,
+      outOfStockItems,
+      totalValue: parseFloat(totalValue.toFixed(2)),
+    });
+  } catch (error) {
+    console.error('Get stats error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+// Breakdown by category: item count + total units per category
+router.get('/stats/by-category', authenticateToken, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        COALESCE(c.name_en, 'Uncategorized') AS category_en,
+        COALESCE(c.name_fr, 'Non classé')    AS category_fr,
+        COUNT(i.id)                           AS item_count,
+        COALESCE(SUM(i.quantity), 0)          AS total_units
+      FROM inventory i
+      LEFT JOIN categories c ON i.category_id = c.id
+      WHERE i.is_archived = 0
+      GROUP BY COALESCE(c.name_en, 'Uncategorized')
+      ORDER BY item_count DESC
+    `).all();
+    res.json(rows);
+  } catch (error) {
+    console.error('Stats by-category error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+// Low-stock items: quantity > 0 but at or below min_stock threshold
+router.get('/stats/low-stock', authenticateToken, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        i.id, i.name, i.quantity, i.min_stock,
+        COALESCE(c.name_en, 'Uncategorized') AS category_en,
+        COALESCE(c.name_fr, 'Non classé')    AS category_fr
+      FROM inventory i
+      LEFT JOIN categories c ON i.category_id = c.id
+      WHERE i.quantity <= i.min_stock AND i.quantity > 0 AND i.is_archived = 0
+      ORDER BY (i.quantity * 1.0 / NULLIF(i.min_stock, 0)) ASC
+    `).all();
+    res.json(rows);
+  } catch (error) {
+    console.error('Stats low-stock error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+// Out-of-stock items: quantity = 0
+router.get('/stats/out-of-stock', authenticateToken, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        i.id, i.name, i.quantity, i.min_stock,
+        COALESCE(c.name_en, 'Uncategorized') AS category_en,
+        COALESCE(c.name_fr, 'Non classé')    AS category_fr
+      FROM inventory i
+      LEFT JOIN categories c ON i.category_id = c.id
+      WHERE i.quantity = 0 AND i.is_archived = 0
+      ORDER BY i.name ASC
+    `).all();
+    res.json(rows);
+  } catch (error) {
+    console.error('Stats out-of-stock error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+router.put('/:id/archive', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  try {
+    const item = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    db.prepare('UPDATE inventory SET is_archived = 1, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('pending', id);
+    const updated = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
+    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run('inventory', id, 'UPDATE', JSON.stringify(updated));
+
+    logAudit(req.user.id, 'archived', id, item, updated, req.ip);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+router.put('/:id/restore', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  try {
+    const item = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    db.prepare('UPDATE inventory SET is_archived = 0, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('pending', id);
+    const updated = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
+    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run('inventory', id, 'UPDATE', JSON.stringify(updated));
+
+    logAudit(req.user.id, 'restored', id, item, updated, req.ip);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+router.post('/reconcile', authenticateToken, async (req, res) => {
+
+  if (req.user.role !== 'admin' && req.user.role !== 'audit_manager') {
+    return res.status(403).json({ error: 'Only admins can trigger reconciliation' });
+  }
+
+  try {
+    const { reconcileLedger } = await import('../database.js');
+    reconcileLedger(true); // Force run
+    res.json({ message: 'Reconciliation completed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Reconciliation failed', message: error.message });
+  }
+});
+
+
 router.get('/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
 
@@ -275,10 +406,10 @@ router.put('/:id', authenticateToken, (req, res) => {
     // Explicitly log usage for manual adjustments
     if (oldItem.quantity > updatedItem.quantity) {
       const { authorized_by_name, authorized_by_title, truck_id } = req.body;
-      logUsage(req.user.id, id, updatedItem.name, oldItem.quantity, updatedItem.quantity, 'OUT', authorized_by_name, authorized_by_title, truck_id);
+      logUsage(req.user.id, id, updatedItem.name, oldItem.quantity, updatedItem.quantity, 'ADJUST_OUT', authorized_by_name, authorized_by_title, truck_id);
     } else if (oldItem.quantity < updatedItem.quantity) {
       const { authorized_by_name, authorized_by_title, truck_id } = req.body;
-      logUsage(req.user.id, id, updatedItem.name, oldItem.quantity, updatedItem.quantity, 'IN', authorized_by_name, authorized_by_title, truck_id);
+      logUsage(req.user.id, id, updatedItem.name, oldItem.quantity, updatedItem.quantity, 'ADJUST_IN', authorized_by_name, authorized_by_title, truck_id);
     }
 
     res.json(updatedItem);
@@ -375,136 +506,5 @@ router.post('/:id/consume', authenticateToken, (req, res) => {
     res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 });
-
-router.get('/stats/summary', authenticateToken, (req, res) => {
-  try {
-    const totalItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE is_archived = 0').get().count;
-    const lowStockItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE quantity <= min_stock AND quantity > 0 AND is_archived = 0').get().count;
-    const outOfStockItems = db.prepare('SELECT COUNT(*) as count FROM inventory WHERE quantity = 0 AND is_archived = 0').get().count;
-    const totalValue = db.prepare('SELECT SUM(quantity * price) as value FROM inventory WHERE is_archived = 0').get().value || 0;
-
-    res.json({
-      totalItems,
-      lowStockItems,
-      outOfStockItems,
-      totalValue: parseFloat(totalValue.toFixed(2)),
-    });
-  } catch (error) {
-    console.error('Get stats error:', error);
-    res.status(500).json({ error: 'Internal server error', message: error.message });
-  }
-});
-
-// Breakdown by category: item count + total units per category
-router.get('/stats/by-category', authenticateToken, (req, res) => {
-  try {
-    const rows = db.prepare(`
-      SELECT
-        COALESCE(c.name_en, 'Uncategorized') AS category_en,
-        COALESCE(c.name_fr, 'Non classé')    AS category_fr,
-        COUNT(i.id)                           AS item_count,
-        COALESCE(SUM(i.quantity), 0)          AS total_units
-      FROM inventory i
-      LEFT JOIN categories c ON i.category_id = c.id
-      WHERE i.is_archived = 0
-      GROUP BY COALESCE(c.name_en, 'Uncategorized')
-      ORDER BY item_count DESC
-    `).all();
-    res.json(rows);
-  } catch (error) {
-    console.error('Stats by-category error:', error);
-    res.status(500).json({ error: 'Internal server error', message: error.message });
-  }
-});
-
-// Low-stock items: quantity > 0 but at or below min_stock threshold
-router.get('/stats/low-stock', authenticateToken, (req, res) => {
-  try {
-    const rows = db.prepare(`
-      SELECT
-        i.id, i.name, i.quantity, i.min_stock,
-        COALESCE(c.name_en, 'Uncategorized') AS category_en,
-        COALESCE(c.name_fr, 'Non classé')    AS category_fr
-      FROM inventory i
-      LEFT JOIN categories c ON i.category_id = c.id
-      WHERE i.quantity <= i.min_stock AND i.quantity > 0 AND i.is_archived = 0
-      ORDER BY (i.quantity * 1.0 / NULLIF(i.min_stock, 0)) ASC
-    `).all();
-    res.json(rows);
-  } catch (error) {
-    console.error('Stats low-stock error:', error);
-    res.status(500).json({ error: 'Internal server error', message: error.message });
-  }
-});
-
-// Out-of-stock items: quantity = 0
-router.get('/stats/out-of-stock', authenticateToken, (req, res) => {
-  try {
-    const rows = db.prepare(`
-      SELECT
-        i.id, i.name, i.quantity, i.min_stock,
-        COALESCE(c.name_en, 'Uncategorized') AS category_en,
-        COALESCE(c.name_fr, 'Non classé')    AS category_fr
-      FROM inventory i
-      LEFT JOIN categories c ON i.category_id = c.id
-      WHERE i.quantity = 0 AND i.is_archived = 0
-      ORDER BY i.name ASC
-    `).all();
-    res.json(rows);
-  } catch (error) {
-    console.error('Stats out-of-stock error:', error);
-    res.status(500).json({ error: 'Internal server error', message: error.message });
-  }
-});
-
-router.put('/:id/archive', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  try {
-    const item = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
-    if (!item) return res.status(404).json({ error: 'Item not found' });
-
-    db.prepare('UPDATE inventory SET is_archived = 1, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('pending', id);
-    const updated = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
-    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run('inventory', id, 'UPDATE', JSON.stringify(updated));
-
-    logAudit(req.user.id, 'archived', id, item, updated, req.ip);
-    res.json(updated);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error', message: error.message });
-  }
-});
-
-router.put('/:id/restore', authenticateToken, (req, res) => {
-  const { id } = req.params;
-  try {
-    const item = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
-    if (!item) return res.status(404).json({ error: 'Item not found' });
-
-    db.prepare('UPDATE inventory SET is_archived = 0, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('pending', id);
-    const updated = db.prepare('SELECT * FROM inventory WHERE id = ?').get(id);
-    db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run('inventory', id, 'UPDATE', JSON.stringify(updated));
-
-    logAudit(req.user.id, 'restored', id, item, updated, req.ip);
-    res.json(updated);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error', message: error.message });
-  }
-});
-
-router.post('/reconcile', authenticateToken, async (req, res) => {
-
-  if (req.user.role !== 'admin' && req.user.role !== 'audit_manager') {
-    return res.status(403).json({ error: 'Only admins can trigger reconciliation' });
-  }
-
-  try {
-    const { reconcileLedger } = await import('../database.js');
-    reconcileLedger(true); // Force run
-    res.json({ message: 'Reconciliation completed successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Reconciliation failed', message: error.message });
-  }
-});
-
 export default router;
 

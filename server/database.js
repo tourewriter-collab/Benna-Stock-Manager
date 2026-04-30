@@ -335,8 +335,8 @@ export function reconcileLedger(force = false) {
       // Calculate true balance from logs
       const ledger = db.prepare(`
         SELECT 
-          SUM(CASE WHEN transaction_type = 'IN' THEN quantity_changed ELSE 0 END) as total_in,
-          SUM(CASE WHEN transaction_type = 'OUT' THEN quantity_changed ELSE 0 END) as total_out
+          SUM(CASE WHEN transaction_type IN ('IN', 'ADJUST_IN') THEN quantity_changed ELSE 0 END) as total_in,
+          SUM(CASE WHEN transaction_type IN ('OUT', 'ADJUST_OUT') THEN quantity_changed ELSE 0 END) as total_out
         FROM usage_logs WHERE inventory_item_id = ?
       `).get(item.id);
       

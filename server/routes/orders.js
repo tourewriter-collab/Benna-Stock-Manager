@@ -113,6 +113,45 @@ router.get('/', authenticateToken, (req, res) => {
   }
 });
 
+// Get outstanding payments summary
+router.get('/summary/outstanding', authenticateToken, (req, res) => {
+  try {
+    const ordersRaw = db.prepare(`
+      SELECT o.id, o.total_amount, o.paid_amount, o.order_date, s.name as supp_name
+      FROM orders o
+      LEFT JOIN suppliers s ON o.supplier_id = s.id
+      WHERE o.status IN ('pending', 'partial')
+      ORDER BY o.order_date DESC
+    `).all();
+
+    const totalOutstanding = ordersRaw.reduce((sum, order) =>
+      sum + (order.total_amount - order.paid_amount), 0
+    );
+
+    const ordersWithHighBalance = ordersRaw
+      .map(order => ({
+        id: order.id,
+        total_amount: order.total_amount,
+        paid_amount: order.paid_amount,
+        order_date: order.order_date,
+        supplier: { name: order.supp_name },
+        balance: order.total_amount - order.paid_amount
+      }))
+      .filter(order => order.balance > 0)
+      .sort((a, b) => b.balance - a.balance)
+      .slice(0, 5);
+
+    res.json({
+      totalOutstanding,
+      count: ordersRaw.length,
+      recentHighBalance: ordersWithHighBalance
+    });
+  } catch (error) {
+    console.error('Error fetching outstanding payments:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Get single order with details
 router.get('/:id', authenticateToken, (req, res) => {
   try {
@@ -168,45 +207,6 @@ router.get('/:id', authenticateToken, (req, res) => {
   }
 });
 
-// Get outstanding payments summary
-router.get('/summary/outstanding', authenticateToken, (req, res) => {
-  try {
-    const ordersRaw = db.prepare(`
-      SELECT o.id, o.total_amount, o.paid_amount, o.order_date, s.name as supp_name
-      FROM orders o
-      LEFT JOIN suppliers s ON o.supplier_id = s.id
-      WHERE o.status IN ('pending', 'partial')
-      ORDER BY o.order_date DESC
-    `).all();
-
-    const totalOutstanding = ordersRaw.reduce((sum, order) =>
-      sum + (order.total_amount - order.paid_amount), 0
-    );
-
-    const ordersWithHighBalance = ordersRaw
-      .map(order => ({
-        id: order.id,
-        total_amount: order.total_amount,
-        paid_amount: order.paid_amount,
-        order_date: order.order_date,
-        supplier: { name: order.supp_name },
-        balance: order.total_amount - order.paid_amount
-      }))
-      .filter(order => order.balance > 0)
-      .sort((a, b) => b.balance - a.balance)
-      .slice(0, 5);
-
-    res.json({
-      totalOutstanding,
-      count: ordersRaw.length,
-      recentHighBalance: ordersWithHighBalance
-    });
-  } catch (error) {
-    console.error('Error fetching outstanding payments:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
 // Create order
 router.post('/', authenticateToken, (req, res) => {
   const createOrderTransaction = db.transaction((userId, supplierId, expectedDate, notes, items, markAsPaid, markAsDelivered, ipAddress) => {
@@ -239,7 +239,6 @@ router.post('/', authenticateToken, (req, res) => {
       const q = Number(item.quantity) || 0;
       let d = Number(item.delivered_quantity) || 0;
       if (markAsDelivered) d = q; // Force full delivery if flag is set
-      if (d > q) d = q; // CAP: Cannot deliver more than ordered
       const p = Number(item.unit_price) || 0;
       const total = q * p;
       
@@ -257,13 +256,26 @@ router.post('/', authenticateToken, (req, res) => {
         const supplier = db.prepare('SELECT name FROM suppliers WHERE id = ?').get(supplierId);
         const supplierName = supplier ? supplier.name : null;
         
-        db.prepare(`
+        let updateSql = `
           UPDATE inventory 
           SET last_updated = CURRENT_TIMESTAMP,
               sync_status = 'pending',
               supplier = COALESCE(NULLIF(supplier, ''), ?)
-          WHERE id = ?
-        `).run(supplierName, inventoryId);
+        `;
+        const params = [supplierName];
+
+        if (item.category_id) {
+          const matchedCat = db.prepare('SELECT name_en FROM categories WHERE id = ?').get(item.category_id);
+          if (matchedCat) {
+            updateSql += `, category_id = ?, category = ?`;
+            params.push(item.category_id, matchedCat.name_en);
+          }
+        }
+        
+        updateSql += ` WHERE id = ?`;
+        params.push(inventoryId);
+
+        db.prepare(updateSql).run(...params);
         // Refetch right before use to avoid stale data if multiple items in one order refer to same inventory ID
         currentInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(inventoryId);
       } else {
@@ -272,8 +284,13 @@ router.post('/', authenticateToken, (req, res) => {
         
         if (catId) {
           const matchedCat = db.prepare('SELECT name_en FROM categories WHERE id = ?').get(catId);
-          if (matchedCat) catName = matchedCat.name_en;
-        } else {
+          if (matchedCat) {
+            catName = matchedCat.name_en;
+          } else {
+            catId = null;
+          }
+        }
+        if (!catId) {
           const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
           catId = generalCat ? generalCat.id : 'cat_general';
         }
@@ -497,6 +514,25 @@ router.post('/:id', authenticateToken, (req, res) => {
 
     let currentInv;
     if (inventoryId) {
+      let updateSql = `
+        UPDATE inventory 
+        SET last_updated = CURRENT_TIMESTAMP,
+            sync_status = 'pending'
+      `;
+      const params = [];
+
+      if (categoryId) {
+        const matchedCat = db.prepare('SELECT name_en FROM categories WHERE id = ?').get(categoryId);
+        if (matchedCat) {
+          updateSql += `, category_id = ?, category = ?`;
+          params.push(categoryId, matchedCat.name_en);
+        }
+      }
+      
+      updateSql += ` WHERE id = ?`;
+      params.push(inventoryId);
+
+      db.prepare(updateSql).run(...params);
       currentInv = db.prepare('SELECT * FROM inventory WHERE id = ?').get(inventoryId);
     } else {
       let catId = categoryId;
@@ -504,8 +540,13 @@ router.post('/:id', authenticateToken, (req, res) => {
       
       if (catId) {
         const matchedCat = db.prepare('SELECT name_en FROM categories WHERE id = ?').get(catId);
-        if (matchedCat) catName = matchedCat.name_en;
-      } else {
+        if (matchedCat) {
+          catName = matchedCat.name_en;
+        } else {
+          catId = null;
+        }
+      }
+      if (!catId) {
         const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
         catId = generalCat ? generalCat.id : 'cat_general';
       }
@@ -587,8 +628,13 @@ router.put('/:orderId/items/:itemId', authenticateToken, (req, res) => {
         
         if (catId) {
           const matchedCat = db.prepare('SELECT name_en FROM categories WHERE id = ?').get(catId);
-          if (matchedCat) catName = matchedCat.name_en;
-        } else {
+          if (matchedCat) {
+            catName = matchedCat.name_en;
+          } else {
+            catId = null;
+          }
+        }
+        if (!catId) {
           const generalCat = db.prepare('SELECT id FROM categories WHERE name_en = ?').get('General');
           catId = generalCat ? generalCat.id : 'cat_general';
         }
@@ -603,6 +649,17 @@ router.put('/:orderId/items/:itemId', authenticateToken, (req, res) => {
         db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
           'inventory', newInvId, 'INSERT', JSON.stringify(newInv)
         );
+      }
+    }
+
+    if (inventoryId && req.body.category_id) {
+      const matchedCat = db.prepare('SELECT name_en FROM categories WHERE id = ?').get(req.body.category_id);
+      if (matchedCat) {
+        db.prepare(`
+          UPDATE inventory 
+          SET category_id = ?, category = ?, last_updated = CURRENT_TIMESTAMP, sync_status = 'pending'
+          WHERE id = ?
+        `).run(req.body.category_id, matchedCat.name_en, inventoryId);
       }
     }
 
@@ -719,10 +776,6 @@ router.put('/:orderId/items/:itemId/delivery', authenticateToken, (req, res) => 
     const oldItem = db.prepare('SELECT * FROM order_items WHERE id = ? AND order_id = ?').get(itemId, orderId);
     if (!oldItem) {
       return res.status(404).json({ message: 'Item not found' });
-    }
-
-    if (delivered_quantity > oldItem.quantity) {
-      return res.status(400).json({ message: 'Delivered quantity cannot exceed ordered quantity' });
     }
 
     const oldDelivered = oldItem.delivered_quantity || 0;

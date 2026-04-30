@@ -22,13 +22,17 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
         
         -- Period OUT (used)
         SUM(CASE WHEN ul.transaction_type = 'OUT' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_out,
+
+        -- Period Adjustments
+        SUM(CASE WHEN ul.transaction_type = 'ADJUST_IN' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_adjust_in,
+        SUM(CASE WHEN ul.transaction_type = 'ADJUST_OUT' AND (? IS NULL OR ul.timestamp >= ?) AND (? IS NULL OR ul.timestamp <= ?) THEN ul.quantity_changed ELSE 0 END) as period_adjust_out,
         
         -- Live stock directly from inventory (single value per item id)
         i.quantity as live_stock,
         
         -- Initial stock: net movement BEFORE the start date
         COALESCE((
-          SELECT SUM(CASE WHEN transaction_type = 'IN' THEN quantity_changed ELSE -quantity_changed END)
+          SELECT SUM(CASE WHEN transaction_type IN ('IN', 'ADJUST_IN') THEN quantity_changed ELSE -quantity_changed END)
           FROM usage_logs 
           WHERE inventory_item_id = ul.inventory_item_id 
           AND (? IS NULL OR timestamp < ?)
@@ -46,6 +50,8 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
     const params = [
       sDate, sDate, eDate, eDate, // IN
       sDate, sDate, eDate, eDate, // OUT
+      sDate, sDate, eDate, eDate, // ADJUST_IN
+      sDate, sDate, eDate, eDate, // ADJUST_OUT
       sDate, sDate                // initial_stock
     ];
 
@@ -61,8 +67,10 @@ router.get('/usage-summary', authenticateToken, (req, res) => {
     const usageReport = items.map(item => {
       const pIn = item.period_in || 0;
       const pOut = item.period_out || 0;
+      const adjustIn = item.period_adjust_in || 0;
+      const adjustOut = item.period_adjust_out || 0;
       const initial = Math.max(0, item.initial_stock || 0);
-      const periodEndStock = initial + pIn - pOut;
+      const periodEndStock = initial + pIn - pOut + adjustIn - adjustOut;
 
       return {
         id: item.inventory_item_id,
@@ -96,7 +104,7 @@ router.get('/usage-events', authenticateToken, (req, res) => {
           ul.*,
           u.name as user_name,
           u.email as user_email,
-          SUM(CASE WHEN ul.transaction_type = 'IN' THEN ul.quantity_changed ELSE -ul.quantity_changed END) 
+          SUM(CASE WHEN ul.transaction_type IN ('IN', 'ADJUST_IN') THEN ul.quantity_changed ELSE -ul.quantity_changed END) 
             OVER (PARTITION BY ul.inventory_item_id ORDER BY ul.timestamp, ul.id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as cumulative_stock,
           COALESCE(i.name, ul.item_name) as current_item_name
         FROM usage_logs ul
