@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TrendingDown, Calendar, ListFilter as Filter, Download, FileText, Info } from 'lucide-react';
 import { fetchApi } from '../lib/api';
-import { exportToExcel, exportToPdf, ExportColumn } from '../utils/export';
+import { exportMultipleToExcel, exportMultipleToPdf, ExportColumn } from '../utils/export';
 
 interface UsageEvent {
   id: number;
@@ -103,44 +103,90 @@ export default function UsageReports() {
   };
 
   const handleExportExcel = () => {
-    const columns: ExportColumn[] = [
+    const summaryColumns: ExportColumn[] = [
       { header: t('item_name') || 'Item Name', key: 'item_name', width: 30 },
-      { header: t('previous_stock') || 'Initial Stock', key: 'previous_quantity', width: 15 },
-      { header: t('quantity_changed') || 'Quantity Used', key: 'quantity_changed', width: 15 },
-      { header: t('new_stock') || 'Remaining Stock', key: 'cumulative_stock', width: 15 },
-      { header: t('type') || 'Type', key: 'transaction_type', width: 15 },
+      { header: t('previous_stock') || 'Opening Balance', key: 'initial_stock', width: 15 },
+      { header: t('stock_received') || 'Received (+)', key: 'received', width: 15 },
+      { header: t('quantity_changed') || 'Used (-)', key: 'usage', width: 15 },
+      { header: t('current_stock') || 'Current Live Stock', key: 'current_stock', width: 25 },
+    ];
+
+    const summaryData = usageSummary.map(item => ({
+      item_name: `${item.name} (${i18n.language === 'fr' ? item.category?.name_fr : item.category?.name_en})`,
+      initial_stock: item.initial_stock || 0,
+      received: `+${item.received || 0}`,
+      usage: `-${item.usage || 0}`,
+      current_stock: `${item.current_stock || 0} (Live: ${item.live_stock || 0})`
+    }));
+
+    const historyColumns: ExportColumn[] = [
+      { header: t('item_name') || 'Item Name', key: 'item_name', width: 30 },
+      { header: t('previous_stock') || 'Opening Balance', key: 'previous_quantity', width: 15 },
+      { header: t('stock_received') || 'Received (+)', key: 'received', width: 15 },
+      { header: t('quantity_changed') || 'Used (-)', key: 'used', width: 15 },
+      { header: t('new_stock') || 'New Balance', key: 'new_balance', width: 15 },
       { header: t('authorized_by') || 'Authorized By', key: 'authorized_by', width: 25 },
       { header: 'Truck', key: 'truck_id', width: 15 },
       { header: t('timestamp') || 'Timestamp', key: 'timestamp', width: 25 },
     ];
 
-    const data = usageEvents.map((evt) => ({
+    const historyData = usageEvents.map((evt) => ({
       ...evt,
-      transaction_type: evt.transaction_type === 'IN' ? (t('inflow') || 'IN') : (t('usage') || 'OUT'),
-      authorized_by: evt.authorized_by_name ? `${evt.authorized_by_name} (${evt.authorized_by_title})` : 'N/A',
+      item_name: evt.item_name,
+      previous_quantity: evt.previous_quantity,
+      received: evt.transaction_type === 'IN' ? `+${evt.quantity_changed}` : '-',
+      used: evt.transaction_type === 'OUT' ? `-${evt.quantity_changed}` : '-',
+      new_balance: evt.cumulative_stock ?? evt.new_quantity,
+      authorized_by: evt.authorized_by_name ? `${evt.authorized_by_name} ${evt.authorized_by_title ? `(${evt.authorized_by_title})` : ''}`.trim() : 'N/A',
       truck_id: evt.truck_id || 'None',
       timestamp: new Date(evt.timestamp).toLocaleString(),
     }));
 
-    exportToExcel(columns, data, `usage_reports_${filters.start_date}_to_${filters.end_date}.xlsx`, 'Usage Reports');
+    exportMultipleToExcel(
+      [
+        { columns: summaryColumns, data: summaryData, title: t('usage_summary') || 'Usage Summary' },
+        { columns: historyColumns, data: historyData, title: t('usage_history_label') || 'Usage History' }
+      ],
+      `usage_reports_${filters.start_date}_to_${filters.end_date}.xlsx`
+    );
   };
 
   const handleExportPdf = () => {
-    const columns: ExportColumn[] = [
+    const summaryColumns: ExportColumn[] = [
       { header: t('item_name') || 'Item Name', key: 'item_name' },
-      { header: t('previous_stock') || 'Initial Stock', key: 'previous_quantity' },
-      { header: t('quantity_changed') || 'Quantity Used', key: 'quantity_changed' },
-      { header: t('new_stock') || 'Remaining Stock', key: 'cumulative_stock' },
-      { header: t('type') || 'Type', key: 'transaction_type' },
+      { header: t('previous_stock') || 'Opening Balance', key: 'initial_stock' },
+      { header: t('stock_received') || 'Received (+)', key: 'received' },
+      { header: t('quantity_changed') || 'Used (-)', key: 'usage' },
+      { header: t('current_stock') || 'Current Live Stock', key: 'current_stock' },
+    ];
+
+    const summaryData = usageSummary.map(item => ({
+      item_name: `${item.name} (${i18n.language === 'fr' ? item.category?.name_fr : item.category?.name_en})`,
+      initial_stock: item.initial_stock || 0,
+      received: `+${item.received || 0}`,
+      usage: `-${item.usage || 0}`,
+      current_stock: `${item.current_stock || 0} (Live: ${item.live_stock || 0})`
+    }));
+
+    const historyColumns: ExportColumn[] = [
+      { header: t('item_name') || 'Item Name', key: 'item_name' },
+      { header: t('previous_stock') || 'Opening Balance', key: 'previous_quantity' },
+      { header: t('stock_received') || 'Received (+)', key: 'received' },
+      { header: t('quantity_changed') || 'Used (-)', key: 'used' },
+      { header: t('new_stock') || 'New Balance', key: 'new_balance' },
       { header: t('authorized_by') || 'Authorized By', key: 'authorized_by' },
       { header: 'Truck', key: 'truck_id' },
       { header: t('timestamp') || 'Timestamp', key: 'timestamp' },
     ];
 
-    const data = usageEvents.map((evt) => ({
+    const historyData = usageEvents.map((evt) => ({
       ...evt,
-      transaction_type: evt.transaction_type === 'IN' ? (t('inflow') || 'IN') : (t('usage') || 'OUT'),
-      authorized_by: evt.authorized_by_name || 'N/A',
+      item_name: evt.item_name,
+      previous_quantity: evt.previous_quantity,
+      received: evt.transaction_type === 'IN' ? `+${evt.quantity_changed}` : '-',
+      used: evt.transaction_type === 'OUT' ? `-${evt.quantity_changed}` : '-',
+      new_balance: evt.cumulative_stock ?? evt.new_quantity,
+      authorized_by: evt.authorized_by_name ? `${evt.authorized_by_name} ${evt.authorized_by_title ? `(${evt.authorized_by_title})` : ''}`.trim() : 'N/A',
       truck_id: evt.truck_id || 'None',
       timestamp: new Date(evt.timestamp).toLocaleString(),
     }));
@@ -151,7 +197,15 @@ export default function UsageReports() {
       day: 'numeric'
     });
 
-    exportToPdf(columns, data, `usage_reports_${filters.start_date}_to_${filters.end_date}.pdf`, `${t('usage_reports')} - ${today}`, logo);
+    exportMultipleToPdf(
+      [
+        { columns: summaryColumns, data: summaryData, title: t('usage_summary') || 'Usage Summary' },
+        { columns: historyColumns, data: historyData, title: t('usage_history_label') || 'Usage History' }
+      ],
+      `usage_reports_${filters.start_date}_to_${filters.end_date}.pdf`,
+      `${t('usage_reports')} - ${today}`,
+      logo
+    );
   };
 
   if (loading) {
