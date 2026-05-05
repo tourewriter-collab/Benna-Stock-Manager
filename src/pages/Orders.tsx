@@ -128,7 +128,7 @@ export default function Orders() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
              <span className="text-sm font-medium text-gray-600">
-               {filters.archived ? t('viewing_archived') || 'Archived' : t('viewing_active') || 'Active'}
+               {filters.archived ? t('viewing_archived') : t('viewing_active')}
              </span>
              <button
                 onClick={() => setFilters({ ...filters, archived: !filters.archived })}
@@ -272,7 +272,7 @@ export default function Orders() {
                   {new Date(order.order_date).toLocaleDateString()}
                 </td>
                 <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {order.supplier?.name || <span className="text-gray-400 italic">Unknown Supplier</span>}
+                  {order.supplier?.name || <span className="text-gray-400 italic">{t('unknown_supplier')}</span>}
                 </td>
                 <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
                   {formatCurrency(order.total_amount)}

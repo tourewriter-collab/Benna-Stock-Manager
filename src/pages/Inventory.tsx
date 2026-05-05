@@ -47,6 +47,7 @@ const Inventory: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [historyItemId, setHistoryItemId] = useState<string | null>(null);
   const [usageItem, setUsageItem] = useState<InventoryItem | null>(null);
+  const [logo, setLogo] = useState<string>('');
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -59,6 +60,7 @@ const Inventory: React.FC = () => {
   useEffect(() => {
     fetchCategories();
     fetchSuppliers();
+    fetchApi('/settings').then(s => setLogo(s?.company_logo || '')).catch(() => {});
   }, []);
 
   // Debounce search term
@@ -291,7 +293,7 @@ const Inventory: React.FC = () => {
       day: 'numeric'
     });
 
-    exportToPdf(columns, data, `inventory_${new Date().toISOString().split('T')[0]}.pdf`, `${t('inventory')} - ${today}`);
+    exportToPdf(columns, data, `inventory_${new Date().toISOString().split('T')[0]}.pdf`, `${t('inventory')} - ${today}`, logo);
   };
 
   return (
@@ -304,23 +306,23 @@ const Inventory: React.FC = () => {
             className="px-3 py-1.5 flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 rounded-md text-sm font-medium"
           >
             <FileText className="w-4 h-4" />
-            PDF
+            {t('pdf')}
           </button>
           <button
             onClick={handleExportExcel}
             className="px-3 py-1.5 flex items-center gap-1 bg-green-50 text-green-700 hover:bg-green-100 rounded-md text-sm font-medium"
           >
             <Download className="w-4 h-4" />
-            Excel
+            {t('excel')}
           </button>
           {user?.role === 'admin' && (
             <button
               onClick={handleReconcile}
               className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition flex items-center ml-2"
-              title="Fix items showing 0 quantity but having history"
+              title={t('repair_inventory_btn')}
             >
               <AlertCircle className="w-4 h-4 mr-2" />
-              Repair Inventory
+              {t('repair_inventory_btn')}
             </button>
           )}
           <button
@@ -436,7 +438,7 @@ const Inventory: React.FC = () => {
                         <td className="py-3 px-3 font-medium">{item.name}</td>
                         <td className="py-3 px-3">{getCategoryName(item.category)}</td>
                         <td className="py-3 px-3">
-                          {item.supplier_name || 'N/A'}
+                          {item.supplier_name || t('na')}
                         </td>
                         <td className="py-3 px-3 text-center">{item.quantity}</td>
                         <td className="py-3 px-3">{formatPrice(item.price)}</td>
@@ -644,7 +646,7 @@ const InventoryFormModal: React.FC<{
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
                 required
               >
-                <option value="">Select a category</option>
+                <option value="">{t('select_category')}</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {i18n.language === 'fr' ? category.name_fr : category.name_en}
@@ -703,7 +705,7 @@ const InventoryFormModal: React.FC<{
                 onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
               >
-                <option value="">Select a supplier</option>
+                <option value="">{t('select_supplier')}</option>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -732,7 +734,7 @@ const InventoryFormModal: React.FC<{
               <input
                 id="min_stock"
                 type="number"
-                placeholder="Minimum stock level"
+                placeholder={t('min_stock_placeholder')}
                 value={formData.min_stock}
                 onChange={(e) => setFormData({ ...formData, min_stock: Number(e.target.value) })}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
@@ -746,7 +748,7 @@ const InventoryFormModal: React.FC<{
               <input
                 id="max_stock"
                 type="number"
-                placeholder="Maximum stock level"
+                placeholder={t('max_stock_placeholder')}
                 value={formData.max_stock}
                 onChange={(e) => setFormData({ ...formData, max_stock: Number(e.target.value) })}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy"
@@ -848,7 +850,7 @@ const UsageRecordModal: React.FC<{
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authName || !authTitle || !truckId) {
-      alert("Name, Title, and Truck Number are required");
+      alert(t('name_title_truck_required'));
       return;
     }
     setLoading(true);
@@ -863,7 +865,7 @@ const UsageRecordModal: React.FC<{
         
         <div className="bg-gray-50 border rounded-lg p-4 mb-6">
           <p className="font-semibold text-gray-800">{item.name}</p>
-          <p className="text-sm text-gray-600">{t('current_stock')}: <span className="font-bold text-navy">{item.quantity}</span> Units</p>
+          <p className="text-sm text-gray-600">{t('current_stock')}: <span className="font-bold text-navy">{item.quantity}</span> {t('units')}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -896,7 +898,7 @@ const UsageRecordModal: React.FC<{
                 type="text"
                 value={authName}
                 onChange={(e) => setAuthName(e.target.value)}
-                placeholder="Manager Name"
+                placeholder={t('manager_name')}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy text-sm"
                 required
               />
@@ -909,7 +911,7 @@ const UsageRecordModal: React.FC<{
                 type="text"
                 value={authTitle}
                 onChange={(e) => setAuthTitle(e.target.value)}
-                placeholder="Position/Role"
+                placeholder={t('position_role')}
                 className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-navy text-sm"
                 required
               />

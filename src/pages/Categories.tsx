@@ -98,7 +98,7 @@ export default function Categories() {
   };
 
   const handleDelete = async (id: string, permanent: boolean = false) => {
-    if (!confirm(permanent ? 'Are you sure you want to permanently delete this category?' : t('confirm_delete_category'))) return;
+    if (!confirm(permanent ? t('confirm_permanently_delete_category') || 'Are you sure you want to permanently delete this category?' : t('confirm_delete_category'))) return;
 
     try {
       if (permanent) {
@@ -169,7 +169,7 @@ export default function Categories() {
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 bg-white border border-gray-300 px-4 py-2 rounded-lg transition-colors"
           >
             {showArchived ? <ArchiveRestore className="w-5 h-5" /> : <Archive className="w-5 h-5" />}
-            {showArchived ? 'View Active' : 'View Archived'}
+            {showArchived ? t('view_active_btn') : t('view_archived_btn')}
           </button>
           {!showArchived && (
             <button
@@ -228,7 +228,7 @@ export default function Categories() {
                         <button
                           onClick={() => handleDelete(category.id, false)}
                           className="text-orange-600 hover:text-orange-800"
-                          title="Archive"
+                          title={t('archive')}
                         >
                           <Archive className="w-4 h-4" />
                         </button>
@@ -238,14 +238,14 @@ export default function Categories() {
                         <button
                           onClick={() => handleRestore(category.id)}
                           className="text-green-600 hover:text-green-800"
-                          title="Restore"
+                          title={t('restore')}
                         >
                           <RefreshCw className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(category.id, true)}
                           className="text-red-600 hover:text-red-800"
-                          title="Permanently Delete"
+                          title={t('delete_permanently')}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -260,7 +260,7 @@ export default function Categories() {
 
         {categories.length === 0 && (
           <div className="text-center py-12 text-gray-500">
-            {showArchived ? 'No archived categories found' : t('no_categories_found')}
+            {showArchived ? t('no_archived_data') : t('no_categories_found')}
           </div>
         )}
       </div>

@@ -268,7 +268,7 @@ export default function OrderDetail() {
   };
 
   const handleDeliverAll = async () => {
-    if (!confirm('Mark all items in this order as fully delivered? This will update inventory stock.')) return;
+    if (!confirm(t('confirm_mark_all_delivered') || 'Mark all items in this order as fully delivered? This will update inventory stock.')) return;
     try {
       await fetchApi(`/api/orders/${id}/deliver-all`, { method: 'PUT' });
       fetchOrder();
@@ -276,7 +276,7 @@ export default function OrderDetail() {
       if (isOnline) triggerSync();
     } catch (error) {
       console.error('Error delivering all items:', error);
-      alert('Error updating delivery status');
+      alert(t('error_updating_delivery') || 'Error updating delivery status');
     }
   };
 
@@ -349,7 +349,7 @@ export default function OrderDetail() {
             className="flex items-center gap-2 bg-green-50 text-green-700 border border-green-200 px-4 py-2 rounded-lg hover:bg-green-100 transition-colors"
           >
             <CheckCircle className="w-5 h-5" />
-            {t('mark_as_delivered') || 'Mark All Delivered'}
+            {t('mark_as_delivered')}
           </button>
         )}
         {canEdit && (
@@ -379,7 +379,7 @@ export default function OrderDetail() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="font-medium text-gray-700">{t('supplier')}:</span>
-                <p className="text-gray-900">{order.supplier?.name || t('unknown_supplier') || 'Unknown Supplier'}</p>
+                <p className="text-gray-900">{order.supplier?.name || t('unknown_supplier')}</p>
               </div>
               <div>
                 <span className="font-medium text-gray-700">{t('order_date')}:</span>
@@ -644,7 +644,7 @@ export default function OrderDetail() {
                 <datalist id="order-detail-inventory-list">
                   {inventory.map((inv) => (
                     <option key={inv.id} value={inv.name}>
-                      {formatCurrency(inv.price)} - {typeof inv.category === 'object' ? (inv.category?.name_en || 'General') : (inv.category || 'General')}
+                      {formatCurrency(inv.price)} - {typeof inv.category === 'object' ? (inv.category?.name_en || t('general_category')) : (inv.category || t('general_category'))}
                     </option>
                   ))}
                 </datalist>
@@ -656,7 +656,7 @@ export default function OrderDetail() {
                       className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent bg-blue-50 text-sm"
                       required
                     >
-                      <option value="">{t('select_category')} (Required for new items)</option>
+                      <option value="">{t('select_category')} ({t('required_new_item')})</option>
                       {categories.map((cat) => (
                         <option key={cat.id} value={cat.id}>
                           {i18n.language === 'fr' ? cat.name_fr : cat.name_en}
@@ -736,7 +736,7 @@ export default function OrderDetail() {
                     onClick={() => setPaymentForm({ ...paymentForm, amount: balance })}
                     className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded border border-blue-200 uppercase tracking-wider transition-colors"
                   >
-                    {t('pay_full_balance') || 'Pay Full Balance'} ({formatCurrency(balance)})
+                    {t('pay_full_balance')} ({formatCurrency(balance)})
                   </button>
                 </div>
                 <input
@@ -895,7 +895,7 @@ export default function OrderDetail() {
               </div>
             ) : (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-700">
-                ⚠ This item is not linked to an inventory product — stock won't auto-update.
+                ⚠ {t('item_not_linked_warning')}
               </div>
             )}
 

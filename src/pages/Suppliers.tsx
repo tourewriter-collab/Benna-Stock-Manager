@@ -98,7 +98,7 @@ export default function Suppliers() {
   };
 
   const handleDelete = async (id: string, permanent: boolean = false) => {
-    if (!confirm(permanent ? 'Are you sure you want to permanently delete this supplier?' : (t('confirm_archive_supplier') || "Do you want to archive this supplier?"))) return;
+    if (!confirm(permanent ? t('confirm_permanently_delete_supplier') || 'Are you sure you want to permanently delete this supplier?' : (t('confirm_archive_supplier') || "Do you want to archive this supplier?"))) return;
     setSaving(true);
     try {
       if (permanent) {
@@ -112,7 +112,7 @@ export default function Suppliers() {
     } catch (error: any) {
       console.error('Error deleting supplier:', error);
       if (error.message?.includes('associated orders')) {
-        alert('Cannot physically delete a supplier that has associated orders. They must remain archived.');
+        alert(t('cannot_delete_supplier_in_use') || 'Cannot physically delete a supplier that has associated orders. They must remain archived.');
       } else {
         alert(t('error_archiving_supplier') || "Error modified supplier");
       }
@@ -167,7 +167,7 @@ export default function Suppliers() {
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 bg-white border border-gray-300 px-4 py-2 rounded-lg transition-colors"
             >
               {showArchived ? <ArchiveRestore className="w-5 h-5" /> : <Archive className="w-5 h-5" />}
-              {showArchived ? 'View Active' : 'View Archived'}
+              {showArchived ? t('view_active_btn') : t('view_archived_btn')}
             </button>
           )}
           {canEdit && !showArchived && (
@@ -222,14 +222,14 @@ export default function Suppliers() {
                       <button
                         onClick={() => handleRestore(supplier.id)}
                         className="text-green-600 hover:text-green-800"
-                        title="Restore"
+                        title={t('restore')}
                       >
                         <RefreshCw className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(supplier.id, true)}
                         className="text-red-600 hover:text-red-800"
-                        title="Permanently Delete"
+                        title={t('delete_permanently')}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

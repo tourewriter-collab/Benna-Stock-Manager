@@ -317,9 +317,12 @@ router.post('/', authenticateToken, (req, res) => {
       });
     }
 
-    const result = db.prepare(
-      'INSERT INTO inventory (name, category, category_id, quantity, price, supplier, location, min_stock, max_stock, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    const newId = crypto.randomUUID();
+
+    db.prepare(
+      'INSERT INTO inventory (id, name, category, category_id, quantity, price, supplier, location, min_stock, max_stock, sync_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
+      newId,
       name,
       category || 'General', // Fallback for the NOT NULL column
       category_id || null,
@@ -332,21 +335,21 @@ router.post('/', authenticateToken, (req, res) => {
       'pending'
     );
 
-    const newItem = db.prepare('SELECT * FROM inventory WHERE id = ?').get(result.lastInsertRowid);
+    const newItem = db.prepare('SELECT * FROM inventory WHERE id = ?').get(newId);
 
     // Write to sync queue
     db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
       'inventory',
-      result.lastInsertRowid,
+      newId,
       'INSERT',
       JSON.stringify(newItem)
     );
 
-    logAudit(req.user.id, 'created', result.lastInsertRowid, null, newItem, req.ip);
+    logAudit(req.user.id, 'created', newId, null, newItem, req.ip);
 
     // Initial stock creation (if quantity > 0)
     if (quantity > 0) {
-      logUsage(req.user.id, result.lastInsertRowid, newItem.name, 0, quantity, 'IN', null, null, null);
+      logUsage(req.user.id, newId, newItem.name, 0, quantity, 'IN', null, null, null);
     }
 
     res.status(201).json(newItem);

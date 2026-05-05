@@ -126,7 +126,7 @@ export default function UsageReports() {
       { header: t('quantity_changed') || 'Used (-)', key: 'used', width: 15 },
       { header: t('new_stock') || 'New Balance', key: 'new_balance', width: 15 },
       { header: t('authorized_by') || 'Authorized By', key: 'authorized_by', width: 25 },
-      { header: 'Truck', key: 'truck_id', width: 15 },
+      { header: t('truck') || 'Truck', key: 'truck_id', width: 15 },
       { header: t('timestamp') || 'Timestamp', key: 'timestamp', width: 25 },
     ];
 
@@ -137,8 +137,8 @@ export default function UsageReports() {
       received: evt.transaction_type === 'IN' ? `+${evt.quantity_changed}` : '-',
       used: evt.transaction_type === 'OUT' ? `-${evt.quantity_changed}` : '-',
       new_balance: evt.cumulative_stock ?? evt.new_quantity,
-      authorized_by: evt.authorized_by_name ? `${evt.authorized_by_name} ${evt.authorized_by_title ? `(${evt.authorized_by_title})` : ''}`.trim() : 'N/A',
-      truck_id: evt.truck_id || 'None',
+      authorized_by: evt.authorized_by_name ? `${evt.authorized_by_name} ${evt.authorized_by_title ? `(${evt.authorized_by_title})` : ''}`.trim() : t('na'),
+      truck_id: evt.truck_id || t('none'),
       timestamp: new Date(evt.timestamp).toLocaleString(),
     }));
 
@@ -175,7 +175,7 @@ export default function UsageReports() {
       { header: t('quantity_changed') || 'Used (-)', key: 'used' },
       { header: t('new_stock') || 'New Balance', key: 'new_balance' },
       { header: t('authorized_by') || 'Authorized By', key: 'authorized_by' },
-      { header: 'Truck', key: 'truck_id' },
+      { header: t('truck') || 'Truck', key: 'truck_id' },
       { header: t('timestamp') || 'Timestamp', key: 'timestamp' },
     ];
 
@@ -186,8 +186,8 @@ export default function UsageReports() {
       received: evt.transaction_type === 'IN' ? `+${evt.quantity_changed}` : '-',
       used: evt.transaction_type === 'OUT' ? `-${evt.quantity_changed}` : '-',
       new_balance: evt.cumulative_stock ?? evt.new_quantity,
-      authorized_by: evt.authorized_by_name ? `${evt.authorized_by_name} ${evt.authorized_by_title ? `(${evt.authorized_by_title})` : ''}`.trim() : 'N/A',
-      truck_id: evt.truck_id || 'None',
+      authorized_by: evt.authorized_by_name ? `${evt.authorized_by_name} ${evt.authorized_by_title ? `(${evt.authorized_by_title})` : ''}`.trim() : t('na'),
+      truck_id: evt.truck_id || t('none'),
       timestamp: new Date(evt.timestamp).toLocaleString(),
     }));
 
@@ -238,14 +238,14 @@ export default function UsageReports() {
               className="px-3 py-1.5 flex items-center gap-1 bg-red-50 text-red-700 hover:bg-red-100 rounded-md text-sm font-medium"
             >
               <FileText className="w-4 h-4" />
-              PDF
+              {t('pdf')}
             </button>
             <button
               onClick={handleExportExcel}
               className="px-3 py-1.5 flex items-center gap-1 bg-green-50 text-green-700 hover:bg-green-100 rounded-md text-sm font-medium"
             >
               <Download className="w-4 h-4" />
-              Excel
+              {t('excel')}
             </button>
           </div>
         </div>
@@ -255,25 +255,25 @@ export default function UsageReports() {
             onClick={() => handlePresetSelect('30')} 
             className={`px-4 py-2 rounded-md text-sm font-medium transition ${preset === '30' ? 'bg-navy text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
-            30 Days
+            {t('period_30')}
           </button>
           <button 
             onClick={() => handlePresetSelect('90')} 
             className={`px-4 py-2 rounded-md text-sm font-medium transition ${preset === '90' ? 'bg-navy text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
-            90 Days
+            {t('period_90')}
           </button>
           <button 
             onClick={() => handlePresetSelect('365')} 
             className={`px-4 py-2 rounded-md text-sm font-medium transition ${preset === '365' ? 'bg-navy text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
-            1 Year
+            {t('period_365')}
           </button>
           <button 
             onClick={() => setPreset('custom')} 
             className={`px-4 py-2 rounded-md text-sm font-medium transition ${preset === 'custom' ? 'bg-navy text-white shadow' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
-            Custom Range
+            {t('period_custom')}
           </button>
         </div>
 
@@ -430,7 +430,7 @@ export default function UsageReports() {
                   {t('authorized_by') || 'Authorized By'}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Truck
+                  {t('truck')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   {t('timestamp')}

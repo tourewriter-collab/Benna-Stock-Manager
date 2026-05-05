@@ -26,7 +26,7 @@ db.exec(`
     name TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('admin', 'audit_manager', 'user')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    sync_status TEXT DEFAULT 'synced',
+    sync_status TEXT DEFAULT 'pending',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -44,7 +44,7 @@ db.exec(`
     min_stock INTEGER DEFAULT 10,
     max_stock INTEGER DEFAULT 100,
     last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-    sync_status TEXT DEFAULT 'synced',
+    sync_status TEXT DEFAULT 'pending',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_archived BOOLEAN NOT NULL DEFAULT 0,
     _sync_error TEXT
@@ -62,7 +62,7 @@ db.exec(`
     new_values TEXT,
     ip_address TEXT,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    sync_status TEXT DEFAULT 'synced',
+    sync_status TEXT DEFAULT 'pending',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
   )
@@ -82,7 +82,7 @@ db.exec(`
     truck_id TEXT,
     transaction_type TEXT DEFAULT 'OUT',
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    sync_status TEXT DEFAULT 'synced',
+    sync_status TEXT DEFAULT 'pending',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
   )
@@ -94,7 +94,7 @@ db.exec(`
     name_en TEXT NOT NULL,
     name_fr TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    sync_status TEXT DEFAULT 'synced',
+    sync_status TEXT DEFAULT 'pending',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_archived BOOLEAN NOT NULL DEFAULT 0
   )
@@ -110,7 +110,7 @@ db.exec(`
     address TEXT,
     status TEXT DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    sync_status TEXT DEFAULT 'synced',
+    sync_status TEXT DEFAULT 'pending',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_archived BOOLEAN NOT NULL DEFAULT 0
   )
@@ -138,7 +138,7 @@ db.exec(`
     notes TEXT,
     created_by TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    sync_status TEXT DEFAULT 'synced',
+    sync_status TEXT DEFAULT 'pending',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_archived BOOLEAN NOT NULL DEFAULT 0
   )
@@ -161,7 +161,7 @@ db.exec(`
     delivered_quantity INTEGER DEFAULT 0,
     unit_price REAL NOT NULL CHECK(unit_price >= 0),
     total REAL NOT NULL,
-    sync_status TEXT DEFAULT 'synced',
+    sync_status TEXT DEFAULT 'pending',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_archived BOOLEAN NOT NULL DEFAULT 0
   )
@@ -178,7 +178,7 @@ db.exec(`
     notes TEXT,
     created_by TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    sync_status TEXT DEFAULT 'synced',
+    sync_status TEXT DEFAULT 'pending',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     is_archived BOOLEAN NOT NULL DEFAULT 0
   )
@@ -208,7 +208,7 @@ db.exec(`
 
 const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments'];
 for (const table of tables) {
-  try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT DEFAULT 'synced'`); } catch (e) {}
+  try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT DEFAULT 'pending'`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN is_archived BOOLEAN NOT NULL DEFAULT 0`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN _sync_error TEXT`); } catch (e) {}
@@ -297,10 +297,37 @@ export function repairAllIds() {
           const cols = Object.keys(newRecord);
           const placeholders = cols.map(() => '?').join(', ');
           db.prepare(`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${placeholders})`).run(...cols.map(c => newRecord[c]));
+          
           for (const fk of fkMap) {
             db.prepare(`UPDATE ${fk.table} SET ${fk.col} = ? WHERE ${fk.col} = ?`).run(newId, currentId);
+            
+            // Update foreign keys inside sync_queue JSON data
+            const fkQueueItems = db.prepare(`SELECT id, data FROM sync_queue WHERE table_name = ? AND data LIKE ?`).all(fk.table, `%${currentId}%`);
+            for (const qItem of fkQueueItems) {
+              try {
+                const parsed = JSON.parse(qItem.data);
+                if (String(parsed[fk.col]) === String(currentId)) {
+                  parsed[fk.col] = newId;
+                  db.prepare(`UPDATE sync_queue SET data = ? WHERE id = ?`).run(JSON.stringify(parsed), qItem.id);
+                }
+              } catch(e) {}
+            }
           }
+          
           db.prepare("UPDATE sync_queue SET record_id = ?, synced = 0 WHERE table_name = ? AND record_id = ?").run(newId, table, currentId);
+          
+          // Update primary key inside sync_queue JSON data
+          const pkQueueItems = db.prepare(`SELECT id, data FROM sync_queue WHERE table_name = ? AND record_id = ?`).all(table, newId);
+          for (const qItem of pkQueueItems) {
+            try {
+              const parsed = JSON.parse(qItem.data);
+              if (String(parsed[pk]) === String(currentId)) {
+                parsed[pk] = newId;
+                db.prepare(`UPDATE sync_queue SET data = ? WHERE id = ?`).run(JSON.stringify(parsed), qItem.id);
+              }
+            } catch(e) {}
+          }
+          
           db.prepare(`DELETE FROM ${table} WHERE ${pk} = ?`).run(currentId);
         } catch (e) {
           console.error(`[Database] Migration failed for ${table}.${pk}:`, e.message);
@@ -480,5 +507,6 @@ export function runPostStartupMaintenance() {
 
 sanitizeSchema();
 setTimeout(() => reconcileLedger(), 1000);
+setTimeout(() => runPostStartupMaintenance(), 2000);
 
 export default db;

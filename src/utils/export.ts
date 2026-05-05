@@ -61,12 +61,24 @@ export const exportToPdf = (
 
   if (logoData) {
     try {
-      // Assuming logo is rectangular/square. Adjust dimensions as needed.
-      doc.addImage(logoData, 'PNG', 14, 10, 25, 25);
+      let imgData = logoData;
+      let format = 'PNG';
+
+      if (imgData.startsWith('data:')) {
+        const mimeMatch = imgData.match(/data:image\/(\w+);base64,/);
+        if (mimeMatch) {
+          const mimeType = mimeMatch[1].toLowerCase();
+          format = (mimeType === 'jpg' || mimeType === 'jpeg') ? 'JPEG' : 'PNG';
+          imgData = imgData.split(',')[1];
+        }
+      }
+
+      doc.addImage(imgData, format, 14, 10, 25, 25);
       doc.setFontSize(18);
       doc.text(title, 45, 25);
       startY = 40;
     } catch (e) {
+      console.error('Error adding logo to PDF:', e);
       doc.setFontSize(18);
       doc.text(title, 14, 22);
     }
@@ -147,11 +159,24 @@ export const exportMultipleToPdf = (
 
   if (logoData) {
     try {
-      doc.addImage(logoData, 'PNG', 14, 10, 25, 25);
+      let imgData = logoData;
+      let format = 'PNG';
+
+      if (imgData.startsWith('data:')) {
+        const mimeMatch = imgData.match(/data:image\/(\w+);base64,/);
+        if (mimeMatch) {
+          const mimeType = mimeMatch[1].toLowerCase();
+          format = (mimeType === 'jpg' || mimeType === 'jpeg') ? 'JPEG' : 'PNG';
+          imgData = imgData.split(',')[1];
+        }
+      }
+
+      doc.addImage(imgData, format, 14, 10, 25, 25);
       doc.setFontSize(18);
       doc.text(mainTitle, 45, 25);
       startY = 40;
     } catch (e) {
+      console.error('Error adding logo to PDF:', e);
       doc.setFontSize(18);
       doc.text(mainTitle, 14, 22);
     }

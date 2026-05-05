@@ -241,8 +241,10 @@ router.post('/push', async (req, res) => {
           const validPayloads = [];
           for (const payload of payloads) {
              if (!uuidRegex.test(payload.id)) {
-                console.warn(`[Sync] CRITICAL: Stripping invalid UUID payload from Push batch - ID: ${payload.id}`);
-                db.prepare('DELETE FROM sync_queue WHERE record_id = ?').run(payload.id);
+                console.warn(`[Sync] WARNING: Holding back invalid UUID from Push batch (pending repair) - ID: ${payload.id}`);
+                try {
+                  db.prepare('UPDATE sync_queue SET _sync_error = ? WHERE record_id = ?').run('Invalid UUID. Awaiting local repair script.', payload.id);
+                } catch(e) {}
              } else {
                 validPayloads.push(payload);
              }
@@ -311,14 +313,16 @@ router.post('/push', async (req, res) => {
             }
 
             // SPECIAL CASE: Foreign key violations mean the referenced entity doesn't exist in cloud.
-            // These will never succeed without the parent record, so clear them.
-            if (error.message.includes('foreign key constraint')) {
-              console.log(`[Sync] Foreign key violation for ${table}, clearing ${items.length} orphaned items from queue.`);
-              db.transaction(() => {
-                const itemIds = items.map(it => it.id);
-                const placeholders = itemIds.map(() => '?').join(',');
-                db.prepare(`DELETE FROM sync_queue WHERE id IN (${placeholders})`).run(...itemIds);
-              })();
+            // Mark them with an error instead of deleting them, so they can be repaired.
+            if (error.message && error.message.includes('foreign key constraint')) {
+              console.warn(`[Sync] Foreign key violation for ${table}, holding back ${items.length} orphaned items in queue.`);
+              try {
+                db.transaction(() => {
+                  const itemIds = items.map(it => it.id);
+                  const placeholders = itemIds.map(() => '?').join(',');
+                  db.prepare(`UPDATE sync_queue SET _sync_error = 'Foreign Key Violation (missing parent in cloud)' WHERE id IN (${placeholders})`).run(...itemIds);
+                })();
+              } catch(e) {}
               continue;
             }
 
