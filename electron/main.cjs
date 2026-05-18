@@ -26,7 +26,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false
     },
-    title: 'Benna Stock Manager'
+    title: 'Benna Business Manager'
   });
 
   const startURL = app.isPackaged

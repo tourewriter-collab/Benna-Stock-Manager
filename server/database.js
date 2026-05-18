@@ -185,6 +185,62 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS accounts (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('asset', 'liability', 'equity', 'revenue', 'expense')),
+    balance REAL DEFAULT 0,
+    currency TEXT DEFAULT 'USD',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    sync_status TEXT DEFAULT 'pending',
+    sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_archived BOOLEAN NOT NULL DEFAULT 0,
+    _sync_error TEXT
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS invoices (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    order_id TEXT,
+    invoice_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    due_date DATETIME,
+    total_amount REAL NOT NULL DEFAULT 0,
+    paid_amount REAL DEFAULT 0,
+    status TEXT CHECK(status IN ('draft', 'sent', 'paid', 'overdue', 'cancelled')) DEFAULT 'draft',
+    notes TEXT,
+    created_by TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    sync_status TEXT DEFAULT 'pending',
+    sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_archived BOOLEAN NOT NULL DEFAULT 0,
+    _sync_error TEXT
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS transactions (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    invoice_id TEXT,
+    amount REAL NOT NULL,
+    type TEXT CHECK(type IN ('credit', 'debit')) NOT NULL,
+    transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    description TEXT,
+    reference TEXT,
+    created_by TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    sync_status TEXT DEFAULT 'pending',
+    sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_archived BOOLEAN NOT NULL DEFAULT 0,
+    _sync_error TEXT,
+    FOREIGN KEY (account_id) REFERENCES accounts(id),
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+  )
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS sync_queue (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     table_name TEXT NOT NULL,
@@ -206,7 +262,7 @@ db.exec(`
 
 // --- 2. COLUMN MIGRATIONS (Safe updates for existing DBs) ---
 
-const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments'];
+const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'accounts', 'invoices', 'transactions'];
 for (const table of tables) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT DEFAULT 'pending'`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
@@ -219,6 +275,7 @@ try { db.exec(`ALTER TABLE inventory ADD COLUMN category_id TEXT`); } catch (e) 
 try { db.exec(`ALTER TABLE order_items ADD COLUMN delivered_quantity INTEGER DEFAULT 0`); } catch (e) {}
 try { db.exec(`ALTER TABLE orders ADD COLUMN delivery_status TEXT DEFAULT 'pending'`); } catch (e) {}
 try { db.exec(`ALTER TABLE sync_queue ADD COLUMN synced BOOLEAN NOT NULL DEFAULT 0`); } catch (e) {}
+try { db.exec(`ALTER TABLE sync_queue ADD COLUMN _sync_error TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE suppliers ADD COLUMN status TEXT DEFAULT 'active'`); } catch (e) {}
 try { db.exec(`ALTER TABLE usage_logs ADD COLUMN transaction_type TEXT DEFAULT 'OUT'`); } catch (e) {}
 
@@ -342,6 +399,8 @@ export function repairAllIds() {
     repairTable('orders', 'id', [{ table: 'order_items', col: 'order_id' }, { table: 'payments', col: 'order_id' }]);
     repairTable('order_items', 'id');
     repairTable('payments', 'id');
+    repairTable('usage_logs', 'id');
+    repairTable('audit_logs', 'id');
   })();
 }
 

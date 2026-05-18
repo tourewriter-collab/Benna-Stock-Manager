@@ -1,5 +1,5 @@
 appId: com.ikikecollective.bennastockmanager
-productName: Benna Stock Manager
+productName: Benna Business Manager
 npmRebuild: true
 directories:
   output: release

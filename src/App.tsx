@@ -9,6 +9,10 @@ import CreateOrder from './pages/CreateOrder';
 import UsageReports from './pages/UsageReports';
 import AdminUsers from './pages/AdminUsers';
 import Settings from './pages/Settings';
+import AccountingDashboard from './pages/AccountingDashboard';
+import Invoices from './pages/Invoices';
+import Transactions from './pages/Transactions';
+import ChartOfAccounts from './pages/ChartOfAccounts';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import { SyncProvider } from './contexts/SyncContext';
@@ -49,6 +53,12 @@ function App() {
                 }
               />
               <Route path="settings" element={<Settings />} />
+              
+              {/* Accounting Module Routes */}
+              <Route path="accounting/dashboard" element={<AccountingDashboard />} />
+              <Route path="accounting/invoices" element={<Invoices />} />
+              <Route path="accounting/transactions" element={<Transactions />} />
+              <Route path="accounting/accounts" element={<ChartOfAccounts />} />
             </Route>
           </Routes>
         </Router>
