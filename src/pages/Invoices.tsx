@@ -1,28 +1,302 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileText } from 'lucide-react';
+import { FileText, Plus, Edit, Trash2 } from 'lucide-react';
+import { fetchApi } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import { formatPrice } from '../utils/currency';
+
+interface Invoice {
+  id: string;
+  client_id: string;
+  order_id: string | null;
+  invoice_date: string;
+  due_date: string | null;
+  total_amount: number;
+  paid_amount: number;
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  notes: string;
+}
 
 const Invoices: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { user } = useAuth();
+  const isFr = i18n.language.startsWith('fr');
+  
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [showModal, setShowModal] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [formData, setFormData] = useState({
+    client_id: '',
+    due_date: '',
+    total_amount: '0',
+    paid_amount: '0',
+    status: 'draft' as Invoice['status'],
+    notes: ''
+  });
+
+  const canEdit = user?.role === 'admin' || user?.role === 'audit_manager';
+
+  const loadInvoices = async (showLoad = true) => {
+    if (showLoad) setLoading(true);
+    try {
+      const data = await fetchApi('/invoices');
+      setInvoices(data || []);
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+    } finally {
+      if (showLoad) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadInvoices();
+  }, []);
+
+  const handleOpenModal = (invoice: Invoice | null = null) => {
+    if (invoice) {
+      setEditingInvoice(invoice);
+      setFormData({
+        client_id: invoice.client_id,
+        due_date: invoice.due_date ? new Date(invoice.due_date).toISOString().split('T')[0] : '',
+        total_amount: String(invoice.total_amount),
+        paid_amount: String(invoice.paid_amount),
+        status: invoice.status,
+        notes: invoice.notes || ''
+      });
+    } else {
+      setEditingInvoice(null);
+      setFormData({
+        client_id: '',
+        due_date: '',
+        total_amount: '0',
+        paid_amount: '0',
+        status: 'draft',
+        notes: ''
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.client_id.trim()) return;
+
+    try {
+      const payload = {
+        ...formData,
+        due_date: formData.due_date || null
+      };
+
+      if (editingInvoice) {
+        await fetchApi(`/invoices/${editingInvoice.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+      } else {
+        await fetchApi('/invoices', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+      }
+
+      setShowModal(false);
+      await loadInvoices(false);
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      alert(t('error'));
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm(t('confirm_archive_invoice', 'Are you sure you want to archive this invoice?'))) return;
+    try {
+      await fetchApi(`/invoices/${id}`, { method: 'DELETE' });
+      await loadInvoices(false);
+    } catch (error) {
+      console.error('Error archiving invoice:', error);
+    }
+  };
+
+  const statusColors = {
+    draft: 'bg-gray-100 text-gray-800 border-gray-200',
+    sent: 'bg-blue-100 text-blue-800 border-blue-200',
+    paid: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    overdue: 'bg-red-100 text-red-800 border-red-200',
+    cancelled: 'bg-yellow-100 text-yellow-800 border-yellow-200'
+  };
 
   return (
-    <div className="flex flex-col h-full space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-          <FileText className="mr-2 text-blue-500" />
-          {t('invoices', 'Invoices')}
-        </h1>
-      </div>
-      
-      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center min-h-[400px]">
-        <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-4">
-          <FileText size={32} />
+        <div className="flex items-center space-x-3">
+          <div className="bg-navy bg-opacity-10 p-2.5 rounded-lg text-navy">
+            <FileText className="w-8 h-8" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-navy">{t('invoices', 'Invoices')}</h1>
+            <p className="text-sm text-gray-500">{t('manage_invoices', 'Manage and track client invoices')}</p>
+          </div>
         </div>
-        <h2 className="text-xl font-bold text-gray-800 mb-2">{t('invoices_coming_soon', 'Invoicing System Coming Soon')}</h2>
-        <p className="text-gray-500 text-center max-w-md">
-          {t('invoices_desc', 'Automatically generate, manage, and print PDF invoices based on your delivery notes (bons de livraison) and stock orders.')}
-        </p>
+        {canEdit && (
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors shadow-sm"
+          >
+            <Plus className="w-5 h-5" />
+            {t('create_invoice', 'Create Invoice')}
+          </button>
+        )}
       </div>
+
+      {loading ? (
+        <div className="text-center py-12 text-gray-500 font-semibold">{t('loading')}</div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr className="border-b text-left">
+                  <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500">{t('date')}</th>
+                  <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500">{t('client')}</th>
+                  <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('total_amount', 'Total Amount')}</th>
+                  <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('paid_amount', 'Paid Amount')}</th>
+                  <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500">{t('status')}</th>
+                  {canEdit && <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('actions')}</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {invoices.map((invoice) => (
+                  <tr key={invoice.id} className="hover:bg-gray-50/50">
+                    <td className="py-3 px-4 text-sm font-medium text-gray-800">
+                      {new Date(invoice.invoice_date).toLocaleDateString(isFr ? 'fr-FR' : 'en-US')}
+                    </td>
+                    <td className="py-3 px-4 text-sm font-semibold text-navy">{invoice.client_id}</td>
+                    <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">{formatPrice(invoice.total_amount)}</td>
+                    <td className="py-3 px-4 text-sm text-right font-medium text-emerald-600">{formatPrice(invoice.paid_amount)}</td>
+                    <td className="py-3 px-4 text-sm">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${statusColors[invoice.status]}`}>
+                        {t(`invoice_status_${invoice.status}`, invoice.status)}
+                      </span>
+                    </td>
+                    {canEdit && (
+                      <td className="py-3 px-4 text-sm text-right">
+                        <div className="flex justify-end space-x-3">
+                          <button onClick={() => handleOpenModal(invoice)} className="text-blue-600 hover:text-blue-800">
+                            <Edit className="w-4.5 h-4.5" />
+                          </button>
+                          <button onClick={() => handleDelete(invoice.id)} className="text-red-600 hover:text-red-800">
+                            <Trash2 className="w-4.5 h-4.5" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+                {invoices.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-gray-500 font-semibold">
+                      {t('no_invoices_found', 'No invoices found.')}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <h2 className="text-2xl font-bold text-navy mb-4">
+              {editingInvoice ? t('edit_invoice', 'Edit Invoice') : t('create_invoice', 'Create Invoice')}
+            </h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('client')} *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.client_id}
+                  onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('total_amount')} *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={formData.total_amount}
+                    onChange={(e) => setFormData({ ...formData, total_amount: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('paid_amount')}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.paid_amount}
+                    onChange={(e) => setFormData({ ...formData, paid_amount: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('due_date', 'Due Date')}</label>
+                  <input
+                    type="date"
+                    value={formData.due_date}
+                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('status')}</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as Invoice['status'] })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none"
+                  >
+                    <option value="draft">{t('invoice_status_draft', 'Draft')}</option>
+                    <option value="sent">{t('invoice_status_sent', 'Sent')}</option>
+                    <option value="paid">{t('invoice_status_paid', 'Paid')}</option>
+                    <option value="overdue">{t('invoice_status_overdue', 'Overdue')}</option>
+                    <option value="cancelled">{t('invoice_status_cancelled', 'Cancelled')}</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('notes')}</label>
+                <textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none"
+                  rows={2}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button type="submit" className="flex-1 bg-navy text-white py-2 rounded-lg hover:bg-opacity-95 font-bold shadow-sm">
+                  {editingInvoice ? t('update') : t('create')}
+                </button>
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 font-bold border">
+                  {t('cancel')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
