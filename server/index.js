@@ -39,6 +39,10 @@ import settingsRoutes from './routes/settings.js';
 import visionRoutes from './routes/vision.js';
 import trucksRoutes from './routes/trucks.js';
 import graniteRoutes from './routes/granite.js';
+import accountsRoutes from './routes/accounts.js';
+import invoicesRoutes from './routes/invoices.js';
+import transactionsRoutes from './routes/transactions.js';
+import accountingRoutes from './routes/accounting.js';
 import db, { runPostStartupMaintenance } from './database.js';
 
 const app = express();
@@ -85,6 +89,10 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/vision', visionRoutes);
 app.use('/api/trucks', trucksRoutes);
 app.use('/api/granite', graniteRoutes);
+app.use('/api/accounts', accountsRoutes);
+app.use('/api/invoices', invoicesRoutes);
+app.use('/api/transactions', transactionsRoutes);
+app.use('/api/accounting', accountingRoutes);
 
 import { getSupabaseDiagnostics } from './supabaseClient.js';
 
