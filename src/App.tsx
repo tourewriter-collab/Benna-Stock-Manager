@@ -7,6 +7,7 @@ import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import CreateOrder from './pages/CreateOrder';
 import UsageReports from './pages/UsageReports';
+import TruckGranite from './pages/TruckGranite';
 import AdminUsers from './pages/AdminUsers';
 import Settings from './pages/Settings';
 import AccountingDashboard from './pages/AccountingDashboard';
@@ -40,6 +41,7 @@ function App() {
               <Route path="orders/new" element={<CreateOrder />} />
               <Route path="orders/:id" element={<OrderDetail />} />
               <Route path="usage-reports" element={<UsageReports />} />
+              <Route path="fleet" element={<TruckGranite />} />
               <Route
                 path="categories"
                 element={<Navigate to="/settings?tab=categories" replace />}

@@ -260,9 +260,35 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS trucks (
+    id TEXT PRIMARY KEY,
+    plate_number TEXT UNIQUE NOT NULL,
+    model TEXT,
+    capacity REAL,
+    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'maintenance', 'inactive'))
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS granite_deliveries (
+    id TEXT PRIMARY KEY,
+    date TEXT NOT NULL,
+    truck_id TEXT NOT NULL,
+    driver_name TEXT NOT NULL,
+    granite_type TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    unit_price REAL NOT NULL,
+    total_amount REAL NOT NULL,
+    client_name TEXT,
+    status TEXT DEFAULT 'delivered' CHECK(status IN ('pending', 'delivered', 'cancelled')),
+    FOREIGN KEY (truck_id) REFERENCES trucks(id)
+  )
+`);
+
 // --- 2. COLUMN MIGRATIONS (Safe updates for existing DBs) ---
 
-const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'accounts', 'invoices', 'transactions'];
+const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'accounts', 'invoices', 'transactions', 'trucks', 'granite_deliveries'];
 for (const table of tables) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT DEFAULT 'pending'`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}

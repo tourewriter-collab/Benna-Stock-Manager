@@ -31,7 +31,7 @@ function createWindow() {
 
   const startURL = app.isPackaged
     ? `file://${path.join(__dirname, '..', 'dist', 'index.html')}`
-    : 'http://localhost:3000';
+    : 'http://localhost:8080';
 
   mainWindow.loadURL(startURL);
 

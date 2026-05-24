@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
     // Use relative paths for assets in all modes (Electron file:// compatible)
     base: './',
     server: {
-      port: 3000,
+      port: 8080,
     },
     build: {
       outDir: 'dist',

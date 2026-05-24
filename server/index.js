@@ -37,6 +37,8 @@ import reportsRoutes from './routes/reports.js';
 import syncRoutes from './routes/sync.js';
 import settingsRoutes from './routes/settings.js';
 import visionRoutes from './routes/vision.js';
+import trucksRoutes from './routes/trucks.js';
+import graniteRoutes from './routes/granite.js';
 import db, { runPostStartupMaintenance } from './database.js';
 
 const app = express();
@@ -49,8 +51,8 @@ const PORT = process.env.PORT || 5000;
 app.use(cors({
   origin: (origin, callback) => {
     const allowed = [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
+      'http://localhost:8080',
+      'http://127.0.0.1:8080',
       'http://localhost:5173',
       'http://127.0.0.1:5173',
     ];
@@ -81,6 +83,8 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/vision', visionRoutes);
+app.use('/api/trucks', trucksRoutes);
+app.use('/api/granite', graniteRoutes);
 
 import { getSupabaseDiagnostics } from './supabaseClient.js';
 
