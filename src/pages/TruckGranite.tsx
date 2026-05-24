@@ -115,8 +115,8 @@ export default function TruckGranite() {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const [trucksData, tripsData, invData] = await Promise.all([
         fetchApi('/trucks'),
@@ -129,7 +129,7 @@ export default function TruckGranite() {
     } catch (error) {
       console.error('Error fetching Truck & Granite data:', error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -191,7 +191,7 @@ export default function TruckGranite() {
       }
 
       setShowTruckModal(false);
-      fetchData();
+      await fetchData(false);
       await refreshStatus();
       if (isOnline) triggerSync();
     } catch (error) {
@@ -204,7 +204,7 @@ export default function TruckGranite() {
     if (!confirm(t('confirm_archive_truck') || 'Are you sure you want to archive this truck?')) return;
     try {
       await fetchApi(`/trucks/${id}`, { method: 'DELETE' });
-      fetchData();
+      await fetchData(false);
       await refreshStatus();
       if (isOnline) triggerSync();
     } catch (error) {
@@ -271,7 +271,7 @@ export default function TruckGranite() {
       }
 
       setShowTripModal(false);
-      fetchData();
+      await fetchData(false);
       await refreshStatus();
       if (isOnline) triggerSync();
     } catch (error) {
@@ -284,7 +284,7 @@ export default function TruckGranite() {
     if (!confirm(t('confirm_delete_trip') || 'Are you sure you want to delete this trip?')) return;
     try {
       await fetchApi(`/granite/${id}`, { method: 'DELETE' });
-      fetchData();
+      await fetchData(false);
       await refreshStatus();
       if (isOnline) triggerSync();
     } catch (error) {
@@ -335,8 +335,8 @@ export default function TruckGranite() {
       });
 
       // Refresh list, stock items, and the sliding panel
-      fetchData();
-      fetchSelectedTruckExpenses(selectedTruck.id);
+      await fetchData(false);
+      await fetchSelectedTruckExpenses(selectedTruck.id);
       alert(t('maintenance_recorded_success'));
     } catch (error) {
       console.error('Error recording maintenance parts deduction:', error);
