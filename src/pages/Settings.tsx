@@ -40,7 +40,8 @@ const Settings: React.FC = () => {
     high_balance_threshold: '100000',
     show_total_stock_value: 'true',
     company_logo: '',
-    gemini_api_key: ''
+    gemini_api_key: '',
+    ohada_compliance: 'false'
   });
   const [saving, setSaving] = useState(false);
   const [diagLoading, setDiagLoading] = useState(false);
@@ -99,7 +100,8 @@ const Settings: React.FC = () => {
         high_balance_threshold: data.high_balance_threshold || '100000', 
         show_total_stock_value: data.show_total_stock_value !== undefined ? String(data.show_total_stock_value) : 'true',
         company_logo: data.company_logo || '', 
-        gemini_api_key: data.gemini_api_key || '' 
+        gemini_api_key: data.gemini_api_key || '',
+        ohada_compliance: data.ohada_compliance !== undefined ? String(data.ohada_compliance) : 'false'
       });
     } catch (error) { console.error('Error fetching settings:', error); }
   };
@@ -253,6 +255,55 @@ const Settings: React.FC = () => {
                   />
                 </button>
               </div>
+
+              <div className="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50/50">
+                <div>
+                  <label className="block text-sm font-bold text-gray-900">{t('ohada_compliance')}</label>
+                  <p className="text-xs text-gray-500">{t('ohada_compliance_desc')}</p>
+                </div>
+                <button
+                  onClick={() => setSettings({ ...settings, ohada_compliance: settings.ohada_compliance === 'true' ? 'false' : 'true' })}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    settings.ohada_compliance === 'true' ? 'bg-blue-600' : 'bg-gray-200'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      settings.ohada_compliance === 'true' ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {settings.ohada_compliance === 'true' && (
+                <div className="p-4 border border-blue-100 rounded-xl bg-blue-50/30 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Activity className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wide">SYSCOHADA Plan Comptable</h4>
+                      <p className="text-[11px] text-blue-700 mt-1 leading-relaxed">
+                        Generate the standardized Plan Comptable SYSCOHADA (Classes 1 to 7) for immediate integration into General Ledger, Invoices, and Inventory management.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('Are you sure you want to seed standard SYSCOHADA accounts? This will not affect existing transactions.')) return;
+                      try {
+                        const res = await fetchApi('/accounts/seed-ohada', { method: 'POST' });
+                        if (res.success) {
+                          alert(`${t('seed_ohada_success')} (${res.seededCount} accounts created)`);
+                        }
+                      } catch (err: any) {
+                        alert(err.message || 'Error seeding accounts');
+                      }
+                    }}
+                    className="w-full py-2 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-blue-700 transition"
+                  >
+                    {t('seed_ohada_btn')}
+                  </button>
+                </div>
+              )}
 
               <div className="bg-orange-50 border border-orange-200 p-5 rounded-xl">
                 <div className="flex items-start gap-3 mb-4">

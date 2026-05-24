@@ -40,23 +40,40 @@ router.post('/', authenticateToken, (req, res) => {
   }
 
   try {
-    // Check if plate number already exists
-    const existing = db.prepare('SELECT * FROM trucks WHERE LOWER(TRIM(plate_number)) = LOWER(TRIM(?)) AND is_archived = 0').get(plate_number);
-    if (existing) {
+    // Check if plate number already exists in active trucks
+    const existingActive = db.prepare('SELECT * FROM trucks WHERE LOWER(TRIM(plate_number)) = LOWER(TRIM(?)) AND is_archived = 0').get(plate_number);
+    if (existingActive) {
       return res.status(400).json({ error: 'A truck with this plate number already exists' });
     }
 
-    const newId = crypto.randomUUID();
-    db.prepare(
-      'INSERT INTO trucks (id, plate_number, model, capacity, status, sync_status) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(
-      newId,
-      plate_number.trim(),
-      model || '',
-      capacity ? parseFloat(capacity) : 0,
-      status || 'active',
-      'pending'
-    );
+    const existingArchived = db.prepare('SELECT * FROM trucks WHERE LOWER(TRIM(plate_number)) = LOWER(TRIM(?)) AND is_archived = 1').get(plate_number);
+    
+    let newId;
+
+    if (existingArchived) {
+      newId = existingArchived.id;
+      db.prepare(
+        'UPDATE trucks SET model = ?, capacity = ?, status = ?, is_archived = 0, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run(
+        model || '',
+        capacity ? parseFloat(capacity) : 0,
+        status || 'active',
+        'pending',
+        newId
+      );
+    } else {
+      newId = crypto.randomUUID();
+      db.prepare(
+        'INSERT INTO trucks (id, plate_number, model, capacity, status, sync_status) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(
+        newId,
+        plate_number.trim(),
+        model || '',
+        capacity ? parseFloat(capacity) : 0,
+        status || 'active',
+        'pending'
+      );
+    }
 
     const newTruck = db.prepare('SELECT * FROM trucks WHERE id = ?').get(newId);
 

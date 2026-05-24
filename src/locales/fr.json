@@ -425,5 +425,17 @@
   "select_account": "Sélectionnez un compte",
   "debit": "Débit",
   "credit": "Crédit",
-  "no_transactions_found": "Aucune transaction trouvée."
+  "no_transactions_found": "Aucune transaction trouvée.",
+  "ikike_chat_title": "Discuter avec Ikiké",
+  "ikike_chat_placeholder": "Demandez à Ikiké d'analyser, d'extraire des docs ou de gérer les tâches...",
+  "ikike_upload_docs": "Télécharger Image / Doc",
+  "ikike_propose_title": "Action Proposée par Ikiké",
+  "ikike_approve": "Approuver & Enregistrer",
+  "ikike_reject": "Rejeter",
+  "ikike_agent_name": "Ikiké IA Stratégique",
+  "ikike_sync_success": "Réflexion et mémoires mises à jour avec succès.",
+  "ohada_compliance": "Mode de Conformité SYSCOHADA",
+  "ohada_compliance_desc": "Appliquer les comptes SYSCOHADA numérotés et les structures financières réglementaires.",
+  "seed_ohada_btn": "Générer le Plan Comptable SYSCOHADA",
+  "seed_ohada_success": "Le Plan Comptable SYSCOHADA a été généré avec succès !"
 }

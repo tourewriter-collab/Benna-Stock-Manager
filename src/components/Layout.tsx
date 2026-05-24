@@ -8,6 +8,7 @@ import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, C
 import { fetchApi } from '../lib/api';
 import UpdaterOverlay from './UpdaterOverlay';
 import ModuleSwitcher from './ModuleSwitcher';
+import { IkikeAgent } from './IkikeAgent';
 
 const Layout: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -199,6 +200,9 @@ const Layout: React.FC = () => {
 
       {/* ── Updater Overlay ── */}
       <UpdaterOverlay />
+
+      {/* ── Ikiké AI Agent Floating Chat ── */}
+      <IkikeAgent />
     </div>
   );
 };

@@ -427,5 +427,17 @@
   "select_account": "Select an account",
   "debit": "Debit",
   "credit": "Credit",
-  "no_transactions_found": "No transactions found."
+  "no_transactions_found": "No transactions found.",
+  "ikike_chat_title": "Chat with Ikiké",
+  "ikike_chat_placeholder": "Ask Ikiké to analyze, extract docs or manage tasks...",
+  "ikike_upload_docs": "Upload Image / Doc",
+  "ikike_propose_title": "Action Proposed by Ikiké",
+  "ikike_approve": "Approve & Commit",
+  "ikike_reject": "Reject",
+  "ikike_agent_name": "Ikiké Strategic AI",
+  "ikike_sync_success": "Reflection and memories updated successfully.",
+  "ohada_compliance": "SYSCOHADA Compliance Mode",
+  "ohada_compliance_desc": "Enforce standardized SYSCOHADA numbered accounts and regulatory financial structures.",
+  "seed_ohada_btn": "Seed SYSCOHADA Chart of Accounts",
+  "seed_ohada_success": "Plan Comptable SYSCOHADA generated successfully!"
 }

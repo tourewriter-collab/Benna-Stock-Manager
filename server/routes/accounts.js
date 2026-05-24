@@ -15,6 +15,54 @@ router.get('/', authenticateToken, (req, res) => {
   }
 });
 
+router.post('/seed-ohada', authenticateToken, (req, res) => {
+  const standardAccounts = [
+    { name: '1010 - Capital Social', type: 'equity', balance: 0, currency: 'GNF' },
+    { name: '2450 - Matériel de Transport (Camions)', type: 'asset', balance: 0, currency: 'GNF' },
+    { name: '2411 - Matériel de Production', type: 'asset', balance: 0, currency: 'GNF' },
+    { name: '3210 - Stocks de Matières Premières & Consommables', type: 'asset', balance: 0, currency: 'GNF' },
+    { name: '4110 - Clients (Factures à recevoir)', type: 'asset', balance: 0, currency: 'GNF' },
+    { name: '4010 - Fournisseurs (Dettes d\'exploitation)', type: 'liability', balance: 0, currency: 'GNF' },
+    { name: '5211 - Banques Locales GNF', type: 'asset', balance: 0, currency: 'GNF' },
+    { name: '5711 - Caisse Principale', type: 'asset', balance: 0, currency: 'GNF' },
+    { name: '6011 - Achats de Pièces de Rechange', type: 'expense', balance: 0, currency: 'GNF' },
+    { name: '6012 - Achats de Carburants et Lubrifiants', type: 'expense', balance: 0, currency: 'GNF' },
+    { name: '6241 - Frais de Transport sur Ventes', type: 'expense', balance: 0, currency: 'GNF' },
+    { name: '7011 - Ventes de Granite (Production)', type: 'revenue', balance: 0, currency: 'GNF' },
+    { name: '7060 - Prestations de Services de Transport', type: 'revenue', balance: 0, currency: 'GNF' }
+  ];
+
+  try {
+    const inserted = [];
+    const stmt = db.prepare(
+      'INSERT INTO accounts (id, name, type, balance, currency, sync_status) VALUES (?, ?, ?, ?, ?, ?)'
+    );
+
+    const transaction = db.transaction((accountsList) => {
+      for (const acc of accountsList) {
+        const exists = db.prepare('SELECT id FROM accounts WHERE name = ? AND is_archived = 0').get(acc.name);
+        if (!exists) {
+          const id = crypto.randomUUID();
+          stmt.run(id, acc.name, acc.type, acc.balance, acc.currency, 'pending');
+          const created = db.prepare('SELECT * FROM accounts WHERE id = ?').get(id);
+          inserted.push(created);
+          try {
+            db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+              'accounts', id, 'INSERT', JSON.stringify(created)
+            );
+          } catch (e) {}
+        }
+      }
+    });
+
+    transaction(standardAccounts);
+    res.json({ success: true, seededCount: inserted.length, seeded: inserted });
+  } catch (error) {
+    console.error('[Accounts API] Seed OHADA error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
 router.post('/', authenticateToken, (req, res) => {
   const { name, type, balance, currency } = req.body;
   if (!name || !type) return res.status(400).json({ error: 'Name and type are required' });

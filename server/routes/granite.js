@@ -13,7 +13,7 @@ router.get('/', authenticateToken, (req, res) => {
       FROM granite_deliveries gd
       LEFT JOIN trucks t ON gd.truck_id = t.id
       WHERE gd.is_archived = 0
-      ORDER BY gd.date DESC, gd.created_at DESC
+      ORDER BY gd.date DESC, gd.sync_updated_at DESC
     `).all();
     res.json(deliveries);
   } catch (error) {

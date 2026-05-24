@@ -43,6 +43,7 @@ import accountsRoutes from './routes/accounts.js';
 import invoicesRoutes from './routes/invoices.js';
 import transactionsRoutes from './routes/transactions.js';
 import accountingRoutes from './routes/accounting.js';
+import agentRoutes from './routes/agent.js';
 import db, { runPostStartupMaintenance } from './database.js';
 
 const app = express();
@@ -93,6 +94,7 @@ app.use('/api/accounts', accountsRoutes);
 app.use('/api/invoices', invoicesRoutes);
 app.use('/api/transactions', transactionsRoutes);
 app.use('/api/accounting', accountingRoutes);
+app.use('/api/agent', agentRoutes);
 
 import { getSupabaseDiagnostics } from './supabaseClient.js';
 
