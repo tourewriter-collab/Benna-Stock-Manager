@@ -321,6 +321,8 @@ const seedSettings = [
   { key: 'high_balance_threshold', value: '100000' },
   { key: 'show_total_stock_value', value: 'true' },
   { key: 'company_logo', value: '' },
+  { key: 'active_agent_model', value: 'gemini' },
+  { key: 'deepseek_api_key', value: 'sk-87f10ecb478848afbc85468bde6027e1' },
   { key: 'db_created_at', value: new Date().toISOString() }
 ];
 for (const s of seedSettings) {

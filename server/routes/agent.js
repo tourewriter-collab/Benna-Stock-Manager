@@ -227,17 +227,34 @@ router.post('/chat', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Message or image is required' });
     }
 
-    let apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      const setting = db.prepare("SELECT value FROM settings WHERE key = 'gemini_api_key'").get();
-      if (setting?.value) apiKey = setting.value;
-    }
-    if (!apiKey) {
-      return res.status(500).json({ error: 'Gemini API key not configured. Go to Settings to add it.' });
+    let activeModel = 'gemini';
+    let geminiKey = process.env.GEMINI_API_KEY;
+    let deepseekKey = '';
+
+    const settingsRecords = db.prepare("SELECT key, value FROM settings WHERE key IN ('gemini_api_key', 'deepseek_api_key', 'active_agent_model')").all();
+    for (const s of settingsRecords) {
+      if (s.key === 'gemini_api_key' && !geminiKey) geminiKey = s.value;
+      if (s.key === 'deepseek_api_key') deepseekKey = s.value;
+      if (s.key === 'active_agent_model') activeModel = s.value;
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    // Force fallback to Gemini if an image is provided since DeepSeek Chat doesn't support vision
+    if (image && activeModel === 'deepseek') {
+      if (geminiKey) {
+        console.log('[Ikiké] Image detected. Falling back to Gemini for vision processing.');
+        activeModel = 'gemini';
+      }
+    }
+
+    const fallbackMessage = "I apologize, but the system is currently heavily used and we are expanding our ability to handle larger user rates as the first African business AI. Please try again later.";
+
+    if (activeModel === 'deepseek' && !deepseekKey) {
+      if (geminiKey) activeModel = 'gemini';
+      else return res.json({ reply: fallbackMessage });
+    } else if (activeModel === 'gemini' && !geminiKey) {
+      if (deepseekKey && !image) activeModel = 'deepseek';
+      else return res.json({ reply: fallbackMessage });
+    }
 
     // Load active reflection core prompts and unified memories
     const reflection = getReflection();
@@ -251,34 +268,73 @@ router.post('/chat', authenticateToken, async (req, res) => {
     const context = gatherContext() + reflectionContext;
     const fullSystem = promptOverride + '\n' + context;
 
-    // Build conversation history string
-    let historyText = '';
-    if (history && history.length > 0) {
-      historyText = '\n\nCONVERSATION HISTORY:\n';
-      for (const msg of history.slice(-12)) {
-        historyText += `${msg.role === 'user' ? 'USER' : 'IKIKÉ'}: ${msg.content}\n`;
+    if (activeModel === 'gemini') {
+      const genAI = new GoogleGenerativeAI(geminiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+      let historyText = '';
+      if (history && history.length > 0) {
+        historyText = '\n\nCONVERSATION HISTORY:\n';
+        for (const msg of history.slice(-12)) {
+          historyText += `${msg.role === 'user' ? 'USER' : 'IKIKÉ'}: ${msg.content}\n`;
+        }
       }
-    }
 
-    const parts = [];
-    parts.push(fullSystem + historyText + '\n\nUSER: ' + (message || 'Analyze this uploaded document and extract all data you can find.'));
+      const parts = [];
+      parts.push(fullSystem + historyText + '\n\nUSER: ' + (message || 'Analyze this uploaded document and extract all data you can find.'));
 
-    if (image) {
-      const mimeTypeMatch = image.match(/^data:(image\/\w+);base64,/);
-      const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg';
-      const base64Data = image.includes(',') ? image.split(',')[1] : image;
-      parts.push({
-        inlineData: { data: base64Data, mimeType }
+      if (image) {
+        const mimeTypeMatch = image.match(/^data:(image\/\w+);base64,/);
+        const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg';
+        const base64Data = image.includes(',') ? image.split(',')[1] : image;
+        parts.push({
+          inlineData: { data: base64Data, mimeType }
+        });
+      }
+
+      console.log('[Ikiké] Processing message with Gemini...');
+      const result = await model.generateContent(parts);
+      const response = await result.response;
+      const text = response.text();
+      console.log('[Ikiké] Gemini Response ready.');
+      return res.json({ reply: text });
+
+    } else {
+      // DeepSeek Logic
+      const messages = [{ role: 'system', content: fullSystem }];
+      if (history && history.length > 0) {
+        for (const msg of history.slice(-12)) {
+          messages.push({ role: msg.role === 'user' ? 'user' : 'assistant', content: msg.content });
+        }
+      }
+      messages.push({ role: 'user', content: message || 'Analyze this context and assist the user.' });
+
+      console.log('[Ikiké] Processing message with DeepSeek...');
+      const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${deepseekKey}`
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: messages,
+          temperature: 0.7
+        })
       });
+
+      if (!dsRes.ok) {
+        const errText = await dsRes.text();
+        console.error('[Ikiké] DeepSeek error:', errText);
+        return res.json({ reply: fallbackMessage });
+      }
+
+      const dsData = await dsRes.json();
+      const text = dsData.choices[0].message.content;
+      console.log('[Ikiké] DeepSeek Response ready.');
+      return res.json({ reply: text });
     }
 
-    console.log('[Ikiké] Processing message...');
-    const result = await model.generateContent(parts);
-    const response = await result.response;
-    const text = response.text();
-    console.log('[Ikiké] Response ready.');
-
-    res.json({ reply: text });
   } catch (error) {
     console.error('[Ikiké] Chat error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });

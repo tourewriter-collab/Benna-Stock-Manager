@@ -41,6 +41,8 @@ const Settings: React.FC = () => {
     show_total_stock_value: 'true',
     company_logo: '',
     gemini_api_key: '',
+    active_agent_model: 'gemini',
+    deepseek_api_key: '',
     ohada_compliance: 'false'
   });
   const [saving, setSaving] = useState(false);
@@ -101,6 +103,8 @@ const Settings: React.FC = () => {
         show_total_stock_value: data.show_total_stock_value !== undefined ? String(data.show_total_stock_value) : 'true',
         company_logo: data.company_logo || '', 
         gemini_api_key: data.gemini_api_key || '',
+        active_agent_model: data.active_agent_model || 'gemini',
+        deepseek_api_key: data.deepseek_api_key || '',
         ohada_compliance: data.ohada_compliance !== undefined ? String(data.ohada_compliance) : 'false'
       });
     } catch (error) { console.error('Error fetching settings:', error); }
@@ -305,15 +309,40 @@ const Settings: React.FC = () => {
                 </div>
               )}
 
-              <div className="bg-orange-50 border border-orange-200 p-5 rounded-xl">
-                <div className="flex items-start gap-3 mb-4">
+              <div className="bg-orange-50 border border-orange-200 p-5 rounded-xl space-y-4">
+                <div className="flex items-start gap-3 mb-2">
                   <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0" />
                   <div className="space-y-1">
-                    <label className="block text-sm font-bold text-orange-900">{t('gemini_ai_key')}</label>
+                    <label className="block text-sm font-bold text-orange-900">{t('ikike_ai_configuration')}</label>
                     <p className="text-xs text-orange-800 leading-relaxed">{t('gemini_warning')}</p>
                   </div>
                 </div>
-                <input type="password" value={settings.gemini_api_key} onChange={e => setSettings({ ...settings, gemini_api_key: e.target.value })} className="w-full px-4 py-2 border border-orange-200 rounded-lg bg-white" placeholder="AIzaSy..." />
+                
+                <div>
+                  <label className="block text-xs font-bold text-orange-900 mb-1">{t('active_agent_model')}</label>
+                  <select 
+                    value={settings.active_agent_model} 
+                    onChange={e => setSettings({ ...settings, active_agent_model: e.target.value })}
+                    className="w-full px-4 py-2 border border-orange-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="gemini">Google Gemini 2.5 Flash</option>
+                    <option value="deepseek">DeepSeek Chat (V3/R1)</option>
+                  </select>
+                </div>
+
+                {settings.active_agent_model === 'gemini' && (
+                  <div>
+                    <label className="block text-xs font-bold text-orange-900 mb-1">{t('gemini_ai_key')}</label>
+                    <input type="password" value={settings.gemini_api_key} onChange={e => setSettings({ ...settings, gemini_api_key: e.target.value })} className="w-full px-4 py-2 border border-orange-200 rounded-lg bg-white text-sm" placeholder="AIzaSy..." />
+                  </div>
+                )}
+
+                {settings.active_agent_model === 'deepseek' && (
+                  <div>
+                    <label className="block text-xs font-bold text-orange-900 mb-1">{t('deepseek_ai_key')}</label>
+                    <input type="password" value={settings.deepseek_api_key} onChange={e => setSettings({ ...settings, deepseek_api_key: e.target.value })} className="w-full px-4 py-2 border border-orange-200 rounded-lg bg-white text-sm" placeholder="sk-..." />
+                  </div>
+                )}
               </div>
 
               <button onClick={handleSaveSettings} disabled={saving} className="w-full py-3 bg-navy text-white rounded-xl font-bold shadow-lg shadow-navy/20 hover:bg-opacity-90 transition disabled:opacity-50">
