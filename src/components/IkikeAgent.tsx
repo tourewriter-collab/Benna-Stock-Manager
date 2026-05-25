@@ -6,11 +6,19 @@ import {
 } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 
+interface AttachedFile {
+  id: string;
+  name: string;
+  type: string;
+  data: string;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'agent';
   content: string;
   image?: string;
+  files?: { name: string; type: string; data: string }[];
   action?: {
     type: string;
     data: any;
@@ -31,7 +39,7 @@ export const IkikeAgent: React.FC = () => {
     }
   ]);
   const [inputMessage, setInputMessage] = useState('');
-  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -42,15 +50,42 @@ export const IkikeAgent: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading, isOpen]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setAttachedImage(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    if (attachedFiles.length + files.length > 9) {
+      alert(t('ikike_upload_limit', 'You can upload up to 9 files at once.'));
+      // Only keep the number of files that fit
+      files.splice(9 - attachedFiles.length);
+    }
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAttachedFiles(prev => {
+          if (prev.length >= 9) return prev;
+          return [
+            ...prev,
+            {
+              id: crypto.randomUUID(),
+              name: file.name,
+              type: file.type,
+              data: reader.result as string
+            }
+          ];
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachedFile = (id: string) => {
+    setAttachedFiles(prev => prev.filter(f => f.id !== id));
   };
 
   const parseActionBlock = (text: string): { action: any; cleanText: string } => {
@@ -76,19 +111,29 @@ export const IkikeAgent: React.FC = () => {
   };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() && !attachedImage) return;
+    if (!inputMessage.trim() && attachedFiles.length === 0) return;
 
     const userMsgId = crypto.randomUUID();
+    const formattedFiles = attachedFiles.map(f => ({
+      name: f.name,
+      type: f.type,
+      data: f.data
+    }));
+
+    // Find the first image file for legacy image field support
+    const firstImageFile = attachedFiles.find(f => f.type.startsWith('image/'));
+
     const userMessage: Message = {
       id: userMsgId,
       role: 'user',
       content: inputMessage,
-      image: attachedImage || undefined
+      image: firstImageFile ? firstImageFile.data : undefined,
+      files: formattedFiles
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
-    setAttachedImage(null);
+    setAttachedFiles([]);
     setIsLoading(true);
 
     try {
@@ -103,7 +148,8 @@ export const IkikeAgent: React.FC = () => {
         body: JSON.stringify({
           message: userMessage.content,
           history: chatHistory,
-          image: userMessage.image
+          image: userMessage.image,
+          files: userMessage.files
         })
       });
 
@@ -306,8 +352,31 @@ export const IkikeAgent: React.FC = () => {
                       : 'bg-slate-800/90 text-slate-100 rounded-tl-none border border-slate-700/50'
                   ].join(' ')}
                 >
-                  {/* Attached Image Thumbnail */}
-                  {msg.image && (
+                  {/* Attached Files rendering */}
+                  {msg.files && msg.files.length > 0 && (
+                    <div className="mb-2 grid grid-cols-3 gap-2">
+                      {msg.files.map((file, idx) => {
+                        const isImage = file.type.startsWith('image/');
+                        return (
+                          <div key={idx} className="relative rounded-lg overflow-hidden border border-slate-750 max-h-24 bg-slate-900 flex items-center justify-center text-xs shadow-sm">
+                            {isImage ? (
+                              <img src={file.data} alt={file.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center p-2 text-center text-slate-300 w-full h-full min-h-[60px]">
+                                <Paperclip size={16} className="text-amber-400 mb-1" />
+                                <span className="truncate max-w-full px-1 text-[10px] font-medium" title={file.name}>
+                                  {file.name}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Legacy Attached Image Thumbnail */}
+                  {msg.image && (!msg.files || msg.files.length === 0) && (
                     <div className="mb-2 rounded-lg overflow-hidden border border-slate-700 max-h-32">
                       <img src={msg.image} alt="Uploaded" className="w-full object-cover" />
                     </div>
@@ -388,16 +457,36 @@ export const IkikeAgent: React.FC = () => {
 
           {/* Form input field container */}
           <div className="p-3 bg-slate-950 border-t border-slate-800 flex flex-col space-y-2">
-            {/* Attachment preview */}
-            {attachedImage && (
-              <div className="relative inline-block w-16 h-16 rounded-lg overflow-hidden border border-slate-700 shadow-md">
-                <img src={attachedImage} alt="Attachment preview" className="w-full h-full object-cover" />
-                <button
-                  onClick={() => setAttachedImage(null)}
-                  className="absolute top-0 right-0 p-0.5 bg-slate-950/80 hover:bg-slate-950 text-white rounded-bl-lg transition-all"
-                >
-                  <X size={10} />
-                </button>
+            {/* Attached files preview */}
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2 p-1.5 bg-slate-950/60 rounded-xl border border-slate-800/80">
+                {attachedFiles.map((file) => {
+                  const isImage = file.type.startsWith('image/');
+                  return (
+                    <div key={file.id} className="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-700 bg-slate-900 flex items-center justify-center group shadow-sm">
+                      {isImage ? (
+                        <img src={file.data} alt={file.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-1 text-center w-full h-full">
+                          <Paperclip size={14} className="text-amber-400 mb-0.5" />
+                          <span className="text-[8px] text-slate-300 truncate max-w-full px-0.5 leading-none">
+                            {file.name}
+                          </span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeAttachedFile(file.id)}
+                        className="absolute -top-0.5 -right-0.5 p-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded-full transition-all opacity-90 hover:opacity-100 shadow-md scale-75"
+                      >
+                        <X size={8} />
+                      </button>
+                    </div>
+                  );
+                })}
+                <div className="flex items-center text-[10px] text-slate-400 ml-auto pr-1">
+                  {attachedFiles.length} / 9
+                </div>
               </div>
             )}
 
@@ -414,8 +503,9 @@ export const IkikeAgent: React.FC = () => {
               <input
                 type="file"
                 ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/*"
+                onChange={handleFileUpload}
+                multiple
+                accept="image/*,application/pdf,text/plain,text/csv,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 className="hidden"
               />
 
@@ -430,7 +520,7 @@ export const IkikeAgent: React.FC = () => {
 
               <button
                 onClick={handleSendMessage}
-                disabled={!inputMessage.trim() && !attachedImage}
+                disabled={!inputMessage.trim() && attachedFiles.length === 0}
                 className="p-2 bg-amber-500 hover:bg-amber-400 text-slate-950 disabled:opacity-50 disabled:hover:bg-amber-500 rounded-xl transition shadow-md"
               >
                 <Send size={18} />

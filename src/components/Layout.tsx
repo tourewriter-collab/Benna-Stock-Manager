@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
 import pkg from '../../package.json';
-import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, CheckCircle2, TrendingDown, Truck } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, CheckCircle2, TrendingDown, Truck, Bell, BellOff, Trash, Check, Sparkles, Info, Users } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import UpdaterOverlay from './UpdaterOverlay';
 import ModuleSwitcher from './ModuleSwitcher';
@@ -16,6 +16,72 @@ const Layout: React.FC = () => {
   const { syncStatus, pendingCount, triggerSync, isOnline } = useSync();
   const location = useLocation();
   const [logo, setLogo] = React.useState<string | null>(null);
+
+  interface Notification {
+    id: string;
+    message: string;
+    type: string;
+    created_at: string;
+    is_read: number | boolean;
+  }
+
+  const [notifications, setNotifications] = React.useState<Notification[]>([]);
+  const [showNotifications, setShowNotifications] = React.useState(false);
+
+  const fetchNotifications = () => {
+    fetchApi('/notifications')
+      .then(data => {
+        if (Array.isArray(data)) {
+          setNotifications(data);
+        }
+      })
+      .catch(err => console.error('[Notifications] Fetch failed:', err));
+  };
+
+  React.useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const markAsRead = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await fetchApi(`/notifications/${id}/read`, { method: 'PUT' });
+      fetchNotifications();
+    } catch (err) {
+      console.error('[Notifications] Read error:', err);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      await fetchApi('/notifications/read-all', { method: 'PUT' });
+      fetchNotifications();
+    } catch (err) {
+      console.error('[Notifications] Read-all error:', err);
+    }
+  };
+
+  const deleteNotification = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await fetchApi(`/notifications/${id}`, { method: 'DELETE' });
+      fetchNotifications();
+    } catch (err) {
+      console.error('[Notifications] Delete error:', err);
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    if (!confirm(t('confirm_clear_notifications') || 'Voulez-vous supprimer toutes les notifications ?')) return;
+    try {
+      await fetchApi('/notifications', { method: 'DELETE' });
+      fetchNotifications();
+    } catch (err) {
+      console.error('[Notifications] Clear-all error:', err);
+    }
+  };
 
   const isAccounting = location.pathname.startsWith('/accounting');
 
@@ -68,6 +134,7 @@ const Layout: React.FC = () => {
                     <Link to="/orders"        className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/orders')}`}>{t('orders')}</Link>
                     <Link to="/usage-reports" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/usage-reports')}`}>{t('usage_reports')}</Link>
                     <Link to="/fleet"         className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/fleet')}`}>{t('fleet')}</Link>
+                    <Link to="/hr"            className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/hr')}`}>{t('hr', 'HR')}</Link>
                     <Link to="/settings" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/settings')}`}>{t('settings')}</Link>
                   </>
                 ) : (
@@ -89,6 +156,7 @@ const Layout: React.FC = () => {
                     <Link to="/orders"    className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/orders')}`}    title={t('orders')}><CreditCard size={18} /></Link>
                     <Link to="/usage-reports" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/usage-reports')}`} title={t('usage_reports')}><TrendingDown size={18} /></Link>
                     <Link to="/fleet"     className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/fleet')}`}     title={t('fleet')}><Truck size={18} /></Link>
+                    <Link to="/hr"        className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/hr')}`}        title={t('hr', 'HR')}><Users size={18} /></Link>
                     <Link to="/settings"  className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/settings')}`}  title={t('settings')}><RefreshCw size={18} /></Link>
                   </>
                 ) : (
@@ -104,6 +172,117 @@ const Layout: React.FC = () => {
 
             {/* Right: User name + Logout */}
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 ml-auto">
+              {/* Notification Bell Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="p-2 rounded-full hover:bg-white/10 transition relative flex items-center justify-center text-white"
+                  title="Notifications"
+                >
+                  <Bell className="w-5 h-5" />
+                  {notifications.filter(n => !n.is_read).length > 0 && (
+                    <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-navy animate-bounce" />
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 text-slate-800 flex flex-col max-h-[480px]">
+                    {/* Popover Header */}
+                    <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-blue-600 animate-pulse" />
+                        <span className="font-extrabold text-slate-800 text-sm">IA Stratégique & Alertes</span>
+                      </div>
+                      <div className="flex gap-2">
+                        {notifications.filter(n => !n.is_read).length > 0 && (
+                          <button
+                            onClick={markAllAsRead}
+                            className="text-[10px] text-blue-600 font-bold hover:underline"
+                          >
+                            Tout lire
+                          </button>
+                        )}
+                        {notifications.length > 0 && (
+                          <button
+                            onClick={clearAllNotifications}
+                            className="text-[10px] text-slate-400 font-bold hover:underline hover:text-rose-500"
+                          >
+                            Vider
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Notification List */}
+                    <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-2">
+                          <BellOff className="w-8 h-8 opacity-40 text-slate-300" />
+                          <p className="text-xs font-semibold">Aucune notification disponible</p>
+                          <p className="text-[10px] text-slate-400 max-w-[200px]">Les analyses stratégiques d'Ikiké apparaîtront ici.</p>
+                        </div>
+                      ) : (
+                        notifications.map(notif => {
+                          const isStrategy = notif.type === 'strategy';
+                          return (
+                            <div
+                              key={notif.id}
+                              className={`p-4 flex gap-3 transition hover:bg-slate-50/50 relative group ${
+                                !notif.is_read ? 'bg-blue-50/10' : ''
+                              }`}
+                            >
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                isStrategy ? 'bg-blue-50 text-blue-600 border border-blue-100 shadow-sm' : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {isStrategy ? <Sparkles className="w-4 h-4" /> : <Info className="w-4 h-4" />}
+                              </div>
+
+                              <div className="flex-1 space-y-1 pr-4">
+                                <div className="flex items-center justify-between">
+                                  <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                                    isStrategy ? 'text-blue-600' : 'text-slate-400'
+                                  }`}>
+                                    {isStrategy ? 'IKIKÉ STRATÉGIE' : 'SYSTÈME'}
+                                  </span>
+                                  <span className="text-[9px] text-slate-400 font-mono">
+                                    {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <p className={`text-xs leading-relaxed ${
+                                  !notif.is_read ? 'text-slate-800 font-medium' : 'text-slate-500'
+                                }`}>
+                                  {notif.message}
+                                </p>
+                              </div>
+
+                              {/* Action buttons (hidden by default, shown on hover/group) */}
+                              <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {!notif.is_read && (
+                                  <button
+                                    onClick={(e) => markAsRead(notif.id, e)}
+                                    className="p-1 rounded bg-slate-100 text-emerald-600 hover:bg-emerald-50 transition"
+                                    title="Marquer comme lu"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => deleteNotification(notif.id, e)}
+                                  className="p-1 rounded bg-slate-100 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition"
+                                  title="Supprimer"
+                                >
+                                  <Trash className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="hidden sm:flex flex-col items-end border-l border-white/20 pl-4 min-w-[80px]">
                 <span className="text-[10px] font-bold text-blue-200 uppercase tracking-tighter leading-none mb-0.5">{user?.role}</span>
                 <span className="text-xs lg:text-sm font-medium truncate max-w-[80px] lg:max-w-[150px]">{user?.name}</span>

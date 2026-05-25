@@ -266,7 +266,10 @@ db.exec(`
     plate_number TEXT UNIQUE NOT NULL,
     model TEXT,
     capacity REAL,
-    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'maintenance', 'inactive'))
+    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'maintenance', 'inactive')),
+    latitude REAL,
+    longitude REAL,
+    last_location_update TEXT
   )
 `);
 
@@ -286,9 +289,52 @@ db.exec(`
   )
 `);
 
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    message TEXT NOT NULL,
+    type TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_read BOOLEAN DEFAULT 0
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS employees (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    role TEXT NOT NULL,
+    department TEXT NOT NULL,
+    salary REAL NOT NULL DEFAULT 0,
+    hire_date TEXT NOT NULL,
+    status TEXT CHECK(status IN ('active', 'inactive', 'on_leave')) DEFAULT 'active',
+    performance_notes TEXT,
+    resume_text TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS applicants (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    role_applied TEXT NOT NULL,
+    experience_years INTEGER NOT NULL DEFAULT 0,
+    skills TEXT,
+    resume_text TEXT,
+    ai_score REAL DEFAULT 0,
+    ai_assessment TEXT,
+    status TEXT CHECK(status IN ('pending', 'reviewed', 'interviewed', 'accepted', 'rejected')) DEFAULT 'pending',
+    applied_date DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // --- 2. COLUMN MIGRATIONS (Safe updates for existing DBs) ---
 
-const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'accounts', 'invoices', 'transactions', 'trucks', 'granite_deliveries'];
+const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'accounts', 'invoices', 'transactions', 'trucks', 'granite_deliveries', 'notifications', 'employees', 'applicants'];
 for (const table of tables) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT DEFAULT 'pending'`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
@@ -304,6 +350,9 @@ try { db.exec(`ALTER TABLE sync_queue ADD COLUMN synced BOOLEAN NOT NULL DEFAULT
 try { db.exec(`ALTER TABLE sync_queue ADD COLUMN _sync_error TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE suppliers ADD COLUMN status TEXT DEFAULT 'active'`); } catch (e) {}
 try { db.exec(`ALTER TABLE usage_logs ADD COLUMN transaction_type TEXT DEFAULT 'OUT'`); } catch (e) {}
+try { db.exec(`ALTER TABLE trucks ADD COLUMN latitude REAL`); } catch (e) {}
+try { db.exec(`ALTER TABLE trucks ADD COLUMN longitude REAL`); } catch (e) {}
+try { db.exec(`ALTER TABLE trucks ADD COLUMN last_location_update TEXT`); } catch (e) {}
 
 // --- 3. SEEDING & HOUSEKEEPING ---
 
@@ -323,6 +372,9 @@ const seedSettings = [
   { key: 'company_logo', value: '' },
   { key: 'active_agent_model', value: 'gemini' },
   { key: 'deepseek_api_key', value: 'sk-87f10ecb478848afbc85468bde6027e1' },
+  { key: 'default_map_lat', value: '9.509167' },
+  { key: 'default_map_lng', value: '-13.712222' },
+  { key: 'ikike_cron_frequency', value: '15' },
   { key: 'db_created_at', value: new Date().toISOString() }
 ];
 for (const s of seedSettings) {

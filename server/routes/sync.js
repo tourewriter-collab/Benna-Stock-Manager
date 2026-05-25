@@ -124,7 +124,7 @@ router.post('/push', async (req, res) => {
     }, {});
 
     // ── STRICT TABLE ORDER FOR PUSH ──
-    const pushOrder = ['categories', 'suppliers', 'inventory', 'orders', 'order_items', 'payments', 'usage_logs', 'audit_logs'];
+    const pushOrder = ['categories', 'suppliers', 'inventory', 'trucks', 'orders', 'order_items', 'payments', 'usage_logs', 'audit_logs', 'notifications'];
     const tableKeys = Object.keys(grouped).sort((a, b) => {
       const tableA = grouped[a].table;
       const tableB = grouped[b].table;
@@ -230,6 +230,25 @@ router.post('/push', async (req, res) => {
                  user_id: null,
                  timestamp: data.timestamp || new Date().toISOString()
               };
+            } else if (table === 'trucks') {
+               return {
+                  id: data.id,
+                  plate_number: data.plate_number,
+                  model: data.model || null,
+                  capacity: data.capacity || 0,
+                  status: data.status || 'active',
+                  latitude: data.latitude !== undefined ? data.latitude : null,
+                  longitude: data.longitude !== undefined ? data.longitude : null,
+                  last_location_update: data.last_location_update || null
+               };
+            } else if (table === 'notifications') {
+               return {
+                  id: data.id,
+                  message: data.message,
+                  type: data.type,
+                  created_at: data.created_at || new Date().toISOString(),
+                  is_read: data.is_read ? true : false
+               };
             }
             return null;
           }).filter(Boolean);
@@ -388,7 +407,7 @@ router.get('/pull', async (req, res) => {
   }
 
   try {
-    const tablesToSync = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs'];
+    const tablesToSync = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs', 'trucks', 'notifications'];
     
     const tableTimeCols = {
       inventory: 'updated_at',
@@ -397,7 +416,9 @@ router.get('/pull', async (req, res) => {
       orders: 'updated_at',
       order_items: null, // No timestamp column, full sync
       payments: 'created_at',
-      usage_logs: 'timestamp'
+      usage_logs: 'timestamp',
+      trucks: 'last_location_update',
+      notifications: 'created_at'
     };
 
     try {
@@ -524,6 +545,12 @@ router.get('/pull', async (req, res) => {
                 row.actual_delivery_date = row.actual_delivery_date || localOrder.actual_delivery_date || null;
               }
             } catch(e) {}
+          } else if (table === 'trucks') {
+            row.latitude = row.latitude !== undefined ? row.latitude : null;
+            row.longitude = row.longitude !== undefined ? row.longitude : null;
+            row.last_location_update = row.last_location_update || null;
+          } else if (table === 'notifications') {
+            row.is_read = row.is_read ? 1 : 0;
           }
           
           const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
@@ -572,7 +599,7 @@ router.get('/pull', async (req, res) => {
     // --- GHOST RECOVERY (Clean up deletions) ---
     // For critical tables, ensure local matches cloud IDs. 
     // If it's missing from cloud, we archive it locally.
-    const cleanupTables = ['inventory', 'orders'];
+    const cleanupTables = ['inventory', 'orders', 'trucks', 'notifications'];
     for (const table of cleanupTables) {
       try {
         const { data: cloudIds, error } = await supabase.from(table).select('id');
@@ -669,7 +696,7 @@ router.post('/reconcile-deletions', authenticateToken, async (req, res) => {
   }
 
   try {
-    const tablesToReconcile = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs'];
+    const tablesToReconcile = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs', 'trucks', 'notifications'];
     const results = {};
 
     for (const table of tablesToReconcile) {

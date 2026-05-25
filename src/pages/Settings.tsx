@@ -43,6 +43,9 @@ const Settings: React.FC = () => {
     gemini_api_key: '',
     active_agent_model: 'gemini',
     deepseek_api_key: '',
+    default_map_lat: '9.509167',
+    default_map_lng: '-13.712222',
+    ikike_cron_frequency: '15',
     ohada_compliance: 'false'
   });
   const [saving, setSaving] = useState(false);
@@ -105,6 +108,9 @@ const Settings: React.FC = () => {
         gemini_api_key: data.gemini_api_key || '',
         active_agent_model: data.active_agent_model || 'gemini',
         deepseek_api_key: data.deepseek_api_key || '',
+        default_map_lat: data.default_map_lat || '9.509167',
+        default_map_lng: data.default_map_lng || '-13.712222',
+        ikike_cron_frequency: data.ikike_cron_frequency || '15',
         ohada_compliance: data.ohada_compliance !== undefined ? String(data.ohada_compliance) : 'false'
       });
     } catch (error) { console.error('Error fetching settings:', error); }
@@ -343,6 +349,41 @@ const Settings: React.FC = () => {
                     <input type="password" value={settings.deepseek_api_key} onChange={e => setSettings({ ...settings, deepseek_api_key: e.target.value })} className="w-full px-4 py-2 border border-orange-200 rounded-lg bg-white text-sm" placeholder="sk-..." />
                   </div>
                 )}
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl space-y-4">
+                <div className="flex items-start gap-3 mb-2">
+                  <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                  <div className="space-y-1">
+                    <label className="block text-sm font-bold text-blue-900">{t('fleet_ai_tracking')}</label>
+                    <p className="text-xs text-blue-800 leading-relaxed">{t('fleet_ai_tracking_desc')}</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-blue-900 mb-1">{t('default_map_lat')}</label>
+                    <input type="text" value={settings.default_map_lat} onChange={e => setSettings({ ...settings, default_map_lat: e.target.value })} className="w-full px-4 py-2 border border-blue-200 rounded-lg bg-white text-sm" placeholder="9.509167" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-blue-900 mb-1">{t('default_map_lng')}</label>
+                    <input type="text" value={settings.default_map_lng} onChange={e => setSettings({ ...settings, default_map_lng: e.target.value })} className="w-full px-4 py-2 border border-blue-200 rounded-lg bg-white text-sm" placeholder="-13.712222" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-blue-900 mb-1">{t('ikike_cron_frequency')}</label>
+                  <select 
+                    value={settings.ikike_cron_frequency} 
+                    onChange={e => setSettings({ ...settings, ikike_cron_frequency: e.target.value })}
+                    className="w-full px-4 py-2 border border-blue-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="15">Every 15 Minutes</option>
+                    <option value="30">Every 30 Minutes</option>
+                    <option value="60">Every 1 Hour</option>
+                    <option value="off">Off (Manual Only)</option>
+                  </select>
+                </div>
               </div>
 
               <button onClick={handleSaveSettings} disabled={saving} className="w-full py-3 bg-navy text-white rounded-xl font-bold shadow-lg shadow-navy/20 hover:bg-opacity-90 transition disabled:opacity-50">

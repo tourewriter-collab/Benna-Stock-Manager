@@ -218,13 +218,105 @@ LIVE SYSTEM STATE:
   }
 }
 
+// Helper to process chat with Gemini
+async function callGemini(geminiKey, fullSystem, history, message, files, image) {
+  const genAI = new GoogleGenerativeAI(geminiKey);
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+  let historyText = '';
+  if (history && history.length > 0) {
+    historyText = '\n\nCONVERSATION HISTORY:\n';
+    for (const msg of history.slice(-12)) {
+      historyText += `${msg.role === 'user' ? 'USER' : 'IKIKÉ'}: ${msg.content}\n`;
+    }
+  }
+
+  const parts = [];
+  parts.push(fullSystem + historyText + '\n\nUSER: ' + (message || 'Analyze the uploaded documents and extract all data you can find.'));
+
+  // Process uploaded files if any
+  if (files && files.length > 0) {
+    for (const file of files) {
+      const { data, type } = file;
+      const mimeTypeMatch = data.match(/^data:([^;]+);base64,/);
+      const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : (type || 'image/jpeg');
+      const base64Data = data.includes(',') ? data.split(',')[1] : data;
+      parts.push({
+        inlineData: { data: base64Data, mimeType }
+      });
+    }
+  } else if (image) {
+    // Fallback for single image legacy support
+    const mimeTypeMatch = image.match(/^data:(image\/\w+);base64,/);
+    const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg';
+    const base64Data = image.includes(',') ? image.split(',')[1] : image;
+    parts.push({
+      inlineData: { data: base64Data, mimeType }
+    });
+  }
+
+  console.log('[Ikiké] Processing message with Gemini...');
+  const result = await model.generateContent(parts);
+  const response = await result.response;
+  return response.text();
+}
+
+// Helper to process chat with DeepSeek (text-only)
+async function callDeepSeek(deepseekKey, fullSystem, history, message, files) {
+  let modifiedMessage = message || 'Analyze this context and assist the user.';
+  if (files && files.length > 0) {
+    modifiedMessage += '\n\n[ATTACHED FILES]:';
+    for (const file of files) {
+      const { data, type, name } = file;
+      const isText = type.startsWith('text/') || type === 'application/json' || type === 'text/csv';
+      if (isText) {
+        const base64Data = data.includes(',') ? data.split(',')[1] : data;
+        const textContent = Buffer.from(base64Data, 'base64').toString('utf8');
+        modifiedMessage += `\n- File Name: ${name} (Type: ${type})\nContent:\n\`\`\`\n${textContent}\n\`\`\``;
+      } else {
+        modifiedMessage += `\n- File Name: ${name} (Type: ${type}) - Binary content (could not be read directly by text-only model)`;
+      }
+    }
+  }
+
+  const messages = [{ role: 'system', content: fullSystem }];
+  if (history && history.length > 0) {
+    for (const msg of history.slice(-12)) {
+      messages.push({ role: msg.role === 'user' ? 'user' : 'assistant', content: msg.content });
+    }
+  }
+  messages.push({ role: 'user', content: modifiedMessage });
+
+  console.log('[Ikiké] Processing message with DeepSeek...');
+  const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${deepseekKey}`
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages: messages,
+      temperature: 0.7
+    })
+  });
+
+  if (!dsRes.ok) {
+    const errText = await dsRes.text();
+    throw new Error(`DeepSeek API returned status ${dsRes.status}: ${errText}`);
+  }
+
+  const dsData = await dsRes.json();
+  return dsData.choices[0].message.content;
+}
+
 // Chat endpoint
 router.post('/chat', authenticateToken, async (req, res) => {
   try {
-    const { message, history, image } = req.body;
+    const { message, history, image, files } = req.body;
 
-    if (!message && !image) {
-      return res.status(400).json({ error: 'Message or image is required' });
+    if (!message && !image && (!files || files.length === 0)) {
+      return res.status(400).json({ error: 'Message, image, or files is required' });
     }
 
     let activeModel = 'gemini';
@@ -238,10 +330,15 @@ router.post('/chat', authenticateToken, async (req, res) => {
       if (s.key === 'active_agent_model') activeModel = s.value;
     }
 
-    // Force fallback to Gemini if an image is provided since DeepSeek Chat doesn't support vision
-    if (image && activeModel === 'deepseek') {
+    // Force fallback to Gemini if any binary files (PDF, images) are provided since DeepSeek Chat doesn't support them
+    const hasBinaryFile = image || (files && files.some(f => {
+      const type = f.type || '';
+      return !type.startsWith('text/') && type !== 'application/json' && type !== 'text/csv';
+    }));
+
+    if (hasBinaryFile && activeModel === 'deepseek') {
       if (geminiKey) {
-        console.log('[Ikiké] Image detected. Falling back to Gemini for vision processing.');
+        console.log('[Ikiké] Binary files or images detected. Falling back to Gemini for multimodal vision/doc processing.');
         activeModel = 'gemini';
       }
     }
@@ -252,13 +349,18 @@ router.post('/chat', authenticateToken, async (req, res) => {
       if (geminiKey) activeModel = 'gemini';
       else return res.json({ reply: fallbackMessage });
     } else if (activeModel === 'gemini' && !geminiKey) {
-      if (deepseekKey && !image) activeModel = 'deepseek';
+      if (deepseekKey && !hasBinaryFile) activeModel = 'deepseek';
       else return res.json({ reply: fallbackMessage });
     }
 
     // Load active reflection core prompts and unified memories
     const reflection = getReflection();
-    const promptOverride = reflection?.core_prompt_override || IKIKE_SYSTEM_PROMPT;
+    
+    // Combine base system prompt (with domain tables & action protocols) with strategic reflection override
+    let fullSystem = IKIKE_SYSTEM_PROMPT;
+    if (reflection?.core_prompt_override) {
+      fullSystem = `${IKIKE_SYSTEM_PROMPT}\n\nHIGH-PRIORITY STRATEGIC DIRECTIVE OVERRIDE:\n${reflection.core_prompt_override}\n`;
+    }
     
     let reflectionContext = '';
     if (reflection && reflection.memories) {
@@ -266,78 +368,66 @@ router.post('/chat', authenticateToken, async (req, res) => {
     }
 
     const context = gatherContext() + reflectionContext;
-    const fullSystem = promptOverride + '\n' + context;
+    fullSystem += '\n' + context;
 
+    let reply = '';
+    let success = false;
+    let errors = [];
+
+    // Attempt the active model first, with dynamic automatic switching fallback if it fails
     if (activeModel === 'gemini') {
-      const genAI = new GoogleGenerativeAI(geminiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-      let historyText = '';
-      if (history && history.length > 0) {
-        historyText = '\n\nCONVERSATION HISTORY:\n';
-        for (const msg of history.slice(-12)) {
-          historyText += `${msg.role === 'user' ? 'USER' : 'IKIKÉ'}: ${msg.content}\n`;
+      try {
+        if (!geminiKey) throw new Error('Gemini API key is missing');
+        reply = await callGemini(geminiKey, fullSystem, history, message, files, image);
+        success = true;
+      } catch (err) {
+        console.error('[Ikiké] Gemini failed, attempting automatic fallback to DeepSeek...', err.message);
+        errors.push(`Gemini: ${err.message}`);
+        if (deepseekKey && !hasBinaryFile) {
+          try {
+            reply = await callDeepSeek(deepseekKey, fullSystem, history, message, files);
+            success = true;
+            console.log('[Ikiké] Automatic fallback to DeepSeek succeeded.');
+          } catch (dsErr) {
+            console.error('[Ikiké] DeepSeek fallback also failed:', dsErr.message);
+            errors.push(`DeepSeek Fallback: ${dsErr.message}`);
+          }
         }
       }
-
-      const parts = [];
-      parts.push(fullSystem + historyText + '\n\nUSER: ' + (message || 'Analyze this uploaded document and extract all data you can find.'));
-
-      if (image) {
-        const mimeTypeMatch = image.match(/^data:(image\/\w+);base64,/);
-        const mimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/jpeg';
-        const base64Data = image.includes(',') ? image.split(',')[1] : image;
-        parts.push({
-          inlineData: { data: base64Data, mimeType }
-        });
-      }
-
-      console.log('[Ikiké] Processing message with Gemini...');
-      const result = await model.generateContent(parts);
-      const response = await result.response;
-      const text = response.text();
-      console.log('[Ikiké] Gemini Response ready.');
-      return res.json({ reply: text });
-
     } else {
-      // DeepSeek Logic
-      const messages = [{ role: 'system', content: fullSystem }];
-      if (history && history.length > 0) {
-        for (const msg of history.slice(-12)) {
-          messages.push({ role: msg.role === 'user' ? 'user' : 'assistant', content: msg.content });
+      try {
+        if (!deepseekKey) throw new Error('DeepSeek API key is missing');
+        reply = await callDeepSeek(deepseekKey, fullSystem, history, message, files);
+        success = true;
+      } catch (err) {
+        console.error('[Ikiké] DeepSeek failed, attempting automatic fallback to Gemini...', err.message);
+        errors.push(`DeepSeek: ${err.message}`);
+        if (geminiKey) {
+          try {
+            reply = await callGemini(geminiKey, fullSystem, history, message, files, image);
+            success = true;
+            console.log('[Ikiké] Automatic fallback to Gemini succeeded.');
+          } catch (gemErr) {
+            console.error('[Ikiké] Gemini fallback also failed:', gemErr.message);
+            errors.push(`Gemini Fallback: ${gemErr.message}`);
+          }
         }
       }
-      messages.push({ role: 'user', content: message || 'Analyze this context and assist the user.' });
-
-      console.log('[Ikiké] Processing message with DeepSeek...');
-      const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${deepseekKey}`
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: messages,
-          temperature: 0.7
-        })
-      });
-
-      if (!dsRes.ok) {
-        const errText = await dsRes.text();
-        console.error('[Ikiké] DeepSeek error:', errText);
-        return res.json({ reply: fallbackMessage });
-      }
-
-      const dsData = await dsRes.json();
-      const text = dsData.choices[0].message.content;
-      console.log('[Ikiké] DeepSeek Response ready.');
-      return res.json({ reply: text });
     }
 
+    if (!success) {
+      console.error('[Ikiké] All available strategic neural engines failed:', errors);
+      return res.json({ 
+        reply: "I apologize, but both the Gemini and DeepSeek strategic neural engines are currently experiencing high demand. Please verify your internet connection, confirm your API keys in the settings tab, or try again in a few moments." 
+      });
+    }
+
+    return res.json({ reply });
   } catch (error) {
-    console.error('[Ikiké] Chat error:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    console.error('[Ikiké] General chat error:', error);
+    res.status(500).json({ error: error.message || 'Internal strategic error' });
+  }
+});ernal server error' });
   }
 });
 

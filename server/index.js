@@ -44,6 +44,10 @@ import invoicesRoutes from './routes/invoices.js';
 import transactionsRoutes from './routes/transactions.js';
 import accountingRoutes from './routes/accounting.js';
 import agentRoutes from './routes/agent.js';
+import notificationsRoutes from './routes/notifications.js';
+import hrRoutes from './routes/hr.js';
+import { startGpsSimulator } from './cron/gps-simulator.js';
+import { startIkikeStrategyCron } from './cron/ikike-strategy.js';
 import db, { runPostStartupMaintenance } from './database.js';
 
 const app = express();
@@ -95,6 +99,8 @@ app.use('/api/invoices', invoicesRoutes);
 app.use('/api/transactions', transactionsRoutes);
 app.use('/api/accounting', accountingRoutes);
 app.use('/api/agent', agentRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/hr', hrRoutes);
 
 import { getSupabaseDiagnostics } from './supabaseClient.js';
 
@@ -135,6 +141,13 @@ const server = app.listen(PORT, () => {
       console.log('[Server] Post-startup maintenance complete.');
     } catch (e) {
       console.warn('[Server] Post-startup maintenance failed (non-fatal):', e.message);
+    }
+    try {
+      startGpsSimulator();
+      startIkikeStrategyCron();
+      console.log('[Server] Real-time background crons started.');
+    } catch (e) {
+      console.error('[Server] Failed to start background crons:', e.message);
     }
   });
 });

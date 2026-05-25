@@ -9,12 +9,14 @@ import {
   CheckCircle, 
   TrendingUp, 
   X, 
-  Eye 
+  Eye,
+  Map
 } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
 import { formatPrice } from '../utils/currency';
+import { FleetMap } from '../components/FleetMap';
 
 interface TruckType {
   id: string;
@@ -66,7 +68,7 @@ export default function TruckGranite() {
   const { refreshStatus, triggerSync, isOnline } = useSync();
   const isFr = i18n.language.startsWith('fr');
 
-  const [activeTab, setActiveTab] = useState<'fleet' | 'trips'>('fleet');
+  const [activeTab, setActiveTab] = useState<'fleet' | 'trips' | 'map'>('fleet');
   const [trucks, setTrucks] = useState<TruckType[]>([]);
   const [trips, setTrips] = useState<GraniteDelivery[]>([]);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
@@ -431,11 +433,26 @@ export default function TruckGranite() {
         >
           {t('granite_deliveries')} ({trips.length})
         </button>
+        <button
+          onClick={() => setActiveTab('map')}
+          className={`py-3 px-6 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'map'
+              ? 'border-navy text-navy font-bold font-extrabold'
+              : 'border-transparent text-gray-500 hover:text-navy'
+          }`}
+        >
+          <Map className="w-4 h-4" />
+          <span>{t('fleet_ai_tracking') || 'Carte GPS'}</span>
+        </button>
       </div>
 
       {/* Main Content */}
       {loading ? (
         <div className="text-center py-12 text-gray-500 font-semibold">{t('loading')}</div>
+      ) : activeTab === 'map' ? (
+        <div className="bg-white rounded-2xl p-6 shadow-md border border-slate-100">
+          <FleetMap />
+        </div>
       ) : activeTab === 'fleet' ? (
         // FLEET PANEL
         <div className="space-y-6">

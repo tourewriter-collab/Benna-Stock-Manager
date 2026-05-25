@@ -215,4 +215,53 @@ router.get('/:id/expenses', authenticateToken, (req, res) => {
   }
 });
 
+// Update truck location (GPS update)
+router.post('/:id/location', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { latitude, longitude } = req.body;
+
+  if (latitude === undefined || longitude === undefined) {
+    return res.status(400).json({ error: 'Latitude and longitude are required' });
+  }
+
+  try {
+    const truck = db.prepare('SELECT * FROM trucks WHERE id = ?').get(id);
+    if (!truck) {
+      return res.status(404).json({ error: 'Truck not found' });
+    }
+
+    const last_location_update = new Date().toISOString();
+    
+    db.prepare(
+      'UPDATE trucks SET latitude = ?, longitude = ?, last_location_update = ?, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).run(
+      latitude !== null ? parseFloat(latitude) : null,
+      longitude !== null ? parseFloat(longitude) : null,
+      last_location_update,
+      'pending',
+      id
+    );
+
+    const updatedTruck = db.prepare('SELECT * FROM trucks WHERE id = ?').get(id);
+
+    // Add to sync queue for cloud sync
+    try {
+      db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+        'trucks',
+        id,
+        'UPDATE',
+        JSON.stringify(updatedTruck)
+      );
+    } catch (e) {
+      console.warn('[Trucks API] Sync queue write failed (non-fatal):', e.message);
+    }
+
+    res.json(updatedTruck);
+  } catch (error) {
+    console.error('[Trucks API] Location update error:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
 export default router;
+

@@ -17,6 +17,7 @@ import ChartOfAccounts from './pages/ChartOfAccounts';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 import { SyncProvider } from './contexts/SyncContext';
+import HumanResources from './pages/HumanResources';
 
 function App() {
   return (
@@ -61,6 +62,9 @@ function App() {
               <Route path="accounting/invoices" element={<Invoices />} />
               <Route path="accounting/transactions" element={<Transactions />} />
               <Route path="accounting/accounts" element={<ChartOfAccounts />} />
+              
+              {/* HR Module Routes */}
+              <Route path="hr" element={<HumanResources />} />
             </Route>
           </Routes>
         </Router>
