@@ -1,6 +1,6 @@
 {
   "name": "benna-stock-manager",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Benna Business Manager - Full-stack business management system",
   "main": "electron/main.cjs",
   "type": "module",
