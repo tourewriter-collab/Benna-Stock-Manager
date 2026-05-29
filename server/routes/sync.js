@@ -135,122 +135,28 @@ router.post('/push', async (req, res) => {
       const { table: table, action, items } = grouped[key];
       try {
         if (action === 'INSERT' || action === 'UPDATE') {
-          // ... (payload mapping logic remains same) ...
           const payloads = items.map(it => {
             let data;
             try { data = JSON.parse(it.data); } catch(e) { return null; }
             if (!data || !data.id) return null;
-            // Schema mapping for cloud
-            if (table === 'orders') {
-              return {
-                id: data.id,
-                order_number: data.order_number || `ORD-${(data.id || '').substring(0, 8).toUpperCase()}`,
-                supplier_id: data.supplier_id || null,
-                order_date: data.order_date || new Date().toISOString(),
-                expected_delivery_date: data.expected_date || null,
-                status: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'].includes(data.status) ? data.status : 'pending',
-                total_amount: data.total_amount || 0,
-                notes: data.notes || null,
-                delivery_status: data.delivery_status || 'pending',
-                actual_delivery_date: data.actual_delivery_date || null,
-                paid_amount: data.paid_amount || 0
-              };
-            } else if (table === 'order_items') {
-              return {
-                id: data.id,
-                order_id: data.order_id,
-                inventory_id: data.inventory_item_id || data.id,
-                quantity: data.quantity || 1,
-                unit_price: data.unit_price || 0,
-                total_price: data.total || (data.quantity * data.unit_price) || 0,
-                description: data.description || null,
-                delivered_quantity: data.delivered_quantity || 0
-              };
-            } else if (table === 'inventory') {
-              return {
-                 id: data.id,
-                 name: data.name,
-                 reference: (data.id || '').substring(0, 8),
-                 quantity: data.quantity || 0,
-                 min_stock: data.min_stock || 0,
-                 unit_price: data.price || 0,
-                 supplier_id: data.supplier || null,
-                 location: data.location || 'Main Store',
-                 category_id: data.category_id || null
-              };
-            } else if (table === 'categories') {
-              return {
-                 id: data.id,
-                 name_en: data.name_en || 'Unknown',
-                 name_fr: data.name_fr || 'Inconnu'
-              };
-            } else if (table === 'suppliers') {
-              return {
-                 id: data.id,
-                 name: data.name || 'Unknown',
-                 contact_person: data.contact || null,
-                 email: data.email || null,
-                 phone: data.phone || null,
-                 address: data.address || null
-              };
-            } else if (table === 'payments') {
-              const methodMap = { cash: 'cash', bank: 'bank_transfer', check: 'check', credit: 'credit_card', other: 'cash' };
-              return {
-                 id: data.id,
-                 order_id: data.order_id,
-                 payment_date: data.payment_date || new Date().toISOString(),
-                 amount: data.amount || 0,
-                 payment_method: methodMap[data.method] || 'cash',
-                 reference: data.reference || null,
-                 notes: data.notes || null
-              };
-            } else if (table === 'usage_logs') {
-              return {
-                 id: data.id,
-                 inventory_id: data.inventory_item_id,
-                 item_name: data.item_name,
-                 quantity_changed: data.quantity_changed,
-                 previous_quantity: data.previous_quantity,
-                 new_quantity: data.new_quantity,
-                 transaction_type: data.transaction_type || 'OUT',
-                 user_id: data.user_id || null,
-                 authorized_by_name: data.authorized_by_name,
-                 authorized_by_title: data.authorized_by_title,
-                 truck_id: data.truck_id,
-                 timestamp: data.timestamp || new Date().toISOString()
-              };
-            } else if (table === 'audit_logs') {
-              return {
-                 id: data.id,
-                 table_name: data.table_name || 'unknown',
-                 record_id: data.record_id || data.id,
-                 action: data.action || 'unknown',
-                 old_data: typeof data.old_values === 'string' ? JSON.parse(data.old_values || '{}') : data.old_values,
-                 new_data: typeof data.new_values === 'string' ? JSON.parse(data.new_values || '{}') : data.new_values,
-                 user_id: null,
-                 timestamp: data.timestamp || new Date().toISOString()
-              };
-            } else if (table === 'trucks') {
-               return {
-                  id: data.id,
-                  plate_number: data.plate_number,
-                  model: data.model || null,
-                  capacity: data.capacity || 0,
-                  status: data.status || 'active',
-                  latitude: data.latitude !== undefined ? data.latitude : null,
-                  longitude: data.longitude !== undefined ? data.longitude : null,
-                  last_location_update: data.last_location_update || null
-               };
-            } else if (table === 'notifications') {
-               return {
-                  id: data.id,
-                  message: data.message,
-                  type: data.type,
-                  created_at: data.created_at || new Date().toISOString(),
-                  is_read: data.is_read ? true : false
-               };
+            
+            // Delete local-only fields
+            delete data._sync_error;
+            
+            // Fix usage_logs & audit_logs user_id (nullify if integer, as cloud expects UUID)
+            if ((table === 'usage_logs' || table === 'audit_logs') && typeof data.user_id === 'number') {
+              data.user_id = null;
             }
-            return null;
+
+            // Ensure SQLite integers are sent as true booleans to Postgres
+            if ('is_archived' in data) data.is_archived = !!data.is_archived;
+            if ('is_read' in data) data.is_read = !!data.is_read;
+            if ('synced' in data) delete data.synced; // queue artifact
+            
+            // Fill required non-null fields just in case local data is missing it
+            if (table === 'inventory' && !data.category) data.category = 'General';
+
+            return data;
           }).filter(Boolean);
           
           if (payloads.length === 0) continue;
@@ -457,29 +363,18 @@ router.get('/pull', async (req, res) => {
         const batchOps = [];
 
         for (const row of remoteData) {
-          // MAP CLOUD TO LOCAL SCHEMA Let's map remote fields back into the local shape
-          if (table === 'order_items') {
-            row.inventory_item_id = row.inventory_id;
-            const q = Number(row.quantity) || 0;
-            const p = Number(row.unit_price) || 0;
-            row.quantity = q;
-            row.unit_price = p;
-            row.total = Number(row.total_price) || (q * p);
-            row.delivered_quantity = Number(row.delivered_quantity) || 0;
-            
-            // RECOVERY logic for missing descriptions (ghost recovery)
-            if (!row.description) {
-              if (row.inventory_id) {
-                const inv = db.prepare('SELECT name FROM inventory WHERE id = ?').get(row.inventory_id);
-                row.description = inv ? inv.name : 'Unknown Item';
-              } else {
-                // Try to preserve local description if it already exists
-                const local = db.prepare('SELECT description FROM order_items WHERE id = ?').get(row.id);
-                row.description = local ? local.description : 'Unknown Item';
-              }
-            }
+          // MAP CLOUD TO LOCAL SCHEMA 
+          // With the unified schema upgrade, cloud exactly matches local.
+          if (table === 'inventory') {
+            if (!row.category) row.category = 'General';
+            if (row.price === undefined || row.price === null) row.price = 0;
+            if (row.quantity === undefined || row.quantity === null) row.quantity = 0;
+          } else if (table === 'order_items') {
+            if (row.quantity === undefined || row.quantity === null) row.quantity = 1;
+            if (row.unit_price === undefined || row.unit_price === null) row.unit_price = 0;
+            if (row.total === undefined || row.total === null) row.total = row.quantity * row.unit_price;
           } else if (table === 'payments') {
-            // Duplicate prevention for payments (if same order, amount, and reference already exists)
+            // Duplicate prevention for payments
             if (row.order_id && row.amount) {
               const existing = db.prepare('SELECT id FROM payments WHERE order_id = ? AND amount = ? AND (reference = ? OR (reference IS NULL AND ? IS NULL))').get(row.order_id, row.amount, row.reference || null, row.reference || null);
               if (existing && existing.id !== row.id) {
@@ -487,71 +382,8 @@ router.get('/pull', async (req, res) => {
                 continue; 
               }
             }
-            row.method = row.payment_method || 'cash';
-          } else if (table === 'usage_logs') {
-            row.inventory_item_id = row.inventory_id || row.inventory_item_id || 'unknown'; 
-            row.item_name = row.item_name || 'Unknown Item';
-            row.quantity_changed = row.quantity_changed !== undefined ? row.quantity_changed : 0;
-            row.previous_quantity = row.previous_quantity !== undefined ? row.previous_quantity : 0;
-            row.new_quantity = row.new_quantity !== undefined ? row.new_quantity : 0;
-            row.transaction_type = row.transaction_type || 'OUT';
-            row.user_id = row.user_id || null;
-          } else if (table === 'inventory') {
-            // Map cloud unit_price back to local price
-            if (row.unit_price !== undefined && row.unit_price !== null) {
-              row.price = row.unit_price;
-            }
-            row.price = row.price !== undefined && row.price !== null ? row.price : 0;
-            
-            // Handle category missing from cloud (NOT NULL locally)
-            if (!row.category) {
-              if (row.category_id) {
-                try {
-                  const cat = db.prepare('SELECT name_en FROM categories WHERE id = ?').get(row.category_id);
-                  row.category = cat ? cat.name_en : 'General';
-                } catch(e) {
-                  row.category = 'General';
-                }
-              } else {
-                row.category = 'General';
-              }
-            }
-            
-            // Ensure other NOT NULL columns are handled
-            row.name = row.name || 'Unnamed Item';
-            row.location = row.location || 'Main Store';
-            if (row.quantity === undefined || row.quantity === null) {
-              // Try to preserve local quantity if pull doesn't have it (shouldn't happen but safe)
-              const local = db.prepare('SELECT quantity FROM inventory WHERE id = ?').get(row.id);
-              row.quantity = local ? local.quantity : 0;
-            }
-          } else if (table === 'suppliers') {
-            if (row.contact_person !== undefined) {
-              row.contact = row.contact_person || '';
-            }
-            row.name = row.name || 'Unknown Supplier';
-          } else if (table === 'orders') {
-            row.expected_date = row.expected_delivery_date || null;
-            row.supplier_id = row.supplier_id || 'unknown';
-            row.total_amount = row.total_amount || 0;
-            
-            // Preserve local-only calculation fields
-            try {
-              const localOrder = db.prepare('SELECT paid_amount, is_archived, created_by FROM orders WHERE id = ?').get(row.id);
-              if (localOrder) {
-                row.paid_amount = Number(row.paid_amount) || localOrder.paid_amount || 0;
-                row.is_archived = localOrder.is_archived || 0;
-                row.created_by = localOrder.created_by || 'system';
-                row.actual_delivery_date = row.actual_delivery_date || localOrder.actual_delivery_date || null;
-              }
-            } catch(e) {}
-          } else if (table === 'trucks') {
-            row.latitude = row.latitude !== undefined ? row.latitude : null;
-            row.longitude = row.longitude !== undefined ? row.longitude : null;
-            row.last_location_update = row.last_location_update || null;
-          } else if (table === 'notifications') {
-            row.is_read = row.is_read ? 1 : 0;
           }
+
           
           const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
           if (filteredKeys.length === 0) continue;
