@@ -427,8 +427,6 @@ router.post('/chat', authenticateToken, async (req, res) => {
     console.error('[Ikiké] General chat error:', error);
     res.status(500).json({ error: error.message || 'Internal strategic error' });
   }
-});ernal server error' });
-  }
 });
 
 // External manual reflection & memories synchronization endpoint

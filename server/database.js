@@ -289,6 +289,7 @@ db.exec(`
   )
 `);
 
+db.exec(`
   CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,
     message TEXT NOT NULL,
@@ -297,6 +298,7 @@ db.exec(`
     is_read BOOLEAN DEFAULT 0
   )
 `);
+
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS employees (

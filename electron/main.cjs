@@ -166,7 +166,7 @@ app.on('window-all-closed', () => {
 ipcMain.handle('get-app-version', () => {
   return { 
     version: app.getVersion(),
-    serverPort: serverPort
+    serverPort: serverPort || (app.isPackaged ? 57234 : (process.env.PORT ? Number(process.env.PORT) : 5000))
   };
 });
 

@@ -1,45 +1,29 @@
 let cachedPort: number | null = null;
-let isResolving = false;
-let lastDiscoveryAttempt = 0;
-const DISCOVERY_COOLDOWN = 30000; // Wait 30s before retrying discovery if it timed out once
 
 async function getApiRoot() {
   if (cachedPort) return `http://127.0.0.1:${cachedPort}`;
   
-  const now = Date.now();
-  const isCooldownActive = (now - lastDiscoveryAttempt) < DISCOVERY_COOLDOWN;
-  const fallbackPort = 5000;
+  const isElectron = !!window.electron;
+  const isPackagedProd = isElectron && window.location.protocol === 'file:';
+  const expectedPort = isPackagedProd ? 57234 : 5000;
 
-  if (isResolving || isCooldownActive) {
-    return `http://127.0.0.1:${fallbackPort}`;
+  if (window.electron) {
+    try {
+      const info = await window.electron.updates.getAppVersion();
+      if (info && info.serverPort) {
+        cachedPort = Number(info.serverPort);
+        console.log(`[API] Discovered server port: ${cachedPort}`);
+        return `http://127.0.0.1:${cachedPort}`;
+      }
+    } catch (err) {
+      console.error('[API] Error calling getAppVersion:', err);
+    }
+    // Return the environment-appropriate port tentatively if the server is still booting.
+    // We don't cache it so that we can successfully discover the actual port on subsequent attempts.
+    return `http://127.0.0.1:${expectedPort}`;
   }
 
-  isResolving = true;
-  lastDiscoveryAttempt = now;
-  
-  // Give it a quick 2-second chance to find the real port.
-  // We don't want to block the UI for 30s anymore.
-  for (let i = 0; i < 10; i++) {
-    if (!window.electron) { // If not running in electron, skip this discovery
-      break;
-    }
-    if (window.electron?.updates?.getAppVersion) {
-      try {
-        const info = await window.electron.updates.getAppVersion();
-        if (info && info.serverPort) {
-          cachedPort = Number(info.serverPort);
-          console.log(`[API] Discovered server port: ${cachedPort}`);
-          isResolving = false;
-          return `http://127.0.0.1:${cachedPort}`;
-        }
-      } catch (err) {}
-    }
-    await new Promise(r => setTimeout(r, 200));
-  }
-  
-  isResolving = false;
-  console.warn(`[API] Port discovery slow — proceeding with fallback port ${fallbackPort}`);
-  return `http://127.0.0.1:${fallbackPort}`;
+  return `http://127.0.0.1:${expectedPort}`;
 }
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
