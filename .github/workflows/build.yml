@@ -1,95 +1,22 @@
-name: Build Electron App
+name: Build and Release
 
 on:
   push:
     tags:
       - 'v*'
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: write
-
-
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            target: win
-            artifact_ext: exe
-          - os: macos-13
-            target: mac --x64
-            artifact_ext: dmg
-          - os: macos-latest
-            target: mac --arm64
-            artifact_ext: dmg
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-
+    runs-on: windows-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
+      - uses: actions/checkout@v4
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          cache: 'npm'
-
-      # Create .env from GitHub secrets so the build has all required env vars
-      - name: Create .env file
-        shell: bash
-        run: |
-          cat > .env << 'ENVEOF'
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          VITE_SUPABASE_SERVICE_ROLE_KEY=${{ secrets.VITE_SUPABASE_SERVICE_ROLE_KEY }}
-          GH_TOKEN=${{ secrets.GH_TOKEN }}
-          ENVEOF
-          # Trim leading whitespace from each line
-          sed -i.bak 's/^[[:space:]]*//' .env && rm -f .env.bak
-
+          node-version: '20'
       - name: Install dependencies
-        run: npm install
-
-      # Rebuild native modules (better-sqlite3) for the correct platform
-      - name: Rebuild native modules
-        run: npx electron-rebuild -f -w better-sqlite3
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Package Electron app
-        timeout-minutes: 60
-        run: npx electron-builder --${{ matrix.target }} ${{ startsWith(github.ref, 'refs/tags/v') && '--publish always' || '--publish never' }}
+        run: npm ci
+      - name: Build and publish
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Upload artifacts remains for debugging/direct download if needed
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.os }}-build
-          path: |
-            release/*.exe
-            release/*.dmg
-            release/*.zip
-            release/*.blockmap
-            release/*.yml
-            release/*.yaml
-          if-no-files-found: warn
-
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: npm run electron:build
