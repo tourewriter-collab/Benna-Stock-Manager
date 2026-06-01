@@ -35,6 +35,10 @@ interface GraniteDelivery {
   truck_model?: string;
   driver_name: string;
   granite_type: string;
+  empty_weight?: number;
+  loaded_weight?: number;
+  net_weight?: number;
+  volume_m3?: number;
   quantity: number;
   unit_price: number;
   total_amount: number;
@@ -96,6 +100,8 @@ export default function TruckGranite() {
     truck_id: '',
     driver_name: '',
     granite_type: '',
+    empty_weight: '',
+    loaded_weight: '',
     quantity: '',
     unit_price: '',
     client_name: '',
@@ -224,6 +230,8 @@ export default function TruckGranite() {
         truck_id: trip.truck_id,
         driver_name: trip.driver_name,
         granite_type: trip.granite_type,
+        empty_weight: trip.empty_weight ? String(trip.empty_weight) : '',
+        loaded_weight: trip.loaded_weight ? String(trip.loaded_weight) : '',
         quantity: String(trip.quantity),
         unit_price: String(trip.unit_price),
         client_name: trip.client_name || '',
@@ -236,6 +244,8 @@ export default function TruckGranite() {
         truck_id: trucks[0]?.id || '',
         driver_name: '',
         granite_type: '',
+        empty_weight: '',
+        loaded_weight: '',
         quantity: '',
         unit_price: '',
         client_name: '',
@@ -245,18 +255,98 @@ export default function TruckGranite() {
     setShowTripModal(true);
   };
 
+  const handleWeightChange = (field: 'empty_weight' | 'loaded_weight', value: string) => {
+    const newFormData = { ...tripFormData, [field]: value };
+    const empty = parseFloat(newFormData.empty_weight || '0');
+    const loaded = parseFloat(newFormData.loaded_weight || '0');
+    
+    if (empty > 0 && loaded > 0 && loaded > empty) {
+      const netWeight = loaded - empty;
+      newFormData.quantity = netWeight.toFixed(2);
+    }
+    setTripFormData(newFormData);
+  };
+
+  const printDeliveryTicket = (trip: GraniteDelivery) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const truck = trucks.find(t => t.id === trip.truck_id) || { plate_number: trip.truck_plate || 'N/A' };
+    const volume = trip.volume_m3 ? trip.volume_m3.toFixed(2) : (trip.quantity / 2.6).toFixed(2);
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Bon de Livraison - ${trip.id}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+            .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+            .title { font-size: 24px; font-weight: bold; margin: 0; }
+            .subtitle { font-size: 14px; color: #666; margin-top: 5px; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 16px; }
+            .row strong { min-width: 150px; display: inline-block; }
+            .section { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
+            .section-title { font-weight: bold; margin-bottom: 15px; font-size: 18px; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+            .footer { margin-top: 40px; display: flex; justify-content: space-between; }
+            .signature { border-top: 1px solid #000; width: 200px; text-align: center; padding-top: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <p class="title">BON DE LIVRAISON / DELIVERY TICKET</p>
+            <p class="subtitle">ID: ${trip.id}</p>
+          </div>
+          
+          <div class="section">
+            <div class="row"><strong>Date:</strong> <span>${new Date(trip.date).toLocaleDateString()}</span></div>
+            <div class="row"><strong>Client:</strong> <span>${trip.client_name || 'N/A'}</span></div>
+            <div class="row"><strong>Transporteur (Camion):</strong> <span>${truck.plate_number}</span></div>
+            <div class="row"><strong>Chauffeur:</strong> <span>${trip.driver_name}</span></div>
+            <div class="row"><strong>Type de Granite:</strong> <span>${trip.granite_type}</span></div>
+          </div>
+          
+          <div class="section">
+            <div class="section-title">Détails de Pesée (Pont Bascule)</div>
+            <div class="row"><strong>Poids à vide (Tare):</strong> <span>${trip.empty_weight ? trip.empty_weight + ' Tonnes' : 'N/A'}</span></div>
+            <div class="row"><strong>Poids chargé (Brut):</strong> <span>${trip.loaded_weight ? trip.loaded_weight + ' Tonnes' : 'N/A'}</span></div>
+            <div class="row"><strong>Poids net (Quantité):</strong> <span>${trip.quantity} Tonnes</span></div>
+            <div class="row"><strong>Volume estimé:</strong> <span>${volume} m³</span></div>
+          </div>
+          
+          <div class="footer">
+            <div class="signature">Visa Pesée / Expédition</div>
+            <div class="signature">Visa Chauffeur</div>
+            <div class="signature">Visa Client / Réception</div>
+          </div>
+          
+          <script>
+            window.onload = function() { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   const handleTripSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { date, truck_id, driver_name, granite_type, quantity, unit_price } = tripFormData;
+    const { date, truck_id, driver_name, granite_type, empty_weight, loaded_weight, quantity, unit_price } = tripFormData;
     if (!date || !truck_id || !driver_name || !granite_type || !quantity || !unit_price) {
       alert(t('please_add_items') || 'Please fill in all required fields');
       return;
     }
 
+    const net_weight = parseFloat(quantity);
+    const volume_m3 = net_weight / 2.6; // Assuming density 2.6 t/m3
+
     try {
       const payload = {
         ...tripFormData,
-        quantity: parseFloat(quantity),
+        empty_weight: empty_weight ? parseFloat(empty_weight) : null,
+        loaded_weight: loaded_weight ? parseFloat(loaded_weight) : null,
+        net_weight: net_weight,
+        volume_m3: volume_m3,
+        quantity: net_weight,
         unit_price: parseFloat(unit_price)
       };
 
@@ -632,7 +722,10 @@ export default function TruckGranite() {
                           {trip.granite_type}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-sm text-right font-semibold">{trip.quantity}</td>
+                      <td className="py-3 px-4 text-sm text-right font-semibold">
+                        {trip.quantity} <br/>
+                        {trip.volume_m3 && <span className="text-xs text-gray-400 font-normal">{trip.volume_m3.toFixed(2)} m³</span>}
+                      </td>
                       <td className="py-3 px-4 text-sm text-right text-gray-600">{formatPrice(trip.unit_price)}</td>
                       <td className="py-3 px-4 text-sm text-right font-bold text-emerald-600">{formatPrice(trip.total_amount)}</td>
                       <td className="py-3 px-4 text-sm text-gray-600">{trip.client_name || t('na')}</td>
@@ -647,24 +740,33 @@ export default function TruckGranite() {
                           {t(trip.status)}
                         </span>
                       </td>
-                      {canEdit && (
-                        <td className="py-3 px-4 text-sm">
-                          <div className="flex space-x-3">
-                            <button
-                              onClick={() => handleOpenTripModal(trip)}
-                              className="text-blue-600 hover:text-blue-800"
-                            >
-                              <Edit className="w-4.5 h-4.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTrip(trip.id)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              <Trash2 className="w-4.5 h-4.5" />
-                            </button>
-                          </div>
-                        </td>
-                      )}
+                      <td className="py-3 px-4 text-sm">
+                        <div className="flex space-x-3">
+                          <button
+                            onClick={() => printDeliveryTicket(trip)}
+                            title={t('print_ticket')}
+                            className="text-gray-600 hover:text-gray-800"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                          </button>
+                          {canEdit && (
+                            <>
+                              <button
+                                onClick={() => handleOpenTripModal(trip)}
+                                className="text-blue-600 hover:text-blue-800"
+                              >
+                                <Edit className="w-4.5 h-4.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTrip(trip.id)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <Trash2 className="w-4.5 h-4.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
 
@@ -934,7 +1036,32 @@ export default function TruckGranite() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('tons')} *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('tare_weight')} (Tonnes)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 12.5"
+                    value={tripFormData.empty_weight}
+                    onChange={(e) => handleWeightChange('empty_weight', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('gross_weight')} (Tonnes)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 32.5"
+                    value={tripFormData.loaded_weight}
+                    onChange={(e) => handleWeightChange('loaded_weight', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('net_weight_tons')} *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -942,7 +1069,7 @@ export default function TruckGranite() {
                     placeholder="e.g. 20"
                     value={tripFormData.quantity}
                     onChange={(e) => setTripFormData({ ...tripFormData, quantity: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none bg-gray-50"
                   />
                 </div>
                 <div>

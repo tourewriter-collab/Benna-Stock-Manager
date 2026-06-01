@@ -445,5 +445,18 @@
   "ohada_compliance": "Mode de Conformité SYSCOHADA",
   "ohada_compliance_desc": "Appliquer les comptes SYSCOHADA numérotés et les structures financières réglementaires.",
   "seed_ohada_btn": "Générer le Plan Comptable SYSCOHADA",
-  "seed_ohada_success": "Le Plan Comptable SYSCOHADA a été généré avec succès !"
+  "seed_ohada_success": "Le Plan Comptable SYSCOHADA a été généré avec succès !",
+  "tare_weight": "Poids à vide / Tare",
+  "gross_weight": "Poids chargé / Brut",
+  "net_weight_tons": "Poids net",
+  "print_ticket": "Imprimer le ticket",
+  "strategic_ai_alerts": "IA Stratégique & Alertes",
+  "read_all": "Tout lire",
+  "clear_all": "Vider",
+  "no_notifications": "Aucune notification disponible",
+  "strategic_analyses_appear_here": "Les analyses stratégiques d'Ikiké apparaîtront ici.",
+  "ikike_strategy": "IKIKÉ STRATÉGIE",
+  "system": "SYSTÈME",
+  "mark_as_read": "Marquer comme lu",
+  "confirm_clear_notifications": "Voulez-vous supprimer toutes les notifications ?"
 }

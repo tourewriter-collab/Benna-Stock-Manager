@@ -447,5 +447,18 @@
   "ohada_compliance": "SYSCOHADA Compliance Mode",
   "ohada_compliance_desc": "Enforce standardized SYSCOHADA numbered accounts and regulatory financial structures.",
   "seed_ohada_btn": "Seed SYSCOHADA Chart of Accounts",
-  "seed_ohada_success": "Plan Comptable SYSCOHADA generated successfully!"
+  "seed_ohada_success": "Plan Comptable SYSCOHADA generated successfully!",
+  "tare_weight": "Tare Weight / Empty",
+  "gross_weight": "Gross Weight / Loaded",
+  "net_weight_tons": "Net Weight",
+  "print_ticket": "Print Ticket",
+  "strategic_ai_alerts": "Strategic AI & Alerts",
+  "read_all": "Read All",
+  "clear_all": "Clear All",
+  "no_notifications": "No notifications available",
+  "strategic_analyses_appear_here": "Ikiké's strategic analyses will appear here.",
+  "ikike_strategy": "IKIKÉ STRATEGY",
+  "system": "SYSTEM",
+  "mark_as_read": "Mark as read",
+  "confirm_clear_notifications": "Do you want to delete all notifications?"
 }

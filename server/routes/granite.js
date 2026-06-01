@@ -24,7 +24,7 @@ router.get('/', authenticateToken, (req, res) => {
 
 // Create a new granite delivery trip
 router.post('/', authenticateToken, (req, res) => {
-  const { date, truck_id, driver_name, granite_type, quantity, unit_price, client_name, status } = req.body;
+  const { date, truck_id, driver_name, granite_type, empty_weight, loaded_weight, net_weight, volume_m3, quantity, unit_price, client_name, status } = req.body;
 
   if (!date || !truck_id || !driver_name || !granite_type || quantity === undefined || unit_price === undefined) {
     return res.status(400).json({ error: 'Required fields missing' });
@@ -41,14 +41,18 @@ router.post('/', authenticateToken, (req, res) => {
     const totalAmount = parseFloat(quantity) * parseFloat(unit_price);
 
     db.prepare(`
-      INSERT INTO granite_deliveries (id, date, truck_id, driver_name, granite_type, quantity, unit_price, total_amount, client_name, status, sync_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO granite_deliveries (id, date, truck_id, driver_name, granite_type, empty_weight, loaded_weight, net_weight, volume_m3, quantity, unit_price, total_amount, client_name, status, sync_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       newId,
       date,
       truck_id,
       driver_name.trim(),
       granite_type.trim(),
+      empty_weight ? parseFloat(empty_weight) : null,
+      loaded_weight ? parseFloat(loaded_weight) : null,
+      net_weight ? parseFloat(net_weight) : null,
+      volume_m3 ? parseFloat(volume_m3) : null,
       parseFloat(quantity),
       parseFloat(unit_price),
       totalAmount,
@@ -81,7 +85,7 @@ router.post('/', authenticateToken, (req, res) => {
 // Update a granite delivery trip
 router.put('/:id', authenticateToken, (req, res) => {
   const { id } = req.params;
-  const { date, truck_id, driver_name, granite_type, quantity, unit_price, client_name, status } = req.body;
+  const { date, truck_id, driver_name, granite_type, empty_weight, loaded_weight, net_weight, volume_m3, quantity, unit_price, client_name, status } = req.body;
 
   if (!date || !truck_id || !driver_name || !granite_type || quantity === undefined || unit_price === undefined) {
     return res.status(400).json({ error: 'Required fields missing' });
@@ -103,13 +107,17 @@ router.put('/:id', authenticateToken, (req, res) => {
 
     db.prepare(`
       UPDATE granite_deliveries
-      SET date = ?, truck_id = ?, driver_name = ?, granite_type = ?, quantity = ?, unit_price = ?, total_amount = ?, client_name = ?, status = ?, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP
+      SET date = ?, truck_id = ?, driver_name = ?, granite_type = ?, empty_weight = ?, loaded_weight = ?, net_weight = ?, volume_m3 = ?, quantity = ?, unit_price = ?, total_amount = ?, client_name = ?, status = ?, sync_status = ?, sync_updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       date,
       truck_id,
       driver_name.trim(),
       granite_type.trim(),
+      empty_weight ? parseFloat(empty_weight) : null,
+      loaded_weight ? parseFloat(loaded_weight) : null,
+      net_weight ? parseFloat(net_weight) : null,
+      volume_m3 ? parseFloat(volume_m3) : null,
       parseFloat(quantity),
       parseFloat(unit_price),
       totalAmount,

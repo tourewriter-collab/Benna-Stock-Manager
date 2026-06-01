@@ -74,7 +74,7 @@ const Layout: React.FC = () => {
   };
 
   const clearAllNotifications = async () => {
-    if (!confirm(t('confirm_clear_notifications') || 'Voulez-vous supprimer toutes les notifications ?')) return;
+    if (!confirm(t('confirm_clear_notifications'))) return;
     try {
       await fetchApi('/notifications', { method: 'DELETE' });
       fetchNotifications();
@@ -191,7 +191,7 @@ const Layout: React.FC = () => {
                     <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-blue-600 animate-pulse" />
-                        <span className="font-extrabold text-slate-800 text-sm">IA Stratégique & Alertes</span>
+                        <span className="font-extrabold text-slate-800 text-sm">{t('strategic_ai_alerts')}</span>
                       </div>
                       <div className="flex gap-2">
                         {notifications.filter(n => !n.is_read).length > 0 && (
@@ -199,7 +199,7 @@ const Layout: React.FC = () => {
                             onClick={markAllAsRead}
                             className="text-[10px] text-blue-600 font-bold hover:underline"
                           >
-                            Tout lire
+                            {t('read_all')}
                           </button>
                         )}
                         {notifications.length > 0 && (
@@ -207,7 +207,7 @@ const Layout: React.FC = () => {
                             onClick={clearAllNotifications}
                             className="text-[10px] text-slate-400 font-bold hover:underline hover:text-rose-500"
                           >
-                            Vider
+                            {t('clear_all')}
                           </button>
                         )}
                       </div>
@@ -218,8 +218,8 @@ const Layout: React.FC = () => {
                       {notifications.length === 0 ? (
                         <div className="p-8 text-center text-slate-400 flex flex-col items-center gap-2">
                           <BellOff className="w-8 h-8 opacity-40 text-slate-300" />
-                          <p className="text-xs font-semibold">Aucune notification disponible</p>
-                          <p className="text-[10px] text-slate-400 max-w-[200px]">Les analyses stratégiques d'Ikiké apparaîtront ici.</p>
+                          <p className="text-xs font-semibold">{t('no_notifications')}</p>
+                          <p className="text-[10px] text-slate-400 max-w-[200px]">{t('strategic_analyses_appear_here')}</p>
                         </div>
                       ) : (
                         notifications.map(notif => {
@@ -242,7 +242,7 @@ const Layout: React.FC = () => {
                                   <span className={`text-[10px] font-bold uppercase tracking-wider ${
                                     isStrategy ? 'text-blue-600' : 'text-slate-400'
                                   }`}>
-                                    {isStrategy ? 'IKIKÉ STRATÉGIE' : 'SYSTÈME'}
+                                    {isStrategy ? t('ikike_strategy') : t('system')}
                                   </span>
                                   <span className="text-[9px] text-slate-400 font-mono">
                                     {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -261,7 +261,7 @@ const Layout: React.FC = () => {
                                   <button
                                     onClick={(e) => markAsRead(notif.id, e)}
                                     className="p-1 rounded bg-slate-100 text-emerald-600 hover:bg-emerald-50 transition"
-                                    title="Marquer comme lu"
+                                    title={t('mark_as_read')}
                                   >
                                     <Check className="w-3 h-3" />
                                   </button>
@@ -269,7 +269,7 @@ const Layout: React.FC = () => {
                                 <button
                                   onClick={(e) => deleteNotification(notif.id, e)}
                                   className="p-1 rounded bg-slate-100 text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition"
-                                  title="Supprimer"
+                                  title={t('delete')}
                                 >
                                   <Trash className="w-3 h-3" />
                                 </button>

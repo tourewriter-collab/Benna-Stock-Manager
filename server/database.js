@@ -280,6 +280,10 @@ db.exec(`
     truck_id TEXT NOT NULL,
     driver_name TEXT NOT NULL,
     granite_type TEXT NOT NULL,
+    empty_weight REAL,
+    loaded_weight REAL,
+    net_weight REAL,
+    volume_m3 REAL,
     quantity REAL NOT NULL,
     unit_price REAL NOT NULL,
     total_amount REAL NOT NULL,
@@ -355,6 +359,10 @@ try { db.exec(`ALTER TABLE usage_logs ADD COLUMN transaction_type TEXT DEFAULT '
 try { db.exec(`ALTER TABLE trucks ADD COLUMN latitude REAL`); } catch (e) {}
 try { db.exec(`ALTER TABLE trucks ADD COLUMN longitude REAL`); } catch (e) {}
 try { db.exec(`ALTER TABLE trucks ADD COLUMN last_location_update TEXT`); } catch (e) {}
+try { db.exec(`ALTER TABLE granite_deliveries ADD COLUMN empty_weight REAL`); } catch (e) {}
+try { db.exec(`ALTER TABLE granite_deliveries ADD COLUMN loaded_weight REAL`); } catch (e) {}
+try { db.exec(`ALTER TABLE granite_deliveries ADD COLUMN net_weight REAL`); } catch (e) {}
+try { db.exec(`ALTER TABLE granite_deliveries ADD COLUMN volume_m3 REAL`); } catch (e) {}
 
 // --- 3. SEEDING & HOUSEKEEPING ---
 
