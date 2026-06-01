@@ -1,6 +1,6 @@
 {
   "name": "benna-business-manager",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "description": "Benna Business Manager - Full-stack business management system",
   "main": "electron/main.cjs",
   "type": "module",
@@ -17,7 +17,7 @@
     "preview": "vite preview",
     "electron:dev": "electron .",
     "electron:rebuild": "electron-rebuild -f -w better-sqlite3",
-    "electron:build": "npm run build && electron-builder --publish always",
+    "electron:build": "npm run build && electron-builder --publish never",
     "electron:build:win": "npm run build && electron-builder --win",
     "electron:build:mac": "npm run build && electron-builder --mac",
     "electron:build:linux": "npm run build && electron-builder --linux",
