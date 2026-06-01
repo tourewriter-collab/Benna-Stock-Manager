@@ -1,6 +1,6 @@
 {
   "name": "benna-business-manager",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "description": "Benna Business Manager - Full-stack business management system",
   "main": "electron/main.cjs",
   "type": "module",
