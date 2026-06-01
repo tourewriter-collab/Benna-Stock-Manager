@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   build:
@@ -40,3 +41,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: npm run electron:build
+
+      - name: Get version from package.json
+        id: get_version
+        run: |
+          $version = (Get-Content -Raw -Path package.json | ConvertFrom-Json).version
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get_version.outputs.VERSION }}
+          name: v${{ steps.get_version.outputs.VERSION }}
+          files: release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
