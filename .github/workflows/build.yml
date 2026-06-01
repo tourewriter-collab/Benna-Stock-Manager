@@ -5,18 +5,38 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+
+      - name: Create placeholder .env for build
+        shell: powershell
+        run: |
+          if (-not (Test-Path ".env")) {
+            Copy-Item ".env.example" ".env" -ErrorAction SilentlyContinue
+            if (-not (Test-Path ".env")) {
+              New-Item -Path ".env" -ItemType File -Force | Out-Null
+              Add-Content ".env" "# Populated at runtime by user"
+            }
+          }
+
       - name: Install dependencies
         run: npm ci
-      - name: Build and publish
+
+      - name: Build Vite + Electron and publish release
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: npm run electron:build
