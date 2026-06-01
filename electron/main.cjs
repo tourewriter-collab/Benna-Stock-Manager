@@ -1,7 +1,15 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
-const fs = require('path').fs ? require('fs') : require('fs');
+const fs = require('fs');
 const { config: dotenvConfig } = require('dotenv');
+const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
+
+// Setup logging
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = 'info';
+log.info('App starting...');
+
 // Load .env only if it exists – in dev it's at project root, in production it's unpacked alongside resources
 const envPathDev = path.join(process.cwd(), '.env');
 const envPathProd = path.join(process.resourcesPath, '.env');
@@ -14,16 +22,6 @@ if (fs.existsSync(envPathDev)) {
 } else {
   log.warn('[Main] No .env file found – proceeding with defaults');
 }
-const { autoUpdater } = require('electron-updater');
-const log = require('electron-log');
-
-// Setup logging
-autoUpdater.logger = log;
-autoUpdater.logger.transports.file.level = 'info';
-log.info('App starting...');
-
-// Load environment variables
-dotenvConfig();
 
 let mainWindow;
 let serverPort = null; // Will be set by SERVER_READY IPC from child process
