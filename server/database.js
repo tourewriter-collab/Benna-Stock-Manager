@@ -317,6 +317,7 @@ db.exec(`
     status TEXT CHECK(status IN ('active', 'inactive', 'on_leave')) DEFAULT 'active',
     performance_notes TEXT,
     resume_text TEXT,
+    device_enroll_id TEXT UNIQUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
@@ -338,9 +339,26 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS attendance (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT,
+    device_enroll_id TEXT NOT NULL,
+    timestamp DATETIME NOT NULL,
+    verification_method TEXT CHECK(verification_method IN ('face', 'fingerprint', 'card', 'password', 'manual', 'unknown')),
+    direction TEXT CHECK(direction IN ('in', 'out', 'break_in', 'break_out', 'unknown')) DEFAULT 'unknown',
+    source TEXT CHECK(source IN ('online_push', 'usb_import', 'manual_entry')) DEFAULT 'online_push',
+    sync_status TEXT DEFAULT 'pending',
+    sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    is_archived BOOLEAN NOT NULL DEFAULT 0,
+    _sync_error TEXT,
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
+  )
+`);
+
 // --- 2. COLUMN MIGRATIONS (Safe updates for existing DBs) ---
 
-const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'accounts', 'invoices', 'transactions', 'trucks', 'granite_deliveries', 'notifications', 'employees', 'applicants'];
+const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'accounts', 'invoices', 'transactions', 'trucks', 'granite_deliveries', 'notifications', 'employees', 'applicants', 'attendance'];
 for (const table of tables) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT DEFAULT 'pending'`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
@@ -349,6 +367,7 @@ for (const table of tables) {
   try { db.exec(`UPDATE ${table} SET is_archived = 0 WHERE is_archived IS NULL`); } catch (e) {}
 }
 
+try { db.exec(`ALTER TABLE employees ADD COLUMN device_enroll_id TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE inventory ADD COLUMN category_id TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE order_items ADD COLUMN delivered_quantity INTEGER DEFAULT 0`); } catch (e) {}
 try { db.exec(`ALTER TABLE orders ADD COLUMN delivery_status TEXT DEFAULT 'pending'`); } catch (e) {}
@@ -401,13 +420,22 @@ try {
 
 // --- 4. CORE FUNCTIONS ---
 
+// Global error handling to prevent the app from crashing on unexpected errors
+process.on('uncaughtException', (err) => {
+  console.error('[Uncaught Exception]', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Unhandled Rejection]', reason);
+});
+
 export function sanitizeSchema() {
   const tablesToFix = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs', 'audit_logs'];
   for (const table of tablesToFix) {
     try {
       const info = db.prepare(`PRAGMA table_info(${table})`).all();
       const idCol = info.find(c => c.name === 'id');
-      if (idCol && (idCol.type === 'INTEGER' || idCol.type.includes('INT'))) {
+      // Only alter if the primary key is an INTEGER AUTOINCREMENT (legacy) that needs conversion to TEXT UUID
+      if (idCol && (idCol.type === 'INTEGER' || idCol.type.toUpperCase().includes('INT')) && idCol.pk) {
         console.log(`[Database] Sanitizing schema for ${table}...`);
         db.transaction(() => {
           db.prepare(`ALTER TABLE ${table} RENAME TO ${table}_old`).run();

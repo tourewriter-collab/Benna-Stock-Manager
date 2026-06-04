@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Package, Calculator, ChevronDown, Check } from 'lucide-react';
+import { Package, Calculator, ChevronDown, Check, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const ModuleSwitcher: React.FC = () => {
@@ -11,8 +11,13 @@ const ModuleSwitcher: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isAccounting = location.pathname.startsWith('/accounting');
+  const isHr = location.pathname.startsWith('/hr');
 
-  const currentModule = isAccounting ? {
+  const currentModule = isHr ? {
+    id: 'hr',
+    name: t('hr_module', 'Human Resources'),
+    icon: <Users size={18} className="text-purple-400" />
+  } : isAccounting ? {
     id: 'accounting',
     name: t('accounting_module', 'Accounting & Finance'),
     icon: <Calculator size={18} className="text-blue-400" />
@@ -32,12 +37,14 @@ const ModuleSwitcher: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const switchModule = (moduleId: 'stock' | 'accounting') => {
+  const switchModule = (moduleId: 'stock' | 'accounting' | 'hr') => {
     setIsOpen(false);
-    if (moduleId === 'stock' && isAccounting) {
+    if (moduleId === 'stock') {
       navigate('/dashboard');
-    } else if (moduleId === 'accounting' && !isAccounting) {
+    } else if (moduleId === 'accounting') {
       navigate('/accounting/dashboard');
+    } else if (moduleId === 'hr') {
+      navigate('/hr');
     }
   };
 
@@ -60,15 +67,15 @@ const ModuleSwitcher: React.FC = () => {
           
           <button
             onClick={() => switchModule('stock')}
-            className={`w-full text-left px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 transition ${!isAccounting ? 'bg-blue-50/50' : ''}`}
+            className={`w-full text-left px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 transition ${(!isAccounting && !isHr) ? 'bg-blue-50/50' : ''}`}
           >
-            <div className={`p-1.5 rounded-md ${!isAccounting ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500'}`}>
+            <div className={`p-1.5 rounded-md ${(!isAccounting && !isHr) ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500'}`}>
               <Package size={16} />
             </div>
-            <span className={`text-sm flex-1 ${!isAccounting ? 'font-semibold text-navy' : 'text-gray-700'}`}>
+            <span className={`text-sm flex-1 ${(!isAccounting && !isHr) ? 'font-semibold text-navy' : 'text-gray-700'}`}>
               {t('stock_module', 'Operations & Stock')}
             </span>
-            {!isAccounting && <Check size={16} className="text-emerald-500" />}
+            {!isAccounting && !isHr && <Check size={16} className="text-emerald-500" />}
           </button>
           
           <button
@@ -82,6 +89,19 @@ const ModuleSwitcher: React.FC = () => {
               {t('accounting_module', 'Accounting & Finance')}
             </span>
             {isAccounting && <Check size={16} className="text-blue-500" />}
+          </button>
+
+          <button
+            onClick={() => switchModule('hr')}
+            className={`w-full text-left px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 transition ${isHr ? 'bg-blue-50/50' : ''}`}
+          >
+            <div className={`p-1.5 rounded-md ${isHr ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}`}>
+              <Users size={16} />
+            </div>
+            <span className={`text-sm flex-1 ${isHr ? 'font-semibold text-navy' : 'text-gray-700'}`}>
+              {t('hr_module', 'Human Resources')}
+            </span>
+            {isHr && <Check size={16} className="text-purple-500" />}
           </button>
         </div>
       )}

@@ -427,4 +427,163 @@ Output format (MUST be raw JSON, no markdown wrapper or extra words):
   }
 });
 
+// ── SMART ATTENDANCE ENDPOINTS ──
+
+// Get all attendance logs
+router.get('/attendance', authenticateToken, (req, res) => {
+  try {
+    const logs = db.prepare(`
+      SELECT a.*, e.name as employee_name, e.role as employee_role, e.department as employee_department
+      FROM attendance a
+      LEFT JOIN employees e ON a.employee_id = e.id
+      WHERE a.is_archived = 0
+      ORDER BY a.timestamp DESC
+    `).all();
+    res.json(logs);
+  } catch (error) {
+    console.error('[HR] Get attendance error:', error);
+    res.status(500).json({ error: 'Failed to fetch attendance logs' });
+  }
+});
+
+// Real-time online device pushes (ADMS/Cloud Push)
+router.post('/attendance/log', (req, res) => {
+  try {
+    const { enroll_id, timestamp, verify_mode, state } = req.body;
+    
+    if (!enroll_id || !timestamp) {
+      return res.status(400).json({ error: 'enroll_id and timestamp are required' });
+    }
+    
+    // Map verify_mode (1 = fingerprint, 15 = face, etc.)
+    let method = 'unknown';
+    const modeStr = String(verify_mode).trim();
+    if (modeStr === '1') method = 'fingerprint';
+    else if (modeStr === '15') method = 'face';
+    else if (modeStr === '4') method = 'card';
+    else if (modeStr === '3') method = 'password';
+
+    // Map state (0 = in, 1 = out)
+    let direction = 'unknown';
+    const stateStr = String(state).trim();
+    if (stateStr === '0') direction = 'in';
+    else if (stateStr === '1') direction = 'out';
+    
+    // Find employee by device_enroll_id
+    const employee = db.prepare('SELECT id FROM employees WHERE device_enroll_id = ?').get(String(enroll_id).trim());
+    const employeeId = employee ? employee.id : null;
+    
+    const id = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO attendance (
+        id, employee_id, device_enroll_id, timestamp, verification_method, direction, source, sync_status
+      ) VALUES (?, ?, ?, ?, ?, ?, 'online_push', 'pending')
+    `).run(id, employeeId, String(enroll_id).trim(), timestamp, method, direction);
+    
+    res.status(201).json({ success: true, id });
+  } catch (error) {
+    console.error('[HR] Log attendance error:', error);
+    res.status(500).json({ error: 'Failed to log attendance' });
+  }
+});
+
+// Import USB logs manually
+router.post('/attendance/upload', authenticateToken, (req, res) => {
+  try {
+    const { fileContent } = req.body;
+    if (!fileContent) {
+      return res.status(400).json({ error: 'No file content provided' });
+    }
+    
+    const lines = fileContent.split(/\r?\n/);
+    let insertedCount = 0;
+    
+    const insertStmt = db.prepare(`
+      INSERT OR IGNORE INTO attendance (
+        id, employee_id, device_enroll_id, timestamp, verification_method, direction, source, sync_status
+      ) VALUES (?, ?, ?, ?, ?, ?, 'usb_import', 'pending')
+    `);
+    
+    // Cache employees mapping for performance
+    const employeesList = db.prepare('SELECT id, device_enroll_id FROM employees WHERE is_archived = 0').all();
+    const empMap = new Map();
+    for (const emp of employeesList) {
+      if (emp.device_enroll_id) {
+        empMap.set(String(emp.device_enroll_id).trim(), emp.id);
+      }
+    }
+    
+    db.transaction(() => {
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.toLowerCase().startsWith('enrollno') || trimmed.toLowerCase().startsWith('id')) {
+          continue; // Skip header or empty lines
+        }
+        
+        // Split by tab, comma, or multiple spaces
+        const parts = trimmed.split(/[\t,]+| {2,}/).map(p => p.trim()).filter(Boolean);
+        // If it failed to split, fall back to simple whitespace split
+        const finalParts = parts.length >= 2 ? parts : trimmed.split(/\s+/).map(p => p.trim()).filter(Boolean);
+        
+        if (finalParts.length < 2) continue;
+        
+        const enrollId = finalParts[0];
+        const timestamp = finalParts[1];
+        const verifyMode = finalParts[2] || 'unknown';
+        const state = finalParts[3] || 'unknown';
+        
+        // Match employee
+        const employeeId = empMap.get(String(enrollId).trim()) || null;
+        
+        // Map verify_mode
+        let method = 'unknown';
+        const modeLower = verifyMode.toLowerCase();
+        if (modeLower === '1' || modeLower.includes('finger') || modeLower.includes('empreinte')) method = 'fingerprint';
+        else if (modeLower === '15' || modeLower.includes('face') || modeLower.includes('visage')) method = 'face';
+        else if (modeLower === '4' || modeLower.includes('card') || modeLower.includes('carte')) method = 'card';
+        else if (modeLower === '3' || modeLower.includes('pass')) method = 'password';
+        
+        // Map state
+        let direction = 'unknown';
+        const stateLower = state.toLowerCase();
+        if (stateLower === '0' || stateLower.includes('in') || stateLower.includes('entree') || stateLower.includes('entrée')) direction = 'in';
+        else if (stateLower === '1' || stateLower.includes('out') || stateLower.includes('sortie')) direction = 'out';
+        
+        const logId = crypto.randomUUID();
+        insertStmt.run(logId, employeeId, String(enrollId).trim(), timestamp, method, direction);
+        insertedCount++;
+      }
+    })();
+    
+    res.json({ success: true, count: insertedCount });
+  } catch (error) {
+    console.error('[HR] Upload attendance error:', error);
+    res.status(500).json({ error: 'Failed to import attendance file: ' + error.message });
+  }
+});
+
+// Map employee to device ID
+router.put('/employees/:id/enroll', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    const { device_enroll_id } = req.body;
+    
+    const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+    
+    db.prepare(`
+      UPDATE employees SET
+        device_enroll_id = ?, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(device_enroll_id ? String(device_enroll_id).trim() : null, id);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[HR] Enroll employee error:', error);
+    res.status(500).json({ error: 'Failed to update device enroll ID' });
+  }
+});
+
 export default router;

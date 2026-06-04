@@ -201,6 +201,7 @@ function gatherContext() {
     const recentTrips = db.prepare('SELECT gd.*, t.plate_number as truck_plate FROM granite_deliveries gd LEFT JOIN trucks t ON gd.truck_id = t.id WHERE gd.is_archived = 0 ORDER BY gd.date DESC LIMIT 5').all();
     const topItems = db.prepare('SELECT id, name, quantity, price, location, category FROM inventory WHERE is_archived = 0 ORDER BY name ASC LIMIT 30').all();
     const pendingInvoices = db.prepare("SELECT COUNT(*) as count, SUM(total_amount - paid_amount) as total FROM invoices WHERE status IN ('draft','sent','overdue') AND is_archived = 0").get();
+const outstandingPayments = db.prepare("SELECT COUNT(*) as count, SUM(total_amount - paid_amount) as total FROM orders WHERE status IN ('pending','partial') AND is_archived = 0").get();
 
     return `
 LIVE SYSTEM STATE:

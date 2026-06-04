@@ -8,6 +8,223 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 const resolveDns = promisify(dns.resolve);
 
+const MAPPERS_PUSH = {
+  inventory: (d) => ({
+    id: d.id,
+    name: d.name || 'Unnamed Item',
+    reference: d.id ? d.id.substring(0, 8) : '',
+    category: d.category || 'General',
+    quantity: d.quantity || 0,
+    min_quantity: d.min_stock || d.min_quantity || 0,
+    unit_price: d.price || d.unit_price || 0,
+    supplier: d.supplier || null,
+    location: d.location || 'Main Store',
+    category_id: d.category_id || null
+  }),
+  orders: (d) => {
+    // Map local status ('pending', 'partial', 'paid', 'cancelled') 
+    // to remote constraint ('pending', 'confirmed', 'shipped', 'delivered', 'cancelled')
+    let remoteStatus = 'pending';
+    if (d.status === 'paid') {
+      remoteStatus = d.delivery_status === 'delivered' ? 'delivered' : 'confirmed';
+    } else if (d.status === 'partial') {
+      remoteStatus = 'confirmed';
+    } else if (d.status === 'cancelled') {
+      remoteStatus = 'cancelled';
+    } else if (d.status === 'confirmed' || d.status === 'shipped' || d.status === 'delivered') {
+      remoteStatus = d.status;
+    }
+    return {
+      id: d.id,
+      order_number: d.order_number || `ORD-${d.id ? d.id.substring(0, 8).toUpperCase() : ''}`,
+      supplier_id: d.supplier_id || null,
+      order_date: d.order_date || new Date().toISOString(),
+      expected_delivery_date: d.expected_date || d.expected_delivery_date || null,
+      status: remoteStatus,
+      total_amount: d.total_amount || 0,
+      notes: d.notes || null,
+      delivery_status: d.delivery_status || 'pending'
+    };
+  },
+  order_items: (d) => ({
+    id: d.id,
+    order_id: d.order_id,
+    inventory_id: d.inventory_item_id || d.inventory_id || '00000000-0000-0000-0000-000000000000',
+    quantity: d.quantity || 1,
+    unit_price: d.unit_price || 0,
+    total_price: d.total || d.total_price || 0,
+    delivered_quantity: d.delivered_quantity || 0,
+    description: d.description || null
+  }),
+  payments: (d) => ({
+    id: d.id,
+    order_id: d.order_id,
+    payment_date: d.payment_date || new Date().toISOString(),
+    amount: d.amount || 0,
+    payment_method: d.method || d.payment_method || 'cash',
+    reference: d.reference || null,
+    notes: d.notes || null
+  }),
+  usage_logs: (d) => ({
+    inventory_item_id: d.inventory_item_id || d.inventory_id || null,
+    item_name: d.item_name || 'Unknown Item',
+    quantity_changed: d.quantity_changed || 0,
+    previous_quantity: d.previous_quantity || 0,
+    new_quantity: d.new_quantity || 0,
+    user_id: typeof d.user_id === 'number' ? d.user_id : null,
+    authorized_by_name: d.authorized_by_name || null,
+    authorized_by_title: d.authorized_by_title || null,
+    truck_id: d.truck_id || null,
+    transaction_type: d.transaction_type || 'OUT',
+    timestamp: d.timestamp || new Date().toISOString()
+  }),
+  categories: (d) => ({
+    id: d.id,
+    name_en: d.name_en || 'Unknown',
+    name_fr: d.name_fr || 'Inconnu',
+    is_archived: !!d.is_archived
+  }),
+  suppliers: (d) => ({
+    id: d.id,
+    name: d.name || 'Unknown',
+    contact: d.contact || d.contact_person || null,
+    phone: d.phone || null,
+    email: d.email || null,
+    address: d.address || null,
+    status: d.status || 'active',
+    is_archived: !!d.is_archived
+  }),
+  trucks: (d) => ({
+    id: d.id,
+    plate_number: d.plate_number,
+    model: d.model || null,
+    capacity: d.capacity || 0,
+    status: d.status || 'active',
+    latitude: d.latitude || null,
+    longitude: d.longitude || null,
+    last_location_update: d.last_location_update || null
+  }),
+  notifications: (d) => ({
+    id: d.id,
+    message: d.message,
+    type: d.type,
+    is_read: !!d.is_read
+  })
+};
+
+const MAPPERS_PULL = {
+  inventory: (row) => ({
+    id: row.id,
+    name: row.name,
+    category: row.category || 'General',
+    category_id: row.category_id || null,
+    quantity: row.quantity || 0,
+    price: row.unit_price || row.price || 0,
+    supplier: row.supplier || null,
+    location: row.location || 'Main Store',
+    min_stock: row.min_quantity || row.min_stock || 10,
+    max_stock: row.max_stock || 100,
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  orders: (row) => {
+    // Map remote status ('pending', 'confirmed', 'shipped', 'delivered', 'cancelled')
+    // back to local status ('pending', 'partial', 'paid', 'cancelled')
+    let localStatus = 'pending';
+    if (row.status === 'delivered') {
+      localStatus = 'paid';
+    } else if (row.status === 'confirmed' || row.status === 'shipped') {
+      localStatus = 'partial'; // best effort local mapping
+    } else if (row.status === 'cancelled') {
+      localStatus = 'cancelled';
+    } else if (row.status === 'paid' || row.status === 'partial') {
+      localStatus = row.status;
+    }
+    return {
+      id: row.id,
+      supplier_id: row.supplier_id,
+      order_date: row.order_date,
+      expected_date: row.expected_delivery_date || row.expected_date || null,
+      total_amount: row.total_amount || 0,
+      paid_amount: row.paid_amount || 0,
+      status: localStatus,
+      delivery_status: row.delivery_status || 'pending',
+      notes: row.notes || null,
+      is_archived: row.is_archived ? 1 : 0
+    };
+  },
+  order_items: (row) => ({
+    id: row.id,
+    order_id: row.order_id,
+    inventory_item_id: row.inventory_id || row.inventory_item_id || null,
+    description: row.description || null,
+    quantity: row.quantity || 1,
+    delivered_quantity: row.delivered_quantity || 0,
+    unit_price: row.unit_price || 0,
+    total: row.total_price || row.total || 0,
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  payments: (row) => ({
+    id: row.id,
+    order_id: row.order_id,
+    amount: row.amount || 0,
+    payment_date: row.payment_date,
+    method: row.payment_method || row.method || 'cash',
+    reference: row.reference || null,
+    notes: row.notes || null,
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  usage_logs: (row) => ({
+    id: String(row.id),
+    inventory_item_id: row.inventory_item_id || row.inventory_id || null,
+    item_name: row.item_name || 'Unknown Item',
+    quantity_changed: row.quantity_changed || 0,
+    previous_quantity: row.previous_quantity || 0,
+    new_quantity: row.new_quantity || 0,
+    user_id: row.user_id || null,
+    authorized_by_name: row.authorized_by_name || null,
+    authorized_by_title: row.authorized_by_title || null,
+    truck_id: row.truck_id || null,
+    transaction_type: row.transaction_type || 'OUT',
+    timestamp: row.timestamp || new Date().toISOString(),
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  categories: (row) => ({
+    id: row.id,
+    name_en: row.name_en,
+    name_fr: row.name_fr,
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  suppliers: (row) => ({
+    id: row.id,
+    name: row.name,
+    contact: row.contact || row.contact_person || null,
+    phone: row.phone || null,
+    email: row.email || null,
+    address: row.address || null,
+    status: row.status || 'active',
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  trucks: (row) => ({
+    id: row.id,
+    plate_number: row.plate_number,
+    model: row.model || null,
+    capacity: row.capacity || 0,
+    status: row.status || 'active',
+    latitude: row.latitude || null,
+    longitude: row.longitude || null,
+    last_location_update: row.last_location_update || null,
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  notifications: (row) => ({
+    id: row.id,
+    message: row.message,
+    type: row.type,
+    created_at: row.created_at,
+    is_read: row.is_read ? 1 : 0,
+    is_archived: row.is_archived ? 1 : 0
+  })
+};
+
 let lastOnlineCheck = 0;
 let cachedOnlineStatus = true;
 
@@ -138,24 +355,21 @@ router.post('/push', async (req, res) => {
           const payloads = items.map(it => {
             let data;
             try { data = JSON.parse(it.data); } catch(e) { return null; }
-            if (!data || !data.id) return null;
-            
-            // Delete local-only fields
-            delete data._sync_error;
-            
-            // Fix usage_logs & audit_logs user_id (nullify if integer, as cloud expects UUID)
-            if ((table === 'usage_logs' || table === 'audit_logs') && typeof data.user_id === 'number') {
-              data.user_id = null;
+            if (!data) return null;
+            if (table !== 'usage_logs' && !data.id) return null;
+
+            const mapper = MAPPERS_PUSH[table];
+            if (mapper) {
+              try {
+                return mapper(data);
+              } catch (e) {
+                console.error(`[Sync] Mapping error for table ${table}:`, e);
+                return null;
+              }
             }
-
-            // Ensure SQLite integers are sent as true booleans to Postgres
-            if ('is_archived' in data) data.is_archived = !!data.is_archived;
-            if ('is_read' in data) data.is_read = !!data.is_read;
-            if ('synced' in data) delete data.synced; // queue artifact
             
-            // Fill required non-null fields just in case local data is missing it
-            if (table === 'inventory' && !data.category) data.category = 'General';
-
+            // Fallback for tables without explicit mapper
+            delete data._sync_error;
             return data;
           }).filter(Boolean);
           
@@ -165,7 +379,8 @@ router.post('/push', async (req, res) => {
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
           const validPayloads = [];
           for (const payload of payloads) {
-             if (!uuidRegex.test(payload.id)) {
+             // usage_logs doesn't require uuid checking if we omit id during insert
+             if (table !== 'usage_logs' && !uuidRegex.test(payload.id)) {
                 console.warn(`[Sync] WARNING: Holding back invalid UUID from Push batch (pending repair) - ID: ${payload.id}`);
                 try {
                   db.prepare('UPDATE sync_queue SET _sync_error = ? WHERE record_id = ?').run('Invalid UUID. Awaiting local repair script.', payload.id);
@@ -177,36 +392,79 @@ router.post('/push', async (req, res) => {
 
           if (validPayloads.length === 0) continue;
           
-          const uniquePayloads = Object.values(validPayloads.reduce((acc, curr) => {
-            acc[curr.id] = curr;
-            return acc;
-          }, {}));
+          // Deduplicate by id (except usage_logs which has no client id pushed)
+          let uniquePayloads;
+          if (table === 'usage_logs') {
+             uniquePayloads = validPayloads;
+          } else {
+             uniquePayloads = Object.values(validPayloads.reduce((acc, curr) => {
+               acc[curr.id] = curr;
+               return acc;
+             }, {}));
+          }
 
           // FAILSAFE: Supabase enforces strict Foreign Keys. 
+          if (table === 'orders') {
+             const dummySups = [];
+             for (const it of uniquePayloads) {
+               if (it.supplier_id) {
+                 const local = db.prepare('SELECT name FROM suppliers WHERE id = ?').get(it.supplier_id);
+                 dummySups.push({
+                   id: it.supplier_id,
+                   name: local?.name || 'Recovered Supplier',
+                   status: 'active'
+                 });
+               }
+             }
+             if (dummySups.length > 0) {
+               // Deduplicate dummy suppliers by id
+               const uniqueSups = Object.values(dummySups.reduce((acc, curr) => {
+                 acc[curr.id] = curr;
+                 return acc;
+               }, {}));
+               await supabase.from('suppliers').upsert(uniqueSups, { onConflict: 'id' });
+             }
+          }
+
           if (table === 'order_items') {
-             const dummyInvs = uniquePayloads.map(it => {
-                 // Try to find the local item to use its REAL name/category if possible
-                 const local = db.prepare('SELECT name, category FROM inventory WHERE id = ?').get(it.inventory_id);
-                 return {
-                   id: it.inventory_id,
-                   name: local?.name || 'Recovered Item',
-                   reference: String(it.inventory_id).substring(0, 8),
-                   category: local?.category || 'General',
-                   quantity: 0,
-                   min_quantity: 0,
-                   unit_price: it.unit_price || 0,
-                   supplier: null,
-                   location: 'Main Store'
-                 };
-             });
+             // 1. Provision unlinked fallback item in cloud
+             const fallbackItem = {
+               id: '00000000-0000-0000-0000-000000000000',
+               name: 'Unlinked Fallback Item',
+               reference: 'UNLINKED',
+               category: 'General',
+               quantity: 0,
+               min_quantity: 0,
+               unit_price: 0,
+               location: 'Main Store'
+             };
+             await supabase.from('inventory').upsert([fallbackItem], { onConflict: 'id' });
+
+             // 2. Also map any missing inventories to this fallback, and upsert them so foreign key doesn't fail
+             const dummyInvs = uniquePayloads
+               .filter(it => it.inventory_id && it.inventory_id !== '00000000-0000-0000-0000-000000000000')
+               .map(it => {
+                  const local = db.prepare('SELECT name, category FROM inventory WHERE id = ?').get(it.inventory_id);
+                  return {
+                    id: it.inventory_id,
+                    name: local?.name || 'Recovered Item',
+                    reference: String(it.inventory_id).substring(0, 8),
+                    category: local?.category || 'General',
+                    quantity: 0,
+                    min_quantity: 0,
+                    unit_price: it.unit_price || 0,
+                    supplier: null,
+                    location: 'Main Store'
+                  };
+               });
              if (dummyInvs.length > 0) {
-                 await supabase.from('inventory').upsert(dummyInvs, { onConflict: 'id' });
+                  await supabase.from('inventory').upsert(dummyInvs, { onConflict: 'id' });
              }
           }
           
           const { error } = await supabase
             .from(table)
-            .upsert(uniquePayloads, { onConflict: 'id' });
+            .upsert(uniquePayloads, table === 'usage_logs' ? undefined : { onConflict: 'id' });
 
           if (error) {
             console.error(`[Sync] Batch Push failed for ${table}:`, error.message);
@@ -363,33 +621,33 @@ router.get('/pull', async (req, res) => {
         const batchOps = [];
 
         for (const row of remoteData) {
-          // MAP CLOUD TO LOCAL SCHEMA 
-          // With the unified schema upgrade, cloud exactly matches local.
-          if (table === 'inventory') {
-            if (!row.category) row.category = 'General';
-            if (row.price === undefined || row.price === null) row.price = 0;
-            if (row.quantity === undefined || row.quantity === null) row.quantity = 0;
-          } else if (table === 'order_items') {
-            if (row.quantity === undefined || row.quantity === null) row.quantity = 1;
-            if (row.unit_price === undefined || row.unit_price === null) row.unit_price = 0;
-            if (row.total === undefined || row.total === null) row.total = row.quantity * row.unit_price;
-          } else if (table === 'payments') {
+          let mappedRow = row;
+          const mapper = MAPPERS_PULL[table];
+          if (mapper) {
+            try {
+              mappedRow = mapper(row);
+            } catch (e) {
+              console.error(`[Sync] Pull mapping error for table ${table}:`, e);
+              continue;
+            }
+          }
+
+          if (table === 'payments') {
             // Duplicate prevention for payments
-            if (row.order_id && row.amount) {
-              const existing = db.prepare('SELECT id FROM payments WHERE order_id = ? AND amount = ? AND (reference = ? OR (reference IS NULL AND ? IS NULL))').get(row.order_id, row.amount, row.reference || null, row.reference || null);
-              if (existing && existing.id !== row.id) {
-                console.log(`[Sync] Skipping duplicate payment pull: ${row.id} (already exists as ${existing.id})`);
+            if (mappedRow.order_id && mappedRow.amount) {
+              const existing = db.prepare('SELECT id FROM payments WHERE order_id = ? AND amount = ? AND (reference = ? OR (reference IS NULL AND ? IS NULL))').get(mappedRow.order_id, mappedRow.amount, mappedRow.reference || null, mappedRow.reference || null);
+              if (existing && existing.id !== mappedRow.id) {
+                console.log(`[Sync] Skipping duplicate payment pull: ${mappedRow.id} (already exists as ${existing.id})`);
                 continue; 
               }
             }
           }
 
-          
-          const filteredKeys = Object.keys(row).filter(k => localColumns.has(k));
+          const filteredKeys = Object.keys(mappedRow).filter(k => localColumns.has(k));
           if (filteredKeys.length === 0) continue;
 
           const placeholders = filteredKeys.map(() => '?').join(', ');
-          const values = filteredKeys.map(k => row[k]);
+          const values = filteredKeys.map(k => mappedRow[k]);
 
           // Accumulate for batch transaction
           batchOps.push({ sql: `INSERT OR REPLACE INTO ${table} (${filteredKeys.join(', ')}) VALUES (${placeholders})`, params: values });

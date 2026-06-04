@@ -82,10 +82,11 @@ def map_suppliers(d):
     return {
         'id': d['id'],
         'name': d.get('name') or 'Unknown',
-        'contact_person': d.get('contact') or None,
+        'contact': d.get('contact') or d.get('contact_person') or None,
         'email': d.get('email') or None,
         'phone': d.get('phone') or None,
         'address': d.get('address') or None,
+        'status': d.get('status') or 'active',
     }
 
 def map_inventory(d):
@@ -93,28 +94,38 @@ def map_inventory(d):
         'id': d['id'],
         'name': d.get('name') or 'Unnamed Item',
         'reference': (d.get('id') or '')[:8],
+        'category': d.get('category') or 'General',
         'quantity': d.get('quantity') or 0,
-        'min_stock': d.get('min_stock') or 0,
+        'min_quantity': d.get('min_stock') or d.get('min_quantity') or 0,
         'unit_price': d.get('price') or d.get('unit_price') or 0,
-        'supplier_id': d.get('supplier') or None,
+        'supplier': d.get('supplier') or None,
         'location': d.get('location') or 'Main Store',
         'category_id': d.get('category_id') or None,
     }
 
 def map_orders(d):
-    valid_statuses = {'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'}
+    status = d.get('status')
+    delivery_status = d.get('delivery_status') or 'pending'
+    remote_status = 'pending'
+    if status == 'paid':
+        remote_status = 'delivered' if delivery_status == 'delivered' else 'confirmed'
+    elif status == 'partial':
+        remote_status = 'confirmed'
+    elif status == 'cancelled':
+        remote_status = 'cancelled'
+    elif status in {'pending', 'confirmed', 'shipped', 'delivered', 'cancelled'}:
+        remote_status = status
+
     return {
         'id': d['id'],
         'order_number': d.get('order_number') or f'ORD-{(d.get("id") or "")[:8].upper()}',
         'supplier_id': d.get('supplier_id') or None,
         'order_date': d.get('order_date') or now_iso(),
-        'expected_delivery_date': d.get('expected_date') or None,
-        'status': d.get('status') if d.get('status') in valid_statuses else 'pending',
+        'expected_delivery_date': d.get('expected_date') or d.get('expected_delivery_date') or None,
+        'status': remote_status,
         'total_amount': d.get('total_amount') or 0,
         'notes': d.get('notes') or None,
-        'delivery_status': d.get('delivery_status') or 'pending',
-        'actual_delivery_date': d.get('actual_delivery_date') or None,
-        'paid_amount': d.get('paid_amount') or 0,
+        'delivery_status': delivery_status,
     }
 
 def map_order_items(d):
@@ -123,10 +134,10 @@ def map_order_items(d):
     return {
         'id': d['id'],
         'order_id': d.get('order_id'),
-        'inventory_id': d.get('inventory_item_id') or d.get('inventory_id') or None,
+        'inventory_id': d.get('inventory_item_id') or d.get('inventory_id') or '00000000-0000-0000-0000-000000000000',
         'quantity': q,
         'unit_price': p,
-        'total_price': d.get('total') or (q * p),
+        'total_price': d.get('total') or d.get('total_price') or (q * p),
         'description': d.get('description') or None,
         'delivered_quantity': d.get('delivered_quantity') or 0,
     }
@@ -138,23 +149,21 @@ def map_payments(d):
         'order_id': d.get('order_id'),
         'payment_date': d.get('payment_date') or now_iso(),
         'amount': d.get('amount') or 0,
-        'payment_method': method_map.get(d.get('method') or '', 'cash'),
+        'payment_method': method_map.get(d.get('method') or d.get('payment_method') or '', 'cash'),
         'reference': d.get('reference') or None,
         'notes': d.get('notes') or None,
     }
 
 def map_usage_logs(d):
-    # user_id must be UUID or null — integer IDs are local-only
     uid = d.get('user_id')
     return {
-        'id': d['id'],
-        'inventory_id': d.get('inventory_item_id') or d.get('inventory_id'),
+        'inventory_item_id': d.get('inventory_item_id') or d.get('inventory_id'),
         'item_name': d.get('item_name') or 'Unknown Item',
         'quantity_changed': d.get('quantity_changed') or 0,
         'previous_quantity': d.get('previous_quantity') or 0,
         'new_quantity': d.get('new_quantity') or 0,
         'transaction_type': d.get('transaction_type') or 'OUT',
-        'user_id': uid if is_uuid(uid) else None,    # <-- key fix
+        'user_id': uid if isinstance(uid, int) else None,
         'authorized_by_name': d.get('authorized_by_name') or None,
         'authorized_by_title': d.get('authorized_by_title') or None,
         'truck_id': d.get('truck_id') or None,
@@ -242,7 +251,7 @@ for table in PUSH_ORDER:
                     continue
                 if not data or not data.get('id'):
                     continue
-                if not is_uuid(data['id']):
+                if table != 'usage_logs' and not is_uuid(data['id']):
                     print(f'[Sync]   SKIP non-UUID id={data["id"]} in {table}')
                     continue
                 mapped = mapper(data)
@@ -256,8 +265,69 @@ for table in PUSH_ORDER:
             # Deduplicate by id
             seen = {}
             for p in payloads:
-                seen[p['id']] = p
+                if 'id' in p:
+                    seen[p['id']] = p
+                else:
+                    seen[str(len(seen))] = p
             unique = list(seen.values())
+
+            # Failsafe for foreign keys
+            if table == 'orders':
+                dummy_sups = []
+                for it in unique:
+                    if it.get('supplier_id'):
+                        local = conn.execute("SELECT name FROM suppliers WHERE id=?", (it['supplier_id'],)).fetchone()
+                        dummy_sups.append({
+                            'id': it['supplier_id'],
+                            'name': local[0] if local and local[0] else 'Recovered Supplier',
+                            'status': 'active'
+                        })
+                if dummy_sups:
+                    seen_sups = {}
+                    for s in dummy_sups:
+                        seen_sups[s['id']] = s
+                    sups_list = list(seen_sups.values())
+                    print(f'[Sync] Failsafe: Upserting {len(sups_list)} suppliers to cloud...')
+                    ok, err = supabase_upsert('suppliers', sups_list)
+                    print(f'[Sync] Failsafe: Suppliers upsert result: ok={ok}, error={err}')
+            elif table == 'order_items':
+                # provision unlinked fallback item in cloud
+                fallback_item = {
+                    'id': '00000000-0000-0000-0000-000000000000',
+                    'name': 'Unlinked Fallback Item',
+                    'reference': 'UNLINKED',
+                    'category': 'General',
+                    'quantity': 0,
+                    'min_quantity': 0,
+                    'unit_price': 0,
+                    'location': 'Main Store'
+                }
+                print('[Sync] Failsafe: Upserting unlinked fallback inventory to cloud...')
+                supabase_upsert('inventory', [fallback_item])
+
+                dummy_invs = []
+                for it in unique:
+                    if it.get('inventory_id') and it['inventory_id'] != '00000000-0000-0000-0000-000000000000':
+                        local = conn.execute("SELECT name, category FROM inventory WHERE id=?", (it['inventory_id'],)).fetchone()
+                        dummy_invs.append({
+                            'id': it['inventory_id'],
+                            'name': local[0] if local and local[0] else 'Recovered Item',
+                            'reference': it['inventory_id'][:8],
+                            'category': local[1] if local and local[1] else 'General',
+                            'quantity': 0,
+                            'min_quantity': 0,
+                            'unit_price': it.get('unit_price') or 0,
+                            'supplier': None,
+                            'location': 'Main Store'
+                        })
+                if dummy_invs:
+                    seen_invs = {}
+                    for iv in dummy_invs:
+                        seen_invs[iv['id']] = iv
+                    invs_list = list(seen_invs.values())
+                    print(f'[Sync] Failsafe: Upserting {len(invs_list)} dummy inventories to cloud...')
+                    ok, err = supabase_upsert('inventory', invs_list)
+                    print(f'[Sync] Failsafe: Inventories upsert result: ok={ok}, error={err}')
 
             print(f'[Sync] Pushing {table}:{action} — {len(unique)} rows...', end='', flush=True)
             ok, err = supabase_upsert(table, unique)
