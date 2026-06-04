@@ -46,7 +46,8 @@ const Settings: React.FC = () => {
     default_map_lat: '9.509167',
     default_map_lng: '-13.712222',
     ikike_cron_frequency: '15',
-    ohada_compliance: 'false'
+    ohada_compliance: 'false',
+    print_language: 'both'
   });
   const [saving, setSaving] = useState(false);
   const [diagLoading, setDiagLoading] = useState(false);
@@ -111,7 +112,8 @@ const Settings: React.FC = () => {
         default_map_lat: data.default_map_lat || '9.509167',
         default_map_lng: data.default_map_lng || '-13.712222',
         ikike_cron_frequency: data.ikike_cron_frequency || '15',
-        ohada_compliance: data.ohada_compliance !== undefined ? String(data.ohada_compliance) : 'false'
+        ohada_compliance: data.ohada_compliance !== undefined ? String(data.ohada_compliance) : 'false',
+        print_language: data.print_language || 'both'
       });
     } catch (error) { console.error('Error fetching settings:', error); }
   };
@@ -315,6 +317,19 @@ const Settings: React.FC = () => {
                 </div>
               )}
 
+              <div className="p-4 border border-gray-100 rounded-xl bg-gray-50/50 space-y-2">
+                <label className="block text-sm font-bold text-gray-900">{t('print_language_setting')}</label>
+                <p className="text-xs text-gray-500">{t('print_language_desc')}</p>
+                <select
+                  value={settings.print_language}
+                  onChange={e => setSettings({ ...settings, print_language: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="both">{t('print_language_both')}</option>
+                  <option value="en">{t('print_language_en')}</option>
+                  <option value="fr">{t('print_language_fr')}</option>
+                </select>
+              </div>
               <div className="bg-orange-50 border border-orange-200 p-5 rounded-xl space-y-4">
                 <div className="flex items-start gap-3 mb-2">
                   <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0" />

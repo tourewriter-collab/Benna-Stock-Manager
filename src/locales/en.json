@@ -550,5 +550,11 @@
   "hr_import_skipped": "skipped",
   "hr_import_failed": "Import failed",
   "hr_import_template_hint": "Use the Template button to download a ready-to-fill spreadsheet.",
-  "hr_import_columns": "Supported columns: Name, Role, Department, Email, Phone, Salary, Hire Date, Status, Notes"
+  "hr_import_columns": "Supported columns: Name, Role, Department, Email, Phone, Salary, Hire Date, Status, Notes",
+  "print_language_setting": "Print Language Layout",
+  "print_language_both": "Bilingual (English & French)",
+  "print_language_en": "English Only",
+  "print_language_fr": "French Only",
+  "print_language_desc": "Choose how labels are printed on purchase orders, tickets, and other documents."
 }
+

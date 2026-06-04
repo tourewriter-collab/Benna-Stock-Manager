@@ -267,17 +267,43 @@ export default function TruckGranite() {
     setTripFormData(newFormData);
   };
 
-  const printDeliveryTicket = (trip: GraniteDelivery) => {
+  const printDeliveryTicket = async (trip: GraniteDelivery) => {
+    // Fetch print language preference from settings
+    let pl = 'both';
+    try {
+      const settings = await fetchApi('/settings');
+      pl = settings?.print_language || 'both';
+    } catch { /* default to both */ }
+
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
     const truck = trucks.find(t => t.id === trip.truck_id) || { plate_number: trip.truck_plate || 'N/A' };
     const volume = trip.volume_m3 ? trip.volume_m3.toFixed(2) : (trip.quantity / 2.6).toFixed(2);
 
+    // Label helper based on print language setting
+    const labels: Record<string, Record<string, string>> = {
+      title: { en: 'DELIVERY TICKET', fr: 'BON DE LIVRAISON', both: 'BON DE LIVRAISON / DELIVERY TICKET' },
+      date: { en: 'Date', fr: 'Date', both: 'Date' },
+      client: { en: 'Client', fr: 'Client', both: 'Client' },
+      truck_label: { en: 'Truck (Carrier)', fr: 'Transporteur (Camion)', both: 'Transporteur (Camion) / Truck' },
+      driver: { en: 'Driver', fr: 'Chauffeur', both: 'Chauffeur / Driver' },
+      granite: { en: 'Granite Type', fr: 'Type de Granite', both: 'Type de Granite / Granite Type' },
+      weighing: { en: 'Weighing Details (Weighbridge)', fr: 'Détails de Pesée (Pont Bascule)', both: 'Détails de Pesée / Weighing Details' },
+      tare: { en: 'Empty Weight (Tare)', fr: 'Poids à vide (Tare)', both: 'Poids à vide (Tare) / Empty Weight' },
+      gross: { en: 'Loaded Weight (Gross)', fr: 'Poids chargé (Brut)', both: 'Poids chargé (Brut) / Loaded Weight' },
+      net: { en: 'Net Weight (Quantity)', fr: 'Poids net (Quantité)', both: 'Poids net (Quantité) / Net Weight' },
+      volume_label: { en: 'Estimated Volume', fr: 'Volume estimé', both: 'Volume estimé / Est. Volume' },
+      sig_weighing: { en: 'Weighing / Dispatch Visa', fr: 'Visa Pesée / Expédition', both: 'Visa Pesée / Expédition' },
+      sig_driver: { en: 'Driver Visa', fr: 'Visa Chauffeur', both: 'Visa Chauffeur / Driver' },
+      sig_client: { en: 'Client / Receiving Visa', fr: 'Visa Client / Réception', both: 'Visa Client / Réception' },
+    };
+    const L = (key: string) => labels[key]?.[pl] || labels[key]?.['both'] || key;
+
     printWindow.document.write(`
       <html>
         <head>
-          <title>Bon de Livraison - ${trip.id}</title>
+          <title>${L('title')} - ${trip.id}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
             .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
@@ -293,30 +319,30 @@ export default function TruckGranite() {
         </head>
         <body>
           <div class="header">
-            <p class="title">BON DE LIVRAISON / DELIVERY TICKET</p>
+            <p class="title">${L('title')}</p>
             <p class="subtitle">ID: ${trip.id}</p>
           </div>
           
           <div class="section">
-            <div class="row"><strong>Date:</strong> <span>${new Date(trip.date).toLocaleDateString()}</span></div>
-            <div class="row"><strong>Client:</strong> <span>${trip.client_name || 'N/A'}</span></div>
-            <div class="row"><strong>Transporteur (Camion):</strong> <span>${truck.plate_number}</span></div>
-            <div class="row"><strong>Chauffeur:</strong> <span>${trip.driver_name}</span></div>
-            <div class="row"><strong>Type de Granite:</strong> <span>${trip.granite_type}</span></div>
+            <div class="row"><strong>${L('date')}:</strong> <span>${new Date(trip.date).toLocaleDateString()}</span></div>
+            <div class="row"><strong>${L('client')}:</strong> <span>${trip.client_name || 'N/A'}</span></div>
+            <div class="row"><strong>${L('truck_label')}:</strong> <span>${truck.plate_number}</span></div>
+            <div class="row"><strong>${L('driver')}:</strong> <span>${trip.driver_name}</span></div>
+            <div class="row"><strong>${L('granite')}:</strong> <span>${trip.granite_type}</span></div>
           </div>
           
           <div class="section">
-            <div class="section-title">Détails de Pesée (Pont Bascule)</div>
-            <div class="row"><strong>Poids à vide (Tare):</strong> <span>${trip.empty_weight ? trip.empty_weight + ' Tonnes' : 'N/A'}</span></div>
-            <div class="row"><strong>Poids chargé (Brut):</strong> <span>${trip.loaded_weight ? trip.loaded_weight + ' Tonnes' : 'N/A'}</span></div>
-            <div class="row"><strong>Poids net (Quantité):</strong> <span>${trip.quantity} Tonnes</span></div>
-            <div class="row"><strong>Volume estimé:</strong> <span>${volume} m³</span></div>
+            <div class="section-title">${L('weighing')}</div>
+            <div class="row"><strong>${L('tare')}:</strong> <span>${trip.empty_weight ? trip.empty_weight + ' Tonnes' : 'N/A'}</span></div>
+            <div class="row"><strong>${L('gross')}:</strong> <span>${trip.loaded_weight ? trip.loaded_weight + ' Tonnes' : 'N/A'}</span></div>
+            <div class="row"><strong>${L('net')}:</strong> <span>${trip.quantity} Tonnes</span></div>
+            <div class="row"><strong>${L('volume_label')}:</strong> <span>${volume} m³</span></div>
           </div>
           
           <div class="footer">
-            <div class="signature">Visa Pesée / Expédition</div>
-            <div class="signature">Visa Chauffeur</div>
-            <div class="signature">Visa Client / Réception</div>
+            <div class="signature">${L('sig_weighing')}</div>
+            <div class="signature">${L('sig_driver')}</div>
+            <div class="signature">${L('sig_client')}</div>
           </div>
           
           <script>

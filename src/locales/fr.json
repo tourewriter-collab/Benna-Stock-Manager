@@ -546,5 +546,10 @@
   "hr_import_skipped": "ignoré(s)",
   "hr_import_failed": "Échec de l'importation",
   "hr_import_template_hint": "Utilisez le bouton Modèle pour télécharger un tableau prêt à remplir.",
-  "hr_import_columns": "Colonnes acceptées : Nom, Poste, Département, Email, Téléphone, Salaire, Date d'embauche, Statut, Notes"
+  "hr_import_columns": "Colonnes acceptées : Nom, Poste, Département, Email, Téléphone, Salaire, Date d'embauche, Statut, Notes",
+  "print_language_setting": "Langue d'impression",
+  "print_language_both": "Bilingue (Anglais & Français)",
+  "print_language_en": "Anglais uniquement",
+  "print_language_fr": "Français uniquement",
+  "print_language_desc": "Choisissez comment les libellés sont imprimés sur les bons de commande, les tickets, et autres documents."
 }
