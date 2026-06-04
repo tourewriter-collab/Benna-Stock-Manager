@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchApi } from '../lib/api';
-import { Users, UserPlus, FileText, BrainCircuit, Search, Plus, Briefcase, Upload, Cpu } from 'lucide-react';
+import { Users, UserPlus, FileText, BrainCircuit, Search, Plus, Briefcase, Upload, Cpu, FileSpreadsheet, CheckCircle, AlertTriangle, X } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -62,6 +62,10 @@ const HumanResources: React.FC = () => {
   // New Staff Form State
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [newStaff, setNewStaff] = useState({ name: '', email: '', phone: '', role: '', department: '', salary: 0, hire_date: new Date().toISOString().split('T')[0] });
+
+  // Excel Import State
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
 
   // New Applicant Form State
   const [showAddApplicant, setShowAddApplicant] = useState(false);
@@ -140,6 +144,50 @@ const HumanResources: React.FC = () => {
     } finally {
       setIsScreening(false);
     }
+  };
+
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset target so same file can be re-selected
+    e.target.value = '';
+
+    setIsImporting(true);
+    setImportResult(null);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = (event.target?.result as string).split(',')[1];
+        try {
+          const res = await fetchApi('/hr/employees/import', {
+            method: 'POST',
+            body: JSON.stringify({ fileBase64: base64 }),
+          });
+          setImportResult({ imported: res.imported, skipped: res.skipped, errors: res.errors || [] });
+          if (res.imported > 0) fetchData();
+        } catch (err: any) {
+          setImportResult({ imported: 0, skipped: 0, errors: [err.message || t('hr_import_failed', 'Import failed')] });
+        } finally {
+          setIsImporting(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setIsImporting(false);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    // Build a minimal CSV template users can open in Excel
+    const header = 'Name,Role,Department,Email,Phone,Salary,Hire Date,Status,Notes';
+    const example = 'Jane Doe,Accountant,Finance,jane@example.com,+237600000000,350000,2024-01-15,active,';
+    const blob = new Blob([header + '\n' + example], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'benna_staff_import_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleEnrollEmployee = async (employeeId: string, deviceEnrollId: string) => {
@@ -241,19 +289,83 @@ const HumanResources: React.FC = () => {
             {/* ── STAFF TAB ── */}
             {activeTab === 'staff' && (
               <div className="space-y-6">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap justify-between items-center gap-3">
                   <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-indigo-600" />
                     {t('hr_active_employees', 'Active Employees')}
+                    <span className="ml-1 text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{employees.length}</span>
                   </h2>
-                  <button 
-                    onClick={() => setShowAddStaff(!showAddStaff)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    {showAddStaff ? t('hr_cancel', 'Cancel') : t('hr_add_employee', 'Add Employee')}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Download Template */}
+                    <button
+                      onClick={handleDownloadTemplate}
+                      className="text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100"
+                      title={t('hr_download_template', 'Download import template')}
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      {t('hr_download_template', 'Template')}
+                    </button>
+
+                    {/* Excel Import */}
+                    <label className={`cursor-pointer flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm border ${
+                      isImporting
+                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700'
+                    }`}>
+                      {isImporting ? (
+                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{t('hr_importing', 'Importing...')}</>
+                      ) : (
+                        <><FileSpreadsheet className="w-4 h-4" />{t('hr_import_excel', 'Import Excel')}</>
+                      )}
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={handleExcelImport}
+                        disabled={isImporting}
+                        className="hidden"
+                      />
+                    </label>
+
+                    {/* Manual Add */}
+                    <button 
+                      onClick={() => { setShowAddStaff(!showAddStaff); setImportResult(null); }}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      {showAddStaff ? t('hr_cancel', 'Cancel') : t('hr_add_employee', 'Add Employee')}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Import Result Banner */}
+                {importResult && (
+                  <div className={`rounded-xl border p-4 flex items-start gap-3 ${
+                    importResult.errors.length > 0 || importResult.imported === 0
+                      ? 'bg-amber-50 border-amber-200'
+                      : 'bg-emerald-50 border-emerald-200'
+                  }`}>
+                    {importResult.imported > 0 && importResult.errors.length === 0 ? (
+                      <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 text-sm">
+                      <p className="font-bold text-gray-800">
+                        {t('hr_import_result', 'Import Complete')} — {importResult.imported} {t('hr_import_added', 'added')}, {importResult.skipped} {t('hr_import_skipped', 'skipped')}
+                      </p>
+                      {importResult.errors.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {importResult.errors.map((err, i) => (
+                            <li key={i} className="text-amber-700 text-xs font-mono">{err}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
 
                 {showAddStaff && (
                   <form onSubmit={handleAddStaff} className="bg-white p-6 rounded-xl border border-indigo-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">

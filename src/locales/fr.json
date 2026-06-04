@@ -537,5 +537,14 @@
   "break_out": "Début de pause",
   "online_push": "Push en ligne",
   "usb_import": "Import USB",
-  "manual_entry": "Saisie manuelle"
+  "manual_entry": "Saisie manuelle",
+  "hr_import_excel": "Importer Excel",
+  "hr_importing": "Importation...",
+  "hr_download_template": "Modèle",
+  "hr_import_result": "Importation terminée",
+  "hr_import_added": "ajouté(s)",
+  "hr_import_skipped": "ignoré(s)",
+  "hr_import_failed": "Échec de l'importation",
+  "hr_import_template_hint": "Utilisez le bouton Modèle pour télécharger un tableau prêt à remplir.",
+  "hr_import_columns": "Colonnes acceptées : Nom, Poste, Département, Email, Téléphone, Salaire, Date d'embauche, Statut, Notes"
 }

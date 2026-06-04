@@ -3,6 +3,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import db from '../database.js';
 import crypto from 'crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import ExcelJS from 'exceljs';
 
 const router = express.Router();
 
@@ -61,6 +62,149 @@ router.get('/employees', authenticateToken, (req, res) => {
     res.status(500).json({ error: 'Failed to fetch employees' });
   }
 });
+
+// ── EXCEL BULK IMPORT EMPLOYEES ──
+router.post('/employees/import', authenticateToken, async (req, res) => {
+  try {
+    const { fileBase64 } = req.body;
+    if (!fileBase64) {
+      return res.status(400).json({ error: 'No file data provided.' });
+    }
+
+    // Decode the base64 Excel file into a Buffer
+    const buffer = Buffer.from(fileBase64, 'base64');
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) {
+      return res.status(400).json({ error: 'The Excel file appears to be empty or has no sheets.' });
+    }
+
+    // Build a flexible header map from row 1
+    // Supports English and French column headers (case-insensitive)
+    const COLUMN_ALIASES = {
+      name:               ['name', 'nom', 'full name', 'nom complet', 'employee name', 'nom de l\'employé'],
+      role:               ['role', 'poste', 'job title', 'title', 'titre', 'function', 'fonction'],
+      department:         ['department', 'département', 'dept', 'service', 'division'],
+      email:              ['email', 'e-mail', 'mail', 'courriel'],
+      phone:              ['phone', 'téléphone', 'telephone', 'tel', 'mobile', 'portable'],
+      salary:             ['salary', 'salaire', 'wage', 'pay', 'rémunération', 'remuneration'],
+      hire_date:          ['hire date', 'hire_date', 'start date', 'date d\'embauche', 'date embauche', 'joining date'],
+      status:             ['status', 'statut', 'état', 'etat'],
+      performance_notes:  ['notes', 'performance notes', 'notes de performance', 'comments', 'commentaires'],
+    };
+
+    // Resolve the header row to a column index map
+    const headerRow = worksheet.getRow(1);
+    const colMap = {}; // field -> 1-based col index
+    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+      const headerText = String(cell.value || '').trim().toLowerCase();
+      for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+        if (aliases.includes(headerText) && !colMap[field]) {
+          colMap[field] = colNumber;
+        }
+      }
+    });
+
+    if (!colMap.name) {
+      return res.status(400).json({
+        error: 'Could not find a "Name" / "Nom" column in the first row. Please check your Excel file against the template.'
+      });
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    let imported = 0;
+    let skipped  = 0;
+    const errors = [];
+
+    const insertStmt = db.prepare(`
+      INSERT INTO employees (
+        id, name, email, phone, role, department, salary, hire_date, status, performance_notes, resume_text, is_archived, sync_status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 'pending')
+    `);
+
+    const auditStmt = db.prepare(`
+      INSERT INTO audit_logs (id, user_id, action, table_name, record_id, new_values, sync_status)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending')
+    `);
+
+    const getValue = (row, field) => {
+      if (!colMap[field]) return null;
+      const val = row.getCell(colMap[field]).value;
+      if (val === null || val === undefined) return null;
+      // Handle rich text objects from Excel
+      if (typeof val === 'object' && val.richText) {
+        return val.richText.map(r => r.text).join('').trim() || null;
+      }
+      return String(val).trim() || null;
+    };
+
+    db.transaction(() => {
+      // Start from row 2 (skip header)
+      worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+        if (rowNumber === 1) return; // skip header
+
+        try {
+          const name = getValue(row, 'name');
+          if (!name) { skipped++; return; } // Skip blank name rows
+
+          const role       = getValue(row, 'role')       || 'N/A';
+          const department = getValue(row, 'department') || 'N/A';
+          const email      = getValue(row, 'email');
+          const phone      = getValue(row, 'phone');
+          const notes      = getValue(row, 'performance_notes');
+          const statusVal  = getValue(row, 'status') || 'active';
+
+          // Parse salary — strip currency symbols
+          let salary = 0;
+          const rawSalary = getValue(row, 'salary');
+          if (rawSalary) {
+            const cleaned = rawSalary.replace(/[^0-9.,-]/g, '').replace(',', '.');
+            salary = parseFloat(cleaned) || 0;
+          }
+
+          // Parse hire date — Excel may return a JS Date object or a string
+          let hireDate = today;
+          const rawDate = colMap.hire_date ? row.getCell(colMap.hire_date).value : null;
+          if (rawDate instanceof Date && !isNaN(rawDate)) {
+            hireDate = rawDate.toISOString().split('T')[0];
+          } else if (rawDate) {
+            const parsed = new Date(String(rawDate));
+            if (!isNaN(parsed)) hireDate = parsed.toISOString().split('T')[0];
+          }
+
+          const id = crypto.randomUUID();
+          insertStmt.run(id, name, email, phone, role, department, salary, hireDate, statusVal, notes || '');
+
+          auditStmt.run(
+            crypto.randomUUID(), req.user.id, 'INSERT', 'employees', id,
+            JSON.stringify({ name, role, department, source: 'excel_import' })
+          );
+
+          imported++;
+        } catch (rowErr) {
+          errors.push(`Row ${rowNumber}: ${rowErr.message}`);
+          skipped++;
+        }
+      });
+    })();
+
+    return res.json({
+      success: true,
+      imported,
+      skipped,
+      errors: errors.slice(0, 10), // cap to 10 error messages
+    });
+
+  } catch (error) {
+    console.error('[HR] Excel import error:', error);
+    res.status(500).json({ error: 'Failed to process Excel file: ' + error.message });
+  }
+});
+
+
 
 // Add new employee
 router.post('/employees', authenticateToken, (req, res) => {

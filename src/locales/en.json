@@ -541,5 +541,14 @@
   "break_out": "Break Start",
   "online_push": "Online Push",
   "usb_import": "USB Import",
-  "manual_entry": "Manual Log"
+  "manual_entry": "Manual Log",
+  "hr_import_excel": "Import Excel",
+  "hr_importing": "Importing...",
+  "hr_download_template": "Template",
+  "hr_import_result": "Import Complete",
+  "hr_import_added": "added",
+  "hr_import_skipped": "skipped",
+  "hr_import_failed": "Import failed",
+  "hr_import_template_hint": "Use the Template button to download a ready-to-fill spreadsheet.",
+  "hr_import_columns": "Supported columns: Name, Role, Department, Email, Phone, Salary, Hire Date, Status, Notes"
 }
