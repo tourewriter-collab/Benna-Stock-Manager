@@ -555,6 +555,15 @@
   "print_language_both": "Bilingual (English & French)",
   "print_language_en": "English Only",
   "print_language_fr": "French Only",
-  "print_language_desc": "Choose how labels are printed on purchase orders, tickets, and other documents."
+  "print_language_desc": "Choose how labels are printed on purchase orders, tickets, and other documents.",
+  "clear_insights_setting": "Clear AI Insights History",
+  "clear_all": "All History",
+  "clear_24h": "Older than 24 Hours",
+  "clear_7d": "Older than 7 Days",
+  "clear_30d": "Older than 30 Days",
+  "confirm_clear_insights": "Are you sure you want to clear AI insights history? This action cannot be undone.",
+  "clear_insights_success": "Successfully cleared {{count}} items from history.",
+  "clearing": "Clearing...",
+  "clear_now_btn": "Clear Now"
 }
 

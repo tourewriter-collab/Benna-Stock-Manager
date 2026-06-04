@@ -109,6 +109,43 @@ const MAPPERS_PUSH = {
     message: d.message,
     type: d.type,
     is_read: !!d.is_read
+  }),
+  employees: (d) => ({
+    id: d.id,
+    name: d.name,
+    email: d.email || null,
+    phone: d.phone || null,
+    role: d.role,
+    department: d.department,
+    salary: d.salary || 0,
+    hire_date: d.hire_date,
+    status: d.status || 'active',
+    performance_notes: d.performance_notes || null,
+    resume_text: d.resume_text || null,
+    device_enroll_id: d.device_enroll_id || null
+  }),
+  applicants: (d) => ({
+    id: d.id,
+    name: d.name,
+    email: d.email,
+    phone: d.phone || null,
+    role_applied: d.role_applied,
+    experience_years: d.experience_years || 0,
+    skills: d.skills || null,
+    resume_text: d.resume_text || null,
+    ai_score: d.ai_score || 0,
+    ai_assessment: d.ai_assessment || null,
+    status: d.status || 'pending',
+    applied_date: d.applied_date || new Date().toISOString()
+  }),
+  attendance: (d) => ({
+    id: d.id,
+    employee_id: d.employee_id || null,
+    device_enroll_id: d.device_enroll_id,
+    timestamp: d.timestamp,
+    verification_method: d.verification_method || 'unknown',
+    direction: d.direction || 'unknown',
+    source: d.source || 'online_push'
   })
 };
 
@@ -221,6 +258,46 @@ const MAPPERS_PULL = {
     type: row.type,
     created_at: row.created_at,
     is_read: row.is_read ? 1 : 0,
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  employees: (row) => ({
+    id: row.id,
+    name: row.name,
+    email: row.email || null,
+    phone: row.phone || null,
+    role: row.role,
+    department: row.department,
+    salary: row.salary || 0,
+    hire_date: row.hire_date,
+    status: row.status || 'active',
+    performance_notes: row.performance_notes || null,
+    resume_text: row.resume_text || null,
+    device_enroll_id: row.device_enroll_id || null,
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  applicants: (row) => ({
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    phone: row.phone || null,
+    role_applied: row.role_applied,
+    experience_years: row.experience_years || 0,
+    skills: row.skills || null,
+    resume_text: row.resume_text || null,
+    ai_score: row.ai_score || 0,
+    ai_assessment: row.ai_assessment || null,
+    status: row.status || 'pending',
+    applied_date: row.applied_date,
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  attendance: (row) => ({
+    id: row.id,
+    employee_id: row.employee_id || null,
+    device_enroll_id: row.device_enroll_id,
+    timestamp: row.timestamp,
+    verification_method: row.verification_method || 'unknown',
+    direction: row.direction || 'unknown',
+    source: row.source || 'online_push',
     is_archived: row.is_archived ? 1 : 0
   })
 };
@@ -341,7 +418,7 @@ router.post('/push', async (req, res) => {
     }, {});
 
     // ── STRICT TABLE ORDER FOR PUSH ──
-    const pushOrder = ['categories', 'suppliers', 'inventory', 'trucks', 'orders', 'order_items', 'payments', 'usage_logs', 'audit_logs', 'notifications'];
+    const pushOrder = ['categories', 'suppliers', 'inventory', 'trucks', 'orders', 'order_items', 'payments', 'usage_logs', 'audit_logs', 'notifications', 'employees', 'applicants', 'attendance'];
     const tableKeys = Object.keys(grouped).sort((a, b) => {
       const tableA = grouped[a].table;
       const tableB = grouped[b].table;
@@ -571,7 +648,7 @@ router.get('/pull', async (req, res) => {
   }
 
   try {
-    const tablesToSync = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs', 'trucks', 'notifications'];
+    const tablesToSync = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs', 'trucks', 'notifications', 'employees', 'applicants', 'attendance'];
     
     const tableTimeCols = {
       inventory: 'updated_at',
@@ -582,7 +659,10 @@ router.get('/pull', async (req, res) => {
       payments: 'created_at',
       usage_logs: 'timestamp',
       trucks: 'last_location_update',
-      notifications: 'created_at'
+      notifications: 'created_at',
+      employees: 'updated_at',
+      applicants: 'updated_at',
+      attendance: 'timestamp'
     };
 
     try {
@@ -689,7 +769,7 @@ router.get('/pull', async (req, res) => {
     // --- GHOST RECOVERY (Clean up deletions) ---
     // For critical tables, ensure local matches cloud IDs. 
     // If it's missing from cloud, we archive it locally.
-    const cleanupTables = ['inventory', 'orders', 'trucks', 'notifications'];
+    const cleanupTables = ['inventory', 'orders', 'trucks', 'notifications', 'employees', 'applicants', 'attendance'];
     for (const table of cleanupTables) {
       try {
         const { data: cloudIds, error } = await supabase.from(table).select('id');

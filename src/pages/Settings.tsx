@@ -50,6 +50,8 @@ const Settings: React.FC = () => {
     print_language: 'both'
   });
   const [saving, setSaving] = useState(false);
+  const [clearAIInterval, setClearAIInterval] = useState('30d');
+  const [isClearingAI, setIsClearingAI] = useState(false);
   const [diagLoading, setDiagLoading] = useState(false);
   const [diagnostics, setDiagnostics] = useState<any>(null);
   const [isRepairing, setIsRepairing] = useState(false);
@@ -125,6 +127,24 @@ const Settings: React.FC = () => {
       alert(t('settings_saved'));
     } catch (error) { alert(t('error')); }
     finally { setSaving(false); }
+  };
+
+  const handleClearAIInsights = async () => {
+    if (!confirm(t('confirm_clear_insights', 'Are you sure you want to clear AI insights history? This action cannot be undone.'))) return;
+    setIsClearingAI(true);
+    try {
+      const res = await fetchApi('/agent/clear', {
+        method: 'POST',
+        body: JSON.stringify({ interval: clearAIInterval })
+      });
+      if (res.success) {
+        alert(t('clear_insights_success', 'Successfully cleared {{count}} items from history.', { count: res.deletedCount || 0 }));
+      }
+    } catch (error) {
+      alert(t('error'));
+    } finally {
+      setIsClearingAI(false);
+    }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -364,6 +384,32 @@ const Settings: React.FC = () => {
                     <input type="password" value={settings.deepseek_api_key} onChange={e => setSettings({ ...settings, deepseek_api_key: e.target.value })} className="w-full px-4 py-2 border border-orange-200 rounded-lg bg-white text-sm" placeholder="sk-..." />
                   </div>
                 )}
+
+                <div className="pt-4 border-t border-orange-200/60 space-y-2">
+                  <label className="block text-xs font-bold text-orange-900">
+                    {t('clear_insights_setting', 'Clear AI Insights History')}
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={clearAIInterval}
+                      onChange={e => setClearAIInterval(e.target.value)}
+                      className="flex-1 px-4 py-2 border border-orange-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                      <option value="all">{t('clear_all', 'All History')}</option>
+                      <option value="24h">{t('clear_24h', 'Older than 24 Hours')}</option>
+                      <option value="7d">{t('clear_7d', 'Older than 7 Days')}</option>
+                      <option value="30d">{t('clear_30d', 'Older than 30 Days')}</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleClearAIInsights}
+                      disabled={isClearingAI}
+                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-bold shadow-md disabled:opacity-50 transition"
+                    >
+                      {isClearingAI ? t('clearing', 'Clearing...') : t('clear_now_btn', 'Clear Now')}
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl space-y-4">

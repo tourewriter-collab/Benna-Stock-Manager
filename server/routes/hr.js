@@ -125,6 +125,11 @@ router.post('/employees/import', authenticateToken, async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 'pending')
     `);
 
+    const syncQueueStmt = db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('employees', ?, 'INSERT', ?)
+    `);
+
     const auditStmt = db.prepare(`
       INSERT INTO audit_logs (id, user_id, action, table_name, record_id, new_values, sync_status)
       VALUES (?, ?, ?, ?, ?, ?, 'pending')
@@ -178,6 +183,10 @@ router.post('/employees/import', authenticateToken, async (req, res) => {
           const id = crypto.randomUUID();
           insertStmt.run(id, name, email, phone, role, department, salary, hireDate, statusVal, notes || '');
 
+          syncQueueStmt.run(id, JSON.stringify({
+            id, name, email, phone, role, department, salary, hire_date: hireDate, status: statusVal, performance_notes: notes || '', resume_text: '', device_enroll_id: null
+          }));
+
           auditStmt.run(
             crypto.randomUUID(), req.user.id, 'INSERT', 'employees', id,
             JSON.stringify({ name, role, department, source: 'excel_import' })
@@ -226,6 +235,13 @@ router.post('/employees', authenticateToken, (req, res) => {
       id, name, email || null, phone || null, role, department, salary || 0, hireDateStr, status || 'active', performance_notes || '', resume_text || '',
     );
 
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('employees', ?, 'INSERT', ?)
+    `).run(id, JSON.stringify({
+      id, name, email: email || null, phone: phone || null, role, department, salary: salary || 0, hire_date: hireDateStr, status: status || 'active', performance_notes: performance_notes || '', resume_text: resume_text || '', device_enroll_id: null
+    }));
+
     // File strategic audit log
     const auditId = crypto.randomUUID();
     db.prepare(`
@@ -269,6 +285,12 @@ router.put('/employees/:id', authenticateToken, (req, res) => {
       id
     );
 
+    const updatedEmployee = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('employees', ?, 'UPDATE', ?)
+    `).run(id, JSON.stringify(updatedEmployee));
+
     // File audit log
     const auditId = crypto.randomUUID();
     db.prepare(`
@@ -293,6 +315,12 @@ router.delete('/employees/:id', authenticateToken, (req, res) => {
     }
 
     db.prepare("UPDATE employees SET is_archived = 1, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+
+    const archivedEmployee = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('employees', ?, 'UPDATE', ?)
+    `).run(id, JSON.stringify(archivedEmployee));
 
     // File audit log
     const auditId = crypto.randomUUID();
@@ -340,6 +368,13 @@ router.post('/applicants', authenticateToken, (req, res) => {
       id, name, email, phone || null, role_applied, experience_years || 0, skills || '', resume_text || ''
     );
 
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('applicants', ?, 'INSERT', ?)
+    `).run(id, JSON.stringify({
+      id, name, email, phone: phone || null, role_applied, experience_years: experience_years || 0, skills: skills || '', resume_text: resume_text || '', ai_score: 0, ai_assessment: '', status: 'pending', applied_date: new Date().toISOString()
+    }));
+
     res.status(201).json({ success: true, id });
   } catch (error) {
     console.error('[HR] Create applicant error:', error);
@@ -373,6 +408,12 @@ router.put('/applicants/:id', authenticateToken, (req, res) => {
       id
     );
 
+    const updatedApplicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(id);
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('applicants', ?, 'UPDATE', ?)
+    `).run(id, JSON.stringify(updatedApplicant));
+
     res.json({ success: true });
   } catch (error) {
     console.error('[HR] Update applicant error:', error);
@@ -390,6 +431,12 @@ router.delete('/applicants/:id', authenticateToken, (req, res) => {
     }
 
     db.prepare("UPDATE applicants SET is_archived = 1, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+
+    const archivedApplicant = db.prepare('SELECT * FROM applicants WHERE id = ?').get(id);
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('applicants', ?, 'UPDATE', ?)
+    `).run(id, JSON.stringify(archivedApplicant));
     res.json({ success: true });
   } catch (error) {
     console.error('[HR] Archive applicant error:', error);
@@ -539,10 +586,19 @@ Output format (MUST be raw JSON, no markdown wrapper or extra words):
       WHERE id = ?
     `);
 
+    const syncQueueStmt = db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('applicants', ?, 'UPDATE', ?)
+    `);
+
     db.transaction(() => {
       for (const item of assessments) {
         if (item.id && item.score !== undefined && item.assessment) {
           updateStmt.run(Number(item.score), item.assessment, item.id);
+          const updated = db.prepare('SELECT * FROM applicants WHERE id = ?').get(item.id);
+          if (updated) {
+            syncQueueStmt.run(item.id, JSON.stringify(updated));
+          }
         }
       }
     })();
@@ -623,6 +679,13 @@ router.post('/attendance/log', (req, res) => {
         id, employee_id, device_enroll_id, timestamp, verification_method, direction, source, sync_status
       ) VALUES (?, ?, ?, ?, ?, ?, 'online_push', 'pending')
     `).run(id, employeeId, String(enroll_id).trim(), timestamp, method, direction);
+
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('attendance', ?, 'INSERT', ?)
+    `).run(id, JSON.stringify({
+      id, employee_id: employeeId, device_enroll_id: String(enroll_id).trim(), timestamp, verification_method: method, direction, source: 'online_push'
+    }));
     
     res.status(201).json({ success: true, id });
   } catch (error) {
@@ -646,6 +709,11 @@ router.post('/attendance/upload', authenticateToken, (req, res) => {
       INSERT OR IGNORE INTO attendance (
         id, employee_id, device_enroll_id, timestamp, verification_method, direction, source, sync_status
       ) VALUES (?, ?, ?, ?, ?, ?, 'usb_import', 'pending')
+    `);
+
+    const syncQueueStmt = db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('attendance', ?, 'INSERT', ?)
     `);
     
     // Cache employees mapping for performance
@@ -694,8 +762,13 @@ router.post('/attendance/upload', authenticateToken, (req, res) => {
         else if (stateLower === '1' || stateLower.includes('out') || stateLower.includes('sortie')) direction = 'out';
         
         const logId = crypto.randomUUID();
-        insertStmt.run(logId, employeeId, String(enrollId).trim(), timestamp, method, direction);
-        insertedCount++;
+        const runRes = insertStmt.run(logId, employeeId, String(enrollId).trim(), timestamp, method, direction);
+        if (runRes.changes > 0) {
+          syncQueueStmt.run(logId, JSON.stringify({
+            id: logId, employee_id: employeeId, device_enroll_id: String(enrollId).trim(), timestamp, verification_method: method, direction, source: 'usb_import'
+          }));
+          insertedCount++;
+        }
       }
     })();
     
@@ -722,6 +795,12 @@ router.put('/employees/:id/enroll', authenticateToken, (req, res) => {
         device_enroll_id = ?, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(device_enroll_id ? String(device_enroll_id).trim() : null, id);
+
+    const updated = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('employees', ?, 'UPDATE', ?)
+    `).run(id, JSON.stringify(updated));
     
     res.json({ success: true });
   } catch (error) {

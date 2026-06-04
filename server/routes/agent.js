@@ -8,6 +8,27 @@ import path from 'path';
 
 const router = express.Router();
 
+function parseActionBlockBackend(text) {
+  const actionRegex = /```action([\s\S]*?)```/g;
+  const match = actionRegex.exec(text);
+  if (match && match[1]) {
+    try {
+      const actionObj = JSON.parse(match[1].trim());
+      const cleanText = text.replace(actionRegex, '').trim();
+      return {
+        action: {
+          ...actionObj,
+          status: 'pending'
+        },
+        cleanText: cleanText || 'Action Proposed by Ikiké'
+      };
+    } catch (e) {
+      console.error('Failed to parse action JSON in backend:', e);
+    }
+  }
+  return { action: undefined, cleanText: text };
+}
+
 // Paths to reflection files in all integrated environments
 const reflectionPaths = [
   'C:\\Users\\Mosaid\\.gemini\\antigravity\\scratch\\ikike-collective\\identity\\reflection.json',
@@ -320,6 +341,14 @@ router.post('/chat', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Message, image, or files is required' });
     }
 
+    // Save user message to local SQLite
+    const userMsgId = crypto.randomUUID();
+    const metadataVal = JSON.stringify({ image, files });
+    db.prepare(`
+      INSERT INTO ai_insights (id, role, content, metadata)
+      VALUES (?, 'user', ?, ?)
+    `).run(userMsgId, message || '', metadataVal);
+
     let activeModel = 'gemini';
     let geminiKey = process.env.GEMINI_API_KEY;
     let deepseekKey = '';
@@ -423,7 +452,16 @@ router.post('/chat', authenticateToken, async (req, res) => {
       });
     }
 
-    return res.json({ reply });
+    // Save agent reply to local SQLite
+    const agentMsgId = crypto.randomUUID();
+    const { action, cleanText } = parseActionBlockBackend(reply);
+    const agentMetadataVal = JSON.stringify(action ? { action } : {});
+    db.prepare(`
+      INSERT INTO ai_insights (id, role, content, metadata)
+      VALUES (?, 'agent', ?, ?)
+    `).run(agentMsgId, cleanText, agentMetadataVal);
+
+    return res.json({ reply, id: agentMsgId });
   } catch (error) {
     console.error('[Ikiké] General chat error:', error);
     res.status(500).json({ error: error.message || 'Internal strategic error' });
@@ -461,7 +499,7 @@ router.get('/reflection', authenticateToken, async (req, res) => {
 
 // Execute a user-approved action
 router.post('/execute', authenticateToken, async (req, res) => {
-  const { actionType, data } = req.body;
+  const { actionType, data, messageId } = req.body;
 
   if (!actionType || !data) {
     return res.status(400).json({ error: 'Action type and data are required' });
@@ -585,10 +623,96 @@ router.post('/execute', authenticateToken, async (req, res) => {
       }
     }
 
+    if (messageId) {
+      try {
+        const row = db.prepare('SELECT metadata FROM ai_insights WHERE id = ?').get(messageId);
+        if (row && row.metadata) {
+          const meta = JSON.parse(row.metadata);
+          if (meta.action) {
+            meta.action.status = 'approved';
+            db.prepare('UPDATE ai_insights SET metadata = ? WHERE id = ?').run(JSON.stringify(meta), messageId);
+          }
+        }
+      } catch (e) {
+        console.error('[Ikiké] Failed to update action status:', e);
+      }
+    }
+
     res.json({ success: true, result });
   } catch (error) {
     console.error('[Ikiké] Execute error:', error);
     res.status(500).json({ error: error.message || 'Failed to execute action' });
+  }
+});
+
+// Reject an action and update status in database
+router.post('/reject-action', authenticateToken, async (req, res) => {
+  const { messageId } = req.body;
+  if (!messageId) {
+    return res.status(400).json({ error: 'messageId is required' });
+  }
+  try {
+    const row = db.prepare('SELECT metadata FROM ai_insights WHERE id = ?').get(messageId);
+    if (row && row.metadata) {
+      const meta = JSON.parse(row.metadata);
+      if (meta.action) {
+        meta.action.status = 'rejected';
+        db.prepare('UPDATE ai_insights SET metadata = ? WHERE id = ?').run(JSON.stringify(meta), messageId);
+      }
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Ikiké] Reject action error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Fetch conversation history
+router.get('/history', authenticateToken, async (req, res) => {
+  try {
+    const history = db.prepare('SELECT * FROM ai_insights ORDER BY timestamp ASC').all();
+    const formatted = history.map(h => {
+      let metadata = {};
+      try { if (h.metadata) metadata = JSON.parse(h.metadata); } catch(e) {}
+      return {
+        id: h.id,
+        role: h.role,
+        content: h.content,
+        image: metadata.image,
+        files: metadata.files,
+        action: metadata.action,
+        timestamp: h.timestamp
+      };
+    });
+    res.json(formatted);
+  } catch (error) {
+    console.error('[Ikiké] Get history error:', error);
+    res.status(500).json({ error: 'Failed to fetch agent history' });
+  }
+});
+
+// Clear conversation history based on interval
+router.post('/clear', authenticateToken, async (req, res) => {
+  const { interval } = req.body;
+  try {
+    let deletedCount = 0;
+    if (interval === 'all') {
+      const info = db.prepare('DELETE FROM ai_insights').run();
+      deletedCount = info.changes;
+    } else if (interval === '24h') {
+      const info = db.prepare("DELETE FROM ai_insights WHERE timestamp < datetime('now', '-1 day')").run();
+      deletedCount = info.changes;
+    } else if (interval === '7d') {
+      const info = db.prepare("DELETE FROM ai_insights WHERE timestamp < datetime('now', '-7 days')").run();
+      deletedCount = info.changes;
+    } else if (interval === '30d') {
+      const info = db.prepare("DELETE FROM ai_insights WHERE timestamp < datetime('now', '-30 days')").run();
+      deletedCount = info.changes;
+    }
+    res.json({ success: true, deletedCount });
+  } catch (error) {
+    console.error('[Ikiké] Clear history error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

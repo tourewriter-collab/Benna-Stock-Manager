@@ -356,6 +356,17 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ai_insights (
+    id TEXT PRIMARY KEY,
+    role TEXT NOT NULL CHECK(role IN ('user', 'agent')),
+    content TEXT NOT NULL,
+    metadata TEXT,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+
 // --- 2. COLUMN MIGRATIONS (Safe updates for existing DBs) ---
 
 const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'accounts', 'invoices', 'transactions', 'trucks', 'granite_deliveries', 'notifications', 'employees', 'applicants', 'attendance'];
@@ -404,6 +415,7 @@ const seedSettings = [
   { key: 'default_map_lat', value: '9.509167' },
   { key: 'default_map_lng', value: '-13.712222' },
   { key: 'ikike_cron_frequency', value: '15' },
+  { key: 'clear_insights_interval', value: 'never' },
   { key: 'db_created_at', value: new Date().toISOString() }
 ];
 for (const s of seedSettings) {

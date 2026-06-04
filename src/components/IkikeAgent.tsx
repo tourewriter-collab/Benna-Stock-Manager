@@ -38,6 +38,21 @@ export const IkikeAgent: React.FC = () => {
       action: undefined
     }
   ]);
+
+  // Load conversation history on mount
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const history = await fetchApi('/agent/history');
+        if (history && history.length > 0) {
+          setMessages(history);
+        }
+      } catch (err) {
+        console.error('Failed to load agent chat history:', err);
+      }
+    };
+    loadHistory();
+  }, []);
   const [inputMessage, setInputMessage] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -158,7 +173,7 @@ export const IkikeAgent: React.FC = () => {
       setMessages(prev => [
         ...prev,
         {
-          id: crypto.randomUUID(),
+          id: response.id || crypto.randomUUID(),
           role: 'agent',
           content: cleanText,
           action: action
@@ -212,7 +227,8 @@ export const IkikeAgent: React.FC = () => {
         method: 'POST',
         body: JSON.stringify({
           actionType: msg.action.type,
-          data: msg.action.data
+          data: msg.action.data,
+          messageId: msgId
         })
       });
 
@@ -239,7 +255,7 @@ export const IkikeAgent: React.FC = () => {
     }
   };
 
-  const handleRejectAction = (msgId: string) => {
+  const handleRejectAction = async (msgId: string) => {
     setMessages(prev => prev.map(m => {
       if (m.id === msgId && m.action) {
         return {
@@ -252,6 +268,14 @@ export const IkikeAgent: React.FC = () => {
       }
       return m;
     }));
+    try {
+      await fetchApi('/agent/reject-action', {
+        method: 'POST',
+        body: JSON.stringify({ messageId: msgId })
+      });
+    } catch (err) {
+      console.error('Failed to reject action in backend:', err);
+    }
   };
 
   // Helper to get descriptive labels for fields

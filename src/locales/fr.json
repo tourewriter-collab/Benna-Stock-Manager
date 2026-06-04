@@ -551,5 +551,14 @@
   "print_language_both": "Bilingue (Anglais & Français)",
   "print_language_en": "Anglais uniquement",
   "print_language_fr": "Français uniquement",
-  "print_language_desc": "Choisissez comment les libellés sont imprimés sur les bons de commande, les tickets, et autres documents."
+  "print_language_desc": "Choisissez comment les libellés sont imprimés sur les bons de commande, les tickets, et autres documents.",
+  "clear_insights_setting": "Effacer l'historique des aperçus IA",
+  "clear_all": "Tout l'historique",
+  "clear_24h": "Plus de 24 heures",
+  "clear_7d": "Plus de 7 jours",
+  "clear_30d": "Plus de 30 jours",
+  "confirm_clear_insights": "Êtes-vous sûr de vouloir effacer l'historique des aperçus IA ? Cette action est irréversible.",
+  "clear_insights_success": "Historique effacé avec succès ({{count}} éléments supprimés).",
+  "clearing": "Suppression...",
+  "clear_now_btn": "Effacer maintenant"
 }
