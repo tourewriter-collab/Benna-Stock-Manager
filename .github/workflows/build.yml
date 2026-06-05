@@ -11,7 +11,12 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    name: Build and Release (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
 
     steps:
       - name: Checkout code
@@ -24,35 +29,42 @@ jobs:
           cache: 'npm'
 
       - name: Create placeholder .env for build
-        shell: powershell
+        shell: bash
         run: |
-          if (-not (Test-Path ".env")) {
-            Copy-Item ".env.example" ".env" -ErrorAction SilentlyContinue
-            if (-not (Test-Path ".env")) {
-              New-Item -Path ".env" -ItemType File -Force | Out-Null
-              Add-Content ".env" "# Populated at runtime by user"
-            }
-          }
+          if [ ! -f .env ]; then
+            cp .env.example .env || touch .env
+          fi
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Vite + Electron and publish release
+      - name: Build Vite + Electron and package target
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: npm run electron:build
+        run: |
+          npm run build
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            npx electron-builder --win --publish never
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            npx electron-builder --mac --publish never
+          fi
+        shell: bash
 
       - name: Get version from package.json
         id: get_version
         run: |
-          $version = (Get-Content -Raw -Path package.json | ConvertFrom-Json).version
-          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          node -e "console.log('VERSION=' + require('./package.json').version)" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.get_version.outputs.VERSION }}
           name: v${{ steps.get_version.outputs.VERSION }}
-          files: release/*
+          files: |
+            release/*.exe
+            release/*.dmg
+            release/*.yml
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}

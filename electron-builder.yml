@@ -27,14 +27,27 @@ extraResources:
 
 publish:
   provider: github
+  owner: tourewriter-collab
+  repo: Benna-Stock-Manager
   releaseType: release
 
 win:
   target: nsis
   icon: build/icon.png
 
+nsis:
+  artifactName: "Benna-Business-Manager-Setup-${version}.${ext}"
+  oneClick: false
+  deleteAppDataOnUninstall: false
+  include: "build/installer.nsh"
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "Benna Business Manager"
+
 mac:
   target: dmg
+  artifactName: "Benna-Business-Manager-${version}.${ext}"
   identity: null
   icon: build/icon.png
   category: public.app-category.business
