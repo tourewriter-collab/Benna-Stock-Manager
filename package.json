@@ -1,6 +1,6 @@
 {
   "name": "benna-business-manager",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "description": "Benna Business Manager - Full-stack business management system",
   "main": "electron/main.cjs",
   "type": "module",
@@ -91,9 +91,7 @@
     ],
     "asarUnpack": [
       "server/**/*",
-      "node_modules/better-sqlite3/**/*",
-      "node_modules/bcryptjs/**/*",
-      "node_modules/electron-log/**/*"
+      "node_modules/**/*"
     ],
     "extraResources": [
       {

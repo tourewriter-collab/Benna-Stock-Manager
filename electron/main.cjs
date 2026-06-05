@@ -136,8 +136,14 @@ app.whenReady().then(async () => {
     serverProcess.stdout.on('data', (data) => log.info(`[Server] ${data.toString().trim()}`));
     serverProcess.stderr.on('data', (data) => log.error(`[Server Error] ${data.toString().trim()}`));
 
-    serverProcess.on('exit', (code) => {
-      log.info(`Internal server exited with code ${code}`);
+    serverProcess.on('exit', (code, signal) => {
+      log.info(`Internal server exited with code ${code} and signal ${signal}`);
+      if (app.isPackaged && code !== 0 && code !== null) {
+        dialog.showErrorBox(
+          'Database/Server Error',
+          `The internal API server exited unexpectedly with code ${code}.\n\nThis can happen if the database is locked or corrupted, or if required system resources are unavailable.\n\nLog file location:\n${path.join(app.getPath('userData'), 'logs', 'main.log')}`
+        );
+      }
     });
 
     app.on('before-quit', () => {
