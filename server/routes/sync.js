@@ -42,6 +42,7 @@ const MAPPERS_PUSH = {
       expected_delivery_date: d.expected_date || d.expected_delivery_date || null,
       status: remoteStatus,
       total_amount: d.total_amount || 0,
+      paid_amount: d.paid_amount || 0,
       notes: d.notes || null,
       delivery_status: d.delivery_status || 'pending'
     };
@@ -176,13 +177,25 @@ const MAPPERS_PULL = {
     } else if (row.status === 'paid' || row.status === 'partial') {
       localStatus = row.status;
     }
+
+    // Determine paid_amount: fallback to local value if remote value is not defined
+    let paidAmount = row.paid_amount;
+    if (paidAmount === undefined || paidAmount === null) {
+      try {
+        const local = db.prepare('SELECT paid_amount FROM orders WHERE id = ?').get(row.id);
+        paidAmount = local ? local.paid_amount : 0;
+      } catch (e) {
+        paidAmount = 0;
+      }
+    }
+
     return {
       id: row.id,
       supplier_id: row.supplier_id,
       order_date: row.order_date,
       expected_date: row.expected_delivery_date || row.expected_date || null,
       total_amount: row.total_amount || 0,
-      paid_amount: row.paid_amount || 0,
+      paid_amount: paidAmount,
       status: localStatus,
       delivery_status: row.delivery_status || 'pending',
       notes: row.notes || null,

@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchApi } from '../lib/api';
 import { useSearchParams } from 'react-router-dom';
-import { Settings as SettingsIcon, Truck, Tags, Activity, RefreshCw, AlertCircle, Download, Users, Database } from 'lucide-react';
+import { Settings as SettingsIcon, Truck, Tags, Activity, RefreshCw, AlertCircle, Download, Users, Database, Lock } from 'lucide-react';
 import CategoryManager from '../components/settings/CategoryManager';
 import SupplierManager from '../components/settings/SupplierManager';
 import AdminUsers from '../pages/AdminUsers';
 
-type Tab = 'general' | 'suppliers' | 'categories' | 'diagnostics' | 'users';
+type Tab = 'general' | 'suppliers' | 'categories' | 'diagnostics' | 'users' | 'security';
 
 const Settings: React.FC = () => {
   const { t } = useTranslation();
@@ -204,6 +204,48 @@ const Settings: React.FC = () => {
     } catch (error) { alert(t('error_exporting')); }
   };
 
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError(t('passwords_do_not_match', 'Passwords do not match'));
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError(t('password_too_short', 'Password must be at least 6 characters long'));
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await fetchApi('/users/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword
+        })
+      });
+      setPasswordSuccess(t('password_changed_success', 'Password updated successfully.'));
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err: any) {
+      setPasswordError(err.message || t('password_change_failed', 'Failed to change password.'));
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const TabButton = ({ id, label, icon: Icon }: { id: Tab, label: string, icon: any }) => (
     <button
       onClick={() => handleTabChange(id)}
@@ -226,6 +268,7 @@ const Settings: React.FC = () => {
         <TabButton id="general" label={t('general')} icon={SettingsIcon} />
         <TabButton id="suppliers" label={t('suppliers')} icon={Truck} />
         <TabButton id="categories" label={t('categories')} icon={Tags} />
+        <TabButton id="security" label={t('security', 'Security')} icon={Lock} />
         {isAdmin && <TabButton id="users" label={t('admin_users')} icon={Users} />}
         {isAdmin && <TabButton id="diagnostics" label={t('performance')} icon={Activity} />}
         
@@ -486,6 +529,64 @@ const Settings: React.FC = () => {
         {activeTab === 'suppliers' && <SupplierManager />}
         {activeTab === 'categories' && <CategoryManager />}
         {activeTab === 'users' && isAdmin && <AdminUsers />}
+ 
+        {activeTab === 'security' && (
+          <div className="max-w-md space-y-6">
+            <h2 className="text-xl font-bold text-[#001f3f]">{t('change_password', 'Change Password')}</h2>
+            <p className="text-xs text-gray-500">{t('change_password_desc', 'Update your password below to secure your account.')}</p>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('current_password', 'Current Password')} *</label>
+                <input
+                  type="password"
+                  required
+                  value={passwordForm.currentPassword}
+                  onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('new_password', 'New Password')} *</label>
+                <input
+                  type="password"
+                  required
+                  value={passwordForm.newPassword}
+                  onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('confirm_new_password', 'Confirm New Password')} *</label>
+                <input
+                  type="password"
+                  required
+                  value={passwordForm.confirmPassword}
+                  onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                />
+              </div>
+              {passwordError && (
+                <div className="text-sm text-red-600 font-semibold flex items-center gap-1 bg-red-50 p-3 rounded-lg border border-red-200">
+                  <AlertCircle size={16} />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+              {passwordSuccess && (
+                <div className="text-sm text-emerald-600 font-semibold flex items-center gap-1 bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+                  <AlertCircle size={16} className="text-emerald-600" />
+                  <span>{passwordSuccess}</span>
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={isChangingPassword}
+                className="w-full py-2.5 bg-navy text-white rounded-xl font-bold shadow-md hover:bg-opacity-90 disabled:opacity-50 transition"
+              >
+                {isChangingPassword ? t('updating', 'Updating...') : t('update_password', 'Update Password')}
+              </button>
+            </form>
+          </div>
+        )}
 
         {activeTab === 'diagnostics' && isAdmin && (
           <div className="space-y-6">

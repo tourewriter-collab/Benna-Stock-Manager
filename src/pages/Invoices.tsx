@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileText, Plus, Edit, Trash2 } from 'lucide-react';
+import { FileText, Plus, Edit, Trash2, Printer } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { formatPrice } from '../utils/currency';
@@ -119,6 +119,148 @@ const Invoices: React.FC = () => {
     }
   };
 
+  const printInvoice = async (invoice: Invoice) => {
+    // Fetch print language preference from settings
+    let pl = 'both';
+    try {
+      const settings = await fetchApi('/settings');
+      pl = settings?.print_language || 'both';
+    } catch { /* default to both */ }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const chosenLang = pl === 'both' ? (isFr ? 'fr' : 'en') : pl;
+
+    const labels: Record<string, Record<string, string>> = {
+      invoice_title: { en: 'INVOICE', fr: 'FACTURE' },
+      invoice_id: { en: 'Invoice ID', fr: 'ID Facture' },
+      date: { en: 'Date', fr: 'Date' },
+      due_date: { en: 'Due Date', fr: 'Date d\'Échéance' },
+      client: { en: 'Client', fr: 'Client' },
+      status: { en: 'Status', fr: 'Statut' },
+      total_amount: { en: 'Total Amount', fr: 'Montant Total' },
+      paid_amount: { en: 'Paid Amount', fr: 'Montant Payé' },
+      balance_due: { en: 'Balance Due', fr: 'Reste à Payer' },
+      notes: { en: 'Notes', fr: 'Notes' },
+      sig_authorized: { en: 'Authorized Signature', fr: 'Signature Autorisée' },
+      sig_client: { en: 'Client Signature', fr: 'Signature Client' },
+    };
+    const L = (key: string) => labels[key]?.[chosenLang] || labels[key]?.[isFr ? 'fr' : 'en'] || key;
+
+    const balance = invoice.total_amount - invoice.paid_amount;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${L('invoice_title')} - ${invoice.id}</title>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #333; max-width: 800px; margin: 0 auto; line-height: 1.5; }
+            .header-container { display: flex; justify-content: space-between; border-bottom: 2px solid #001f3f; padding-bottom: 20px; margin-bottom: 30px; }
+            .company-details h1 { color: #001f3f; margin: 0; font-size: 28px; font-weight: 800; }
+            .company-details p { margin: 5px 0 0 0; color: #666; font-size: 14px; }
+            .invoice-title-box { text-align: right; }
+            .invoice-title-box h2 { color: #001f3f; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: 1px; }
+            .invoice-title-box p { margin: 5px 0 0 0; font-weight: 600; color: #555; }
+            .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+            .details-box { background: #f8f9fa; border: 1px solid #e9ecef; padding: 15px; border-radius: 8px; }
+            .details-box h3 { margin: 0 0 10px 0; font-size: 14px; color: #001f3f; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #dee2e6; padding-bottom: 5px; }
+            .details-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+            .details-row span { color: #666; }
+            .details-row strong { color: #212529; }
+            .financial-table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 30px; }
+            .financial-table th, .financial-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #dee2e6; }
+            .financial-table th { background-color: #f1f3f5; color: #001f3f; font-weight: 700; }
+            .financial-table td { font-size: 15px; }
+            .financial-table .text-right { text-align: right; }
+            .summary-box { float: right; width: 300px; margin-bottom: 40px; }
+            .summary-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; }
+            .summary-row.total { border-top: 1px solid #dee2e6; border-bottom: 2px double #001f3f; font-size: 16px; font-weight: 700; color: #001f3f; padding: 10px 0; }
+            .clear { clear: both; }
+            .notes-box { background-color: #fff8e1; border-left: 4px solid #ffb300; padding: 15px; border-radius: 4px; margin-bottom: 40px; font-size: 13px; }
+            .notes-box h4 { margin: 0 0 5px 0; color: #b78103; }
+            .notes-box p { margin: 0; color: #5f4b1d; }
+            .footer-sig { display: flex; justify-content: space-between; margin-top: 60px; }
+            .signature { border-top: 1px solid #aaa; width: 220px; text-align: center; padding-top: 8px; font-size: 13px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="header-container">
+            <div class="company-details">
+              <h1>BENNA STOCK</h1>
+              <p>Conakry, Guinée</p>
+            </div>
+            <div class="invoice-title-box">
+              <h2>${L('invoice_title')}</h2>
+              <p># ${invoice.id.substring(0, 8).toUpperCase()}</p>
+            </div>
+          </div>
+
+          <div class="details-grid">
+            <div class="details-box">
+              <h3>${L('client')}</h3>
+              <div class="details-row"><span>${L('client')}:</span> <strong>${invoice.client_id}</strong></div>
+            </div>
+            <div class="details-box">
+              <h3>${L('invoice_id')}</h3>
+              <div class="details-row"><span>${L('date')}:</span> <strong>${new Date(invoice.invoice_date).toLocaleDateString(chosenLang === 'fr' ? 'fr-FR' : 'en-US')}</strong></div>
+              <div class="details-row"><span>${L('due_date')}:</span> <strong>${invoice.due_date ? new Date(invoice.due_date).toLocaleDateString(chosenLang === 'fr' ? 'fr-FR' : 'en-US') : 'N/A'}</strong></div>
+              <div class="details-row"><span>${L('status')}:</span> <strong style="text-transform: uppercase;">${t(`invoice_status_${invoice.status}`, invoice.status)}</strong></div>
+            </div>
+          </div>
+
+          <table class="financial-table">
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th class="text-right">Amount / Montant</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>General Delivery/Services Rendered</td>
+                <td class="text-right">${formatPrice(invoice.total_amount)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="summary-box">
+            <div class="summary-row">
+              <span>Subtotal:</span>
+              <span>${formatPrice(invoice.total_amount)}</span>
+            </div>
+            <div class="summary-row">
+              <span>${L('paid_amount')}:</span>
+              <span style="color: #2e7d32;">${formatPrice(invoice.paid_amount)}</span>
+            </div>
+            <div class="summary-row total">
+              <span>${L('balance_due')}:</span>
+              <span>${formatPrice(balance)}</span>
+            </div>
+          </div>
+          <div class="clear"></div>
+
+          ${invoice.notes ? `
+          <div class="notes-box">
+            <h4>${L('notes')}</h4>
+            <p>${invoice.notes}</p>
+          </div>
+          ` : ''}
+
+          <div class="footer-sig">
+            <div class="signature">${L('sig_authorized')}</div>
+            <div class="signature">${L('sig_client')}</div>
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   const statusColors = {
     draft: 'bg-gray-100 text-gray-800 border-gray-200',
     sent: 'bg-blue-100 text-blue-800 border-blue-200',
@@ -163,7 +305,7 @@ const Invoices: React.FC = () => {
                   <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('total_amount', 'Total Amount')}</th>
                   <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('paid_amount', 'Paid Amount')}</th>
                   <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500">{t('status')}</th>
-                  {canEdit && <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('actions')}</th>}
+                  <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -180,18 +322,23 @@ const Invoices: React.FC = () => {
                         {t(`invoice_status_${invoice.status}`, invoice.status)}
                       </span>
                     </td>
-                    {canEdit && (
-                      <td className="py-3 px-4 text-sm text-right">
-                        <div className="flex justify-end space-x-3">
-                          <button onClick={() => handleOpenModal(invoice)} className="text-blue-600 hover:text-blue-800">
-                            <Edit className="w-4.5 h-4.5" />
-                          </button>
-                          <button onClick={() => handleDelete(invoice.id)} className="text-red-600 hover:text-red-800">
-                            <Trash2 className="w-4.5 h-4.5" />
-                          </button>
-                        </div>
-                      </td>
-                    )}
+                    <td className="py-3 px-4 text-sm text-right">
+                      <div className="flex justify-end space-x-3">
+                        <button onClick={() => printInvoice(invoice)} className="text-gray-600 hover:text-gray-800" title={t('print', 'Print')}>
+                          <Printer className="w-4.5 h-4.5" />
+                        </button>
+                        {canEdit && (
+                          <>
+                            <button onClick={() => handleOpenModal(invoice)} className="text-blue-600 hover:text-blue-800">
+                              <Edit className="w-4.5 h-4.5" />
+                            </button>
+                            <button onClick={() => handleDelete(invoice.id)} className="text-red-600 hover:text-red-800">
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {invoices.length === 0 && (
@@ -286,7 +433,17 @@ const Invoices: React.FC = () => {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button type="submit" className="flex-1 bg-navy text-white py-2 rounded-lg hover:bg-opacity-95 font-bold shadow-sm">
+                {editingInvoice && (
+                  <button
+                    type="button"
+                    onClick={() => printInvoice(editingInvoice)}
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 rounded-lg font-bold shadow-sm flex items-center justify-center gap-1.5"
+                  >
+                    <Printer className="w-4 h-4" />
+                    {t('print', 'Print')}
+                  </button>
+                )}
+                <button type="submit" className="flex-grow bg-navy text-white py-2 rounded-lg hover:bg-opacity-95 font-bold shadow-sm">
                   {editingInvoice ? t('update') : t('create')}
                 </button>
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200 font-bold border">

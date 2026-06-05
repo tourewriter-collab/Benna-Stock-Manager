@@ -101,4 +101,42 @@ router.delete('/:id', authenticateToken, requireRole('admin'), (req, res) => {
   }
 });
 
+router.post('/change-password', authenticateToken, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'Current password and new password are required' });
+  }
+
+  try {
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const validPassword = bcrypt.compareSync(currentPassword, user.password);
+    if (!validPassword) {
+      return res.status(400).json({ error: 'Incorrect current password' });
+    }
+
+    const hashedNewPassword = bcrypt.hashSync(newPassword, 10);
+    db.prepare('UPDATE users SET password = ?, sync_status = "pending", sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hashedNewPassword, req.user.id);
+
+    // Also write to sync queue
+    const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    try {
+      db.prepare('INSERT INTO sync_queue (table_name, record_id, action, data) VALUES (?, ?, ?, ?)').run(
+        'users',
+        String(req.user.id),
+        'UPDATE',
+        JSON.stringify(updatedUser)
+      );
+    } catch(e) {}
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;

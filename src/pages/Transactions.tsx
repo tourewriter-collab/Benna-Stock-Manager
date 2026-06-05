@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Activity, Plus, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Activity, Plus, ArrowUpRight, ArrowDownRight, Printer } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { formatPrice } from '../utils/currency';
@@ -99,6 +99,24 @@ const Transactions: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <style>{`
+        @media print {
+          aside, nav, header, button, .no-print {
+            display: none !important;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+          }
+          main {
+            padding: 0 !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            width: 100% !important;
+          }
+        }
+      `}</style>
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="bg-navy bg-opacity-10 p-2.5 rounded-lg text-navy">
@@ -109,15 +127,24 @@ const Transactions: React.FC = () => {
             <p className="text-sm text-gray-500">{t('manage_transactions', 'Record and view all financial transactions')}</p>
           </div>
         </div>
-        {canEdit && (
+        <div className="flex items-center gap-3">
           <button
-            onClick={handleOpenModal}
-            className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors shadow-sm"
+            onClick={() => window.print()}
+            className="flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors shadow-sm no-print"
           >
-            <Plus className="w-5 h-5" />
-            {t('record_transaction', 'Record Transaction')}
+            <Printer className="w-5 h-5" />
+            {t('print', 'Print')}
           </button>
-        )}
+          {canEdit && (
+            <button
+              onClick={handleOpenModal}
+              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors shadow-sm no-print"
+            >
+              <Plus className="w-5 h-5" />
+              {t('record_transaction', 'Record Transaction')}
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (

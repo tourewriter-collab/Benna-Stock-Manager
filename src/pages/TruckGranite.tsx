@@ -262,11 +262,12 @@ export default function TruckGranite() {
     
     if (empty > 0 && loaded > 0 && loaded > empty) {
       const netWeight = loaded - empty;
-      newFormData.quantity = netWeight.toFixed(2);
+      const volume = netWeight / 2.6; // Convert tons to m3
+      newFormData.quantity = volume.toFixed(2);
     }
     setTripFormData(newFormData);
   };
-
+ 
   const printDeliveryTicket = async (trip: GraniteDelivery) => {
     // Fetch print language preference from settings
     let pl = 'both';
@@ -274,32 +275,31 @@ export default function TruckGranite() {
       const settings = await fetchApi('/settings');
       pl = settings?.print_language || 'both';
     } catch { /* default to both */ }
-
+ 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-
+ 
     const truck = trucks.find(t => t.id === trip.truck_id) || { plate_number: trip.truck_plate || 'N/A' };
-    const volume = trip.volume_m3 ? trip.volume_m3.toFixed(2) : (trip.quantity / 2.6).toFixed(2);
-
-    // Label helper based on print language setting
+    const volume = (trip.volume_m3 || trip.quantity).toFixed(2);
+ 
+    // Label helper based on print language setting (fallback to active UI language if set to both to avoid mixed text)
+    const chosenLang = pl === 'both' ? (isFr ? 'fr' : 'en') : pl;
+ 
     const labels: Record<string, Record<string, string>> = {
-      title: { en: 'DELIVERY TICKET', fr: 'BON DE LIVRAISON', both: 'BON DE LIVRAISON / DELIVERY TICKET' },
-      date: { en: 'Date', fr: 'Date', both: 'Date' },
-      client: { en: 'Client', fr: 'Client', both: 'Client' },
-      truck_label: { en: 'Truck (Carrier)', fr: 'Transporteur (Camion)', both: 'Transporteur (Camion) / Truck' },
-      driver: { en: 'Driver', fr: 'Chauffeur', both: 'Chauffeur / Driver' },
-      granite: { en: 'Granite Type', fr: 'Type de Granite', both: 'Type de Granite / Granite Type' },
-      weighing: { en: 'Weighing Details (Weighbridge)', fr: 'Détails de Pesée (Pont Bascule)', both: 'Détails de Pesée / Weighing Details' },
-      tare: { en: 'Empty Weight (Tare)', fr: 'Poids à vide (Tare)', both: 'Poids à vide (Tare) / Empty Weight' },
-      gross: { en: 'Loaded Weight (Gross)', fr: 'Poids chargé (Brut)', both: 'Poids chargé (Brut) / Loaded Weight' },
-      net: { en: 'Net Weight (Quantity)', fr: 'Poids net (Quantité)', both: 'Poids net (Quantité) / Net Weight' },
-      volume_label: { en: 'Estimated Volume', fr: 'Volume estimé', both: 'Volume estimé / Est. Volume' },
-      sig_weighing: { en: 'Weighing / Dispatch Visa', fr: 'Visa Pesée / Expédition', both: 'Visa Pesée / Expédition' },
-      sig_driver: { en: 'Driver Visa', fr: 'Visa Chauffeur', both: 'Visa Chauffeur / Driver' },
-      sig_client: { en: 'Client / Receiving Visa', fr: 'Visa Client / Réception', both: 'Visa Client / Réception' },
+      title: { en: 'DELIVERY TICKET', fr: 'BON DE LIVRAISON' },
+      date: { en: 'Date', fr: 'Date' },
+      client: { en: 'Client', fr: 'Client' },
+      truck_label: { en: 'Truck (Carrier)', fr: 'Transporteur (Camion)' },
+      driver: { en: 'Driver', fr: 'Chauffeur' },
+      granite: { en: 'Granite Type', fr: 'Type de Granite' },
+      delivery_details: { en: 'Delivery Details', fr: 'Détails de Livraison' },
+      volume_label: { en: 'Volume', fr: 'Volume' },
+      sig_weighing: { en: 'Visa Dispatch', fr: 'Visa Expédition' },
+      sig_driver: { en: 'Driver Visa', fr: 'Visa Chauffeur' },
+      sig_client: { en: 'Client Visa', fr: 'Visa Réception' },
     };
-    const L = (key: string) => labels[key]?.[pl] || labels[key]?.['both'] || key;
-
+    const L = (key: string) => labels[key]?.[chosenLang] || labels[key]?.[isFr ? 'fr' : 'en'] || key;
+ 
     printWindow.document.write(`
       <html>
         <head>
@@ -324,7 +324,7 @@ export default function TruckGranite() {
           </div>
           
           <div class="section">
-            <div class="row"><strong>${L('date')}:</strong> <span>${new Date(trip.date).toLocaleDateString()}</span></div>
+            <div class="row"><strong>${L('date')}:</strong> <span>${new Date(trip.date).toLocaleDateString(chosenLang === 'fr' ? 'fr-FR' : 'en-US')}</span></div>
             <div class="row"><strong>${L('client')}:</strong> <span>${trip.client_name || 'N/A'}</span></div>
             <div class="row"><strong>${L('truck_label')}:</strong> <span>${truck.plate_number}</span></div>
             <div class="row"><strong>${L('driver')}:</strong> <span>${trip.driver_name}</span></div>
@@ -332,10 +332,7 @@ export default function TruckGranite() {
           </div>
           
           <div class="section">
-            <div class="section-title">${L('weighing')}</div>
-            <div class="row"><strong>${L('tare')}:</strong> <span>${trip.empty_weight ? trip.empty_weight + ' Tonnes' : 'N/A'}</span></div>
-            <div class="row"><strong>${L('gross')}:</strong> <span>${trip.loaded_weight ? trip.loaded_weight + ' Tonnes' : 'N/A'}</span></div>
-            <div class="row"><strong>${L('net')}:</strong> <span>${trip.quantity} Tonnes</span></div>
+            <div class="section-title">${L('delivery_details')}</div>
             <div class="row"><strong>${L('volume_label')}:</strong> <span>${volume} m³</span></div>
           </div>
           
@@ -353,7 +350,7 @@ export default function TruckGranite() {
     `);
     printWindow.document.close();
   };
-
+ 
   const handleTripSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { date, truck_id, driver_name, granite_type, empty_weight, loaded_weight, quantity, unit_price } = tripFormData;
@@ -361,10 +358,10 @@ export default function TruckGranite() {
       alert(t('please_add_items') || 'Please fill in all required fields');
       return;
     }
-
-    const net_weight = parseFloat(quantity);
-    const volume_m3 = net_weight / 2.6; // Assuming density 2.6 t/m3
-
+ 
+    const volume_m3 = parseFloat(quantity);
+    const net_weight = volume_m3 * 2.6; // reverse formula to store tons
+ 
     try {
       const payload = {
         ...tripFormData,
@@ -372,10 +369,10 @@ export default function TruckGranite() {
         loaded_weight: loaded_weight ? parseFloat(loaded_weight) : null,
         net_weight: net_weight,
         volume_m3: volume_m3,
-        quantity: net_weight,
+        quantity: volume_m3,
         unit_price: parseFloat(unit_price)
       };
-
+ 
       if (editingTrip) {
         await fetchApi(`/granite/${editingTrip.id}`, {
           method: 'PUT',
@@ -387,7 +384,7 @@ export default function TruckGranite() {
           body: JSON.stringify(payload)
         });
       }
-
+ 
       setShowTripModal(false);
       await fetchData(false);
       await refreshStatus();
@@ -479,13 +476,13 @@ export default function TruckGranite() {
   const getOverallMetrics = () => {
     const deliveredTrips = trips.filter(t => t.status === 'delivered');
     const totalRevenue = deliveredTrips.reduce((acc, t) => acc + t.total_amount, 0);
-    const totalTons = deliveredTrips.reduce((acc, t) => acc + t.quantity, 0);
-    const avgPricePerTon = totalTons > 0 ? totalRevenue / totalTons : 0;
-
+    const totalVolume = deliveredTrips.reduce((acc, t) => acc + (t.volume_m3 || t.quantity / (t.empty_weight ? 2.6 : 1)), 0);
+    const avgPricePerM3 = totalVolume > 0 ? totalRevenue / totalVolume : 0;
+ 
     return {
       totalRevenue,
-      totalTons,
-      avgPricePerTon,
+      totalVolume,
+      avgPricePerM3,
       tripsCount: deliveredTrips.length
     };
   };
@@ -701,19 +698,19 @@ export default function TruckGranite() {
               <p className="text-2xl font-black text-navy mt-1">{overall.tripsCount} trips</p>
             </div>
             <div>
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('total_volume')}</span>
-              <p className="text-2xl font-black text-navy mt-1">{overall.totalTons.toLocaleString()} {t('tons')}</p>
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('total_volume') || 'Volume Total'}</span>
+              <p className="text-2xl font-black text-navy mt-1">{overall.totalVolume.toFixed(2)} m³</p>
             </div>
             <div>
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('hauling_revenue')}</span>
               <p className="text-2xl font-black text-emerald-600 mt-1">{formatPrice(overall.totalRevenue)}</p>
             </div>
             <div>
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('unit_price_ton')} (Avg)</span>
-              <p className="text-2xl font-black text-blue-600 mt-1">{formatPrice(overall.avgPricePerTon)}</p>
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('unit_price_m3') || 'Prix Unitaire (m³)'} (Avg)</span>
+              <p className="text-2xl font-black text-blue-600 mt-1">{formatPrice(overall.avgPricePerM3)}</p>
             </div>
           </div>
-
+ 
           {/* Trips List */}
           <div className="bg-white rounded-xl shadow-md border overflow-hidden">
             <div className="overflow-x-auto">
@@ -724,8 +721,8 @@ export default function TruckGranite() {
                     <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500">{t('truck')}</th>
                     <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500">{t('driver')}</th>
                     <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500">{t('granite_type')}</th>
-                    <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('tons')}</th>
-                    <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('unit_price_label')}</th>
+                    <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('volume') || 'Volume (m³)'}</th>
+                    <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('unit_price_m3') || 'Prix U. (m³)'}</th>
                     <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500 text-right">{t('trip_revenue')}</th>
                     <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500">{t('client')}</th>
                     <th className="py-3.5 px-4 text-xs font-bold uppercase text-gray-500">{t('status')}</th>
@@ -749,8 +746,7 @@ export default function TruckGranite() {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-sm text-right font-semibold">
-                        {trip.quantity} <br/>
-                        {trip.volume_m3 && <span className="text-xs text-gray-400 font-normal">{trip.volume_m3.toFixed(2)} m³</span>}
+                        {(trip.volume_m3 || trip.quantity).toFixed(2)} m³
                       </td>
                       <td className="py-3 px-4 text-sm text-right text-gray-600">{formatPrice(trip.unit_price)}</td>
                       <td className="py-3 px-4 text-sm text-right font-bold text-emerald-600">{formatPrice(trip.total_amount)}</td>
@@ -1087,19 +1083,19 @@ export default function TruckGranite() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('net_weight_tons')} *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('volume_m3') || 'Volume (m³)'} *</label>
                   <input
                     type="number"
                     step="0.01"
                     required
-                    placeholder="e.g. 20"
+                    placeholder="e.g. 15.4"
                     value={tripFormData.quantity}
                     onChange={(e) => setTripFormData({ ...tripFormData, quantity: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none bg-gray-50"
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-navy focus:border-transparent outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('unit_price_ton')} *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('unit_price_m3') || 'Prix Unitaire (m³)'} *</label>
                   <input
                     type="number"
                     required

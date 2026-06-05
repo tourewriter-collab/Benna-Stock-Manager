@@ -558,6 +558,12 @@ export function reconcileLedger(force = false) {
       
       const trueBalance = (ledger.total_in || 0) - (ledger.total_out || 0);
       
+      // Skip items with NO usage logs — they were set manually (e.g. via order delivery)
+      // and reconciling them to 0 would incorrectly zero out the stock.
+      if ((ledger.total_in || 0) === 0 && (ledger.total_out || 0) === 0) {
+        continue;
+      }
+
       if (item.quantity !== trueBalance) {
         console.log(`[Database] Reconciling ${item.name}: ${item.quantity} -> ${trueBalance}`);
         
