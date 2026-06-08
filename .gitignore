@@ -8,3 +8,5 @@ release
 .cache
 *.log
 .DS_Store
+scratch/
+

@@ -37,7 +37,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false
     },
-    title: 'Benna Business Manager'
+    title: 'Benna Projects Manager'
   });
 
   const startURL = app.isPackaged

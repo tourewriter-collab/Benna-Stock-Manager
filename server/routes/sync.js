@@ -147,6 +147,27 @@ const MAPPERS_PUSH = {
     verification_method: d.verification_method || 'unknown',
     direction: d.direction || 'unknown',
     source: d.source || 'online_push'
+  }),
+  employee_performance: (d) => ({
+    id: d.id,
+    employee_id: d.employee_id,
+    month: d.month,
+    task_score: d.task_score || 0,
+    boss_review_score: d.boss_review_score || 0,
+    attendance_score: d.attendance_score || 0,
+    peer_feedback_score: d.peer_feedback_score || 0,
+    skill_dev_score: d.skill_dev_score || 0,
+    overtime_score: d.overtime_score || 0,
+    composite_score: d.composite_score || 0
+  }),
+  employee_tasks: (d) => ({
+    id: d.id,
+    employee_id: d.employee_id,
+    title: d.title,
+    description: d.description || null,
+    status: d.status || 'pending',
+    due_date: d.due_date || null,
+    assigned_by: typeof d.assigned_by === 'number' ? d.assigned_by : null
   })
 };
 
@@ -312,6 +333,29 @@ const MAPPERS_PULL = {
     direction: row.direction || 'unknown',
     source: row.source || 'online_push',
     is_archived: row.is_archived ? 1 : 0
+  }),
+  employee_performance: (row) => ({
+    id: row.id,
+    employee_id: row.employee_id,
+    month: row.month,
+    task_score: row.task_score || 0,
+    boss_review_score: row.boss_review_score || 0,
+    attendance_score: row.attendance_score || 0,
+    peer_feedback_score: row.peer_feedback_score || 0,
+    skill_dev_score: row.skill_dev_score || 0,
+    overtime_score: row.overtime_score || 0,
+    composite_score: row.composite_score || 0,
+    is_archived: row.is_archived ? 1 : 0
+  }),
+  employee_tasks: (row) => ({
+    id: row.id,
+    employee_id: row.employee_id,
+    title: row.title,
+    description: row.description || null,
+    status: row.status || 'pending',
+    due_date: row.due_date || null,
+    assigned_by: row.assigned_by || null,
+    is_archived: row.is_archived ? 1 : 0
   })
 };
 
@@ -431,7 +475,7 @@ router.post('/push', async (req, res) => {
     }, {});
 
     // ── STRICT TABLE ORDER FOR PUSH ──
-    const pushOrder = ['categories', 'suppliers', 'inventory', 'trucks', 'orders', 'order_items', 'payments', 'usage_logs', 'audit_logs', 'notifications', 'employees', 'applicants', 'attendance'];
+    const pushOrder = ['categories', 'suppliers', 'inventory', 'trucks', 'orders', 'order_items', 'payments', 'usage_logs', 'audit_logs', 'notifications', 'employees', 'applicants', 'attendance', 'employee_performance', 'employee_tasks'];
     const tableKeys = Object.keys(grouped).sort((a, b) => {
       const tableA = grouped[a].table;
       const tableB = grouped[b].table;
@@ -661,7 +705,7 @@ router.get('/pull', async (req, res) => {
   }
 
   try {
-    const tablesToSync = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs', 'trucks', 'notifications', 'employees', 'applicants', 'attendance'];
+    const tablesToSync = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs', 'trucks', 'notifications', 'employees', 'applicants', 'attendance', 'employee_performance', 'employee_tasks'];
     
     const tableTimeCols = {
       inventory: 'updated_at',
@@ -675,7 +719,9 @@ router.get('/pull', async (req, res) => {
       notifications: 'created_at',
       employees: 'updated_at',
       applicants: 'updated_at',
-      attendance: 'timestamp'
+      attendance: 'timestamp',
+      employee_performance: 'created_at',
+      employee_tasks: 'created_at'
     };
 
     try {
@@ -782,7 +828,7 @@ router.get('/pull', async (req, res) => {
     // --- GHOST RECOVERY (Clean up deletions) ---
     // For critical tables, ensure local matches cloud IDs. 
     // If it's missing from cloud, we archive it locally.
-    const cleanupTables = ['inventory', 'orders', 'trucks', 'notifications', 'employees', 'applicants', 'attendance'];
+    const cleanupTables = ['inventory', 'orders', 'trucks', 'notifications', 'employees', 'applicants', 'attendance', 'employee_performance', 'employee_tasks'];
     for (const table of cleanupTables) {
       try {
         const { data: cloudIds, error } = await supabase.from(table).select('id');

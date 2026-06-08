@@ -46,12 +46,13 @@ import accountingRoutes from './routes/accounting.js';
 import agentRoutes from './routes/agent.js';
 import notificationsRoutes from './routes/notifications.js';
 import hrRoutes from './routes/hr.js';
+import iclockRoutes from './routes/iclock.js';
 import { startGpsSimulator } from './cron/gps-simulator.js';
 import { startIkikeStrategyCron } from './cron/ikike-strategy.js';
 import db, { runPostStartupMaintenance } from './database.js';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 7005;
 
 // ---------------------------------------------------------------------------
 // CORS -- accept requests from localhost dev servers AND from the packaged
@@ -77,6 +78,16 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 
+// Wide-open CORS for the /api/notifications/attendance device endpoint
+// This must come BEFORE the route is registered so OPTIONS is handled correctly
+app.use('/api/notifications/attendance', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
@@ -101,6 +112,8 @@ app.use('/api/accounting', accountingRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/hr', hrRoutes);
+app.use('/iclock', express.text({ type: '*/*', limit: '10mb' }));
+app.use('/iclock', iclockRoutes);
 
 import { getSupabaseDiagnostics } from './supabaseClient.js';
 
@@ -141,6 +154,41 @@ const server = app.listen(PORT, () => {
       console.log('[Server] Post-startup maintenance complete.');
     } catch (e) {
       console.warn('[Server] Post-startup maintenance failed (non-fatal):', e.message);
+    }
+    try {
+      const ADMS_PORT = parseInt(process.env.ADMS_PORT || '5005', 10);
+      // Create a dedicated Express app for the ADMS / device port
+      // This app has completely open CORS so the hardware device can push data
+      const admsApp = express();
+      admsApp.use((req, res, next) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type');
+        if (req.method === 'OPTIONS') return res.sendStatus(200);
+        next();
+      });
+      admsApp.use(express.json({ limit: '5mb' }));
+      admsApp.use(express.urlencoded({ extended: true }));
+      // Reuse the same route handlers
+      admsApp.use('/iclock', express.text({ type: '*/*', limit: '10mb' }));
+      admsApp.use('/iclock', iclockRoutes);
+      admsApp.use('/api/notifications', notificationsRoutes);
+      admsApp.use('/api/hr', hrRoutes);
+      // Health probe
+      admsApp.get('/health', (_req, res) => res.json({ status: 'ok', port: ADMS_PORT }));
+
+      const admsServer = admsApp.listen(ADMS_PORT, () => {
+        console.log(`[ADMS Server] Device listener started on port ${ADMS_PORT} (open CORS)`);
+      });
+      admsServer.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          console.warn(`[ADMS Server] Port ${ADMS_PORT} already in use — /iclock on port ${PORT} still handles device pushes.`);
+        } else {
+          console.error('[ADMS Server] Error:', err.message);
+        }
+      });
+    } catch (e) {
+      console.error('[ADMS Server] Startup error:', e.message);
     }
     try {
       startGpsSimulator();

@@ -398,7 +398,7 @@ const Settings: React.FC = () => {
                   <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0" />
                   <div className="space-y-1">
                     <label className="block text-sm font-bold text-orange-900">{t('ikike_ai_configuration')}</label>
-                    <p className="text-xs text-orange-800 leading-relaxed">{t('gemini_warning')}</p>
+                    <p className="text-xs text-orange-800 leading-relaxed">AI services are currently experiencing high demand. Please try again later.</p>
                   </div>
                 </div>
                 

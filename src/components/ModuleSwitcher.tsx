@@ -11,6 +11,7 @@ const ModuleSwitcher: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isAccounting = location.pathname.startsWith('/accounting');
+  // '/hr' prefix covers both /hr and /hr/my-tasks
   const isHr = location.pathname.startsWith('/hr');
 
   const currentModule = isHr ? {

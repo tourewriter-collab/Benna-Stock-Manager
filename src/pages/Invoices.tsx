@@ -187,7 +187,7 @@ const Invoices: React.FC = () => {
         <body>
           <div class="header-container">
             <div class="company-details">
-              <h1>BENNA STOCK</h1>
+              <h1>BENNA PROJECTS</h1>
               <p>Conakry, Guinée</p>
             </div>
             <div class="invoice-title-box">

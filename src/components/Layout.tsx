@@ -4,13 +4,15 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useSync } from '../contexts/SyncContext';
 import pkg from '../../package.json';
-import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, CheckCircle2, TrendingDown, Truck, Bell, BellOff, Trash, Check, Sparkles, Info, Users, Settings as SettingsIcon } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, CheckCircle2, TrendingDown, Truck, Bell, BellOff, Trash, Check, Sparkles, Info, Users, Settings as SettingsIcon, ClipboardList, Award } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import UpdaterOverlay from './UpdaterOverlay';
 import ModuleSwitcher from './ModuleSwitcher';
 import { IkikeAgent } from './IkikeAgent';
+import { usePermissions } from '../contexts/PermissionsContext';
 
 const Layout: React.FC = () => {
+  const { can } = usePermissions();
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
   const { syncStatus, pendingCount, triggerSync, isOnline } = useSync();
@@ -130,12 +132,11 @@ const Layout: React.FC = () => {
               <div className="hidden lg:flex space-x-1 xl:space-x-2">
                 {!isAccounting && !isHr ? (
                   <>
-                    <Link to="/dashboard"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/dashboard')}`}>{t('dashboard')}</Link>
-                    <Link to="/inventory"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/inventory')}`}>{t('inventory')}</Link>
-                    <Link to="/orders"        className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/orders')}`}>{t('orders')}</Link>
-                    <Link to="/usage-reports" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/usage-reports')}`}>{t('usage_reports')}</Link>
-                    <Link to="/fleet"         className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/fleet')}`}>{t('fleet')}</Link>
-
+                    {can('dashboard', 'view') && <Link to="/dashboard"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/dashboard')}`}>{t('dashboard')}</Link>}
+                    {can('inventory', 'view') && <Link to="/inventory"     className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/inventory')}`}>{t('inventory')}</Link>}
+                    {can('orders', 'view') && <Link to="/orders"        className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/orders')}`}>{t('orders')}</Link>}
+                    {can('usage_reports', 'view') && <Link to="/usage-reports" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/usage-reports')}`}>{t('usage_reports')}</Link>}
+                    {can('fleet', 'view') && <Link to="/fleet"         className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/fleet')}`}>{t('fleet')}</Link>}
                   </>
                 ) : isAccounting ? (
                   <>
@@ -146,7 +147,9 @@ const Layout: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <Link to="/hr" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/hr')}`}>{t('hr_dashboard', 'HR Management')}</Link>
+                     <Link to="/hr" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/hr')}`}>{t('hr_dashboard', 'HR Management')}</Link>
+                     {can('employee_portal', 'view') && <Link to="/hr/my-tasks" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/hr/my-tasks')}`}>{t('my_tasks', 'My Tasks')}</Link>}
+                     {can('employee_portal', 'view') && <Link to="/hr/my-performance" className={`px-2 py-2 rounded-md text-sm font-medium hover:bg-white/10 transition whitespace-nowrap ${isActive('/hr/my-performance')}`}>{t('my_performance', 'My Performance')}</Link>}
                   </>
                 )}
               </div>
@@ -155,12 +158,11 @@ const Layout: React.FC = () => {
               <div className="hidden md:flex lg:hidden space-x-1">
                 {!isAccounting && !isHr ? (
                   <>
-                    <Link to="/dashboard" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/dashboard')}`} title={t('dashboard')}><Package size={18} /></Link>
-                    <Link to="/inventory" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/inventory')}`} title={t('inventory')}><Layers size={18} /></Link>
-                    <Link to="/orders"    className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/orders')}`}    title={t('orders')}><CreditCard size={18} /></Link>
-                    <Link to="/usage-reports" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/usage-reports')}`} title={t('usage_reports')}><TrendingDown size={18} /></Link>
-                    <Link to="/fleet"     className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/fleet')}`}     title={t('fleet')}><Truck size={18} /></Link>
-
+                    {can('dashboard', 'view') && <Link to="/dashboard" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/dashboard')}`} title={t('dashboard')}><Package size={18} /></Link>}
+                    {can('inventory', 'view') && <Link to="/inventory" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/inventory')}`} title={t('inventory')}><Layers size={18} /></Link>}
+                    {can('orders', 'view') && <Link to="/orders"    className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/orders')}`}    title={t('orders')}><CreditCard size={18} /></Link>}
+                    {can('usage_reports', 'view') && <Link to="/usage-reports" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/usage-reports')}`} title={t('usage_reports')}><TrendingDown size={18} /></Link>}
+                    {can('fleet', 'view') && <Link to="/fleet"     className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/fleet')}`}     title={t('fleet')}><Truck size={18} /></Link>}
                   </>
                 ) : isAccounting ? (
                   <>
@@ -171,7 +173,9 @@ const Layout: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <Link to="/hr" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/hr')}`} title={t('hr_dashboard', 'HR Management')}><Users size={18} /></Link>
+                     <Link to="/hr" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/hr')}`} title={t('hr_dashboard', 'HR Management')}><Users size={18} /></Link>
+                     {can('employee_portal', 'view') && <Link to="/hr/my-tasks" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/hr/my-tasks')}`} title={t('my_tasks', 'My Tasks')}><ClipboardList size={18} /></Link>}
+                     {can('employee_portal', 'view') && <Link to="/hr/my-performance" className={`p-2 rounded-md transition hover:bg-white/10 ${isActive('/hr/my-performance')}`} title={t('my_performance', 'My Performance')}><Award size={18} /></Link>}
                   </>
                 )}
               </div>
@@ -180,13 +184,15 @@ const Layout: React.FC = () => {
             {/* Right: User name + Logout */}
             <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 ml-auto">
               {/* Global Settings Gear Icon */}
-              <Link
-                to="/settings"
-                title={t('settings')}
-                className={`p-2 rounded-full hover:bg-white/10 transition flex items-center justify-center text-white ${isActive('/settings')}`}
-              >
-                <SettingsIcon className="w-5 h-5" />
-              </Link>
+              {can('settings', 'view') && (
+                <Link
+                  to="/settings"
+                  title={t('settings')}
+                  className={`p-2 rounded-full hover:bg-white/10 transition flex items-center justify-center text-white ${isActive('/settings')}`}
+                >
+                  <SettingsIcon className="w-5 h-5" />
+                </Link>
+              )}
 
               {/* Notification Bell Dropdown */}
               <div className="relative">

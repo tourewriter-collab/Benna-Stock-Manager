@@ -220,6 +220,29 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS employee_performance (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    month TEXT NOT NULL,
+    task_score INTEGER DEFAULT 0,
+    boss_review_score INTEGER DEFAULT 0,
+    attendance_score INTEGER DEFAULT 0,
+    peer_feedback_score INTEGER DEFAULT 0,
+    skill_dev_score INTEGER DEFAULT 0,
+    overtime_score INTEGER DEFAULT 0,
+    composite_score INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    sync_status TEXT DEFAULT 'pending',
+    sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
+  )
+`);
+
+db.exec(`
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('global_ai_access', 'false');
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS transactions (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL,
@@ -366,10 +389,37 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_permissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    module TEXT NOT NULL,
+    action TEXT NOT NULL,
+    allowed INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, module, action)
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS employee_tasks (
+    id TEXT PRIMARY KEY,
+    employee_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'in_progress', 'completed')) DEFAULT 'pending',
+    due_date TEXT,
+    assigned_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_by) REFERENCES users(id)
+  )
+`);
+
 
 // --- 2. COLUMN MIGRATIONS (Safe updates for existing DBs) ---
 
-const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'accounts', 'invoices', 'transactions', 'trucks', 'granite_deliveries', 'notifications', 'employees', 'applicants', 'attendance'];
+const tables = ['users', 'inventory', 'audit_logs', 'usage_logs', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'accounts', 'invoices', 'transactions', 'trucks', 'granite_deliveries', 'notifications', 'employees', 'applicants', 'attendance', 'user_permissions', 'employee_tasks'];
 for (const table of tables) {
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_status TEXT DEFAULT 'pending'`); } catch (e) {}
   try { db.exec(`ALTER TABLE ${table} ADD COLUMN sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`); } catch (e) {}
@@ -379,6 +429,7 @@ for (const table of tables) {
 }
 
 try { db.exec(`ALTER TABLE employees ADD COLUMN device_enroll_id TEXT`); } catch (e) {}
+try { db.exec(`ALTER TABLE employees ADD COLUMN supervisor_id INTEGER REFERENCES users(id)`); } catch (e) {}
 try { db.exec(`ALTER TABLE inventory ADD COLUMN category_id TEXT`); } catch (e) {}
 try { db.exec(`ALTER TABLE order_items ADD COLUMN delivered_quantity INTEGER DEFAULT 0`); } catch (e) {}
 try { db.exec(`ALTER TABLE orders ADD COLUMN delivery_status TEXT DEFAULT 'pending'`); } catch (e) {}
@@ -395,6 +446,25 @@ try { db.exec(`ALTER TABLE granite_deliveries ADD COLUMN net_weight REAL`); } ca
 try { db.exec(`ALTER TABLE granite_deliveries ADD COLUMN volume_m3 REAL`); } catch (e) {}
 
 // --- 3. SEEDING & HOUSEKEEPING ---
+
+// Helper to check if a user can view or edit their own performance data
+export const canAccessPerformance = (user, targetEmployeeId) => {
+  // Admin can access any employee's performance
+  if (user.role === 'admin') return true;
+  
+  // Check if supervisor of the target employee or if it is the employee themselves (match by email)
+  const emp = db.prepare('SELECT email, supervisor_id FROM employees WHERE id = ?').get(targetEmployeeId);
+  if (emp) {
+    if (emp.supervisor_id === user.id) return true;
+    if (user.email && emp.email === user.email) return true;
+  }
+  return false;
+};
+
+export const canAdminToggleGlobalAI = (user) => {
+  // Only admin can toggle the global AI access flag
+  return user.role === 'admin';
+};
 
 // Admin User
 const checkAdmin = db.prepare('SELECT * FROM users WHERE email = ?').get('cheickahmedt@gmail.com');
@@ -693,15 +763,14 @@ export function runPostStartupMaintenance() {
     }
   })();
   try {
+    sanitizeSchema();
     repairAllIds();
-    db.prepare("DELETE FROM sync_queue WHERE synced = 1 AND created_at < datetime('now', '-3 days')").run();
-  } catch (e) {}
+    reconcileLedger();
+  } catch (error) {
+    console.error('[Database] Post-startup maintenance failed:', error);
+  }
 }
 
-// --- 5. INITIALIZATION ---
-
-sanitizeSchema();
-setTimeout(() => reconcileLedger(), 1000);
-setTimeout(() => runPostStartupMaintenance(), 2000);
+export const canToggleGlobalAI = (user) => user.role === 'admin';
 
 export default db;

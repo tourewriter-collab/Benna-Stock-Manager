@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken, canAccessPerformance } from '../middleware/auth.js';
 import db from '../database.js';
 import crypto from 'crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -55,7 +55,13 @@ async function callDeepSeekHr(deepseekKey, prompt, systemPrompt) {
 // Get all active employees
 router.get('/employees', authenticateToken, (req, res) => {
   try {
-    const employees = db.prepare('SELECT * FROM employees WHERE is_archived = 0 ORDER BY name ASC').all();
+    const employees = db.prepare(`
+      SELECT e.*, u.name as supervisor_name
+      FROM employees e
+      LEFT JOIN users u ON e.supervisor_id = u.id
+      WHERE e.is_archived = 0
+      ORDER BY e.name ASC
+    `).all();
     res.json(employees);
   } catch (error) {
     console.error('[HR] Get employees error:', error);
@@ -218,7 +224,7 @@ router.post('/employees/import', authenticateToken, async (req, res) => {
 // Add new employee
 router.post('/employees', authenticateToken, (req, res) => {
   try {
-    const { name, email, phone, role, department, salary, hire_date, status, performance_notes, resume_text } = req.body;
+    const { name, email, phone, role, department, salary, hire_date, status, performance_notes, resume_text, supervisor_id, device_enroll_id } = req.body;
 
     if (!name || !role || !department || !hire_date) {
       return res.status(400).json({ error: 'Name, role, department, and hire date are required.' });
@@ -229,17 +235,17 @@ router.post('/employees', authenticateToken, (req, res) => {
 
     db.prepare(`
       INSERT INTO employees (
-        id, name, email, phone, role, department, salary, hire_date, status, performance_notes, resume_text, is_archived, sync_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending')
+        id, name, email, phone, role, department, salary, hire_date, status, performance_notes, resume_text, is_archived, sync_status, device_enroll_id, supervisor_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'pending', ?, ?)
     `).run(
-      id, name, email || null, phone || null, role, department, salary || 0, hireDateStr, status || 'active', performance_notes || '', resume_text || '',
+      id, name, email || null, phone || null, role, department, salary || 0, hireDateStr, status || 'active', performance_notes || '', resume_text || '', device_enroll_id || null, supervisor_id || null
     );
 
     db.prepare(`
       INSERT INTO sync_queue (table_name, record_id, action, data)
       VALUES ('employees', ?, 'INSERT', ?)
     `).run(id, JSON.stringify({
-      id, name, email: email || null, phone: phone || null, role, department, salary: salary || 0, hire_date: hireDateStr, status: status || 'active', performance_notes: performance_notes || '', resume_text: resume_text || '', device_enroll_id: null
+      id, name, email: email || null, phone: phone || null, role, department, salary: salary || 0, hire_date: hireDateStr, status: status || 'active', performance_notes: performance_notes || '', resume_text: resume_text || '', device_enroll_id: device_enroll_id || null, supervisor_id: supervisor_id || null
     }));
 
     // File strategic audit log
@@ -247,7 +253,7 @@ router.post('/employees', authenticateToken, (req, res) => {
     db.prepare(`
       INSERT INTO audit_logs (id, user_id, action, table_name, record_id, new_values, sync_status)
       VALUES (?, ?, ?, ?, ?, ?, 'pending')
-    `).run(auditId, req.user.id, 'INSERT', 'employees', id, JSON.stringify({ name, role, department }));
+    `).run(auditId, req.user.id, 'INSERT', 'employees', id, JSON.stringify({ name, role, department, supervisor_id }));
 
     res.status(201).json({ success: true, id });
   } catch (error) {
@@ -260,7 +266,7 @@ router.post('/employees', authenticateToken, (req, res) => {
 router.put('/employees/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, role, department, salary, hire_date, status, performance_notes, resume_text } = req.body;
+    const { name, email, phone, role, department, salary, hire_date, status, performance_notes, resume_text, supervisor_id, device_enroll_id } = req.body;
 
     const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
     if (!existing) {
@@ -269,7 +275,7 @@ router.put('/employees/:id', authenticateToken, (req, res) => {
 
     db.prepare(`
       UPDATE employees SET
-        name = ?, email = ?, phone = ?, role = ?, department = ?, salary = ?, hire_date = ?, status = ?, performance_notes = ?, resume_text = ?, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP
+        name = ?, email = ?, phone = ?, role = ?, department = ?, salary = ?, hire_date = ?, status = ?, performance_notes = ?, resume_text = ?, device_enroll_id = ?, supervisor_id = ?, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(
       name || existing.name,
@@ -282,6 +288,8 @@ router.put('/employees/:id', authenticateToken, (req, res) => {
       status || existing.status,
       performance_notes !== undefined ? performance_notes : existing.performance_notes,
       resume_text !== undefined ? resume_text : existing.resume_text,
+      device_enroll_id !== undefined ? device_enroll_id : existing.device_enroll_id,
+      supervisor_id !== undefined ? supervisor_id : existing.supervisor_id,
       id
     );
 
@@ -629,6 +637,39 @@ Output format (MUST be raw JSON, no markdown wrapper or extra words):
 
 // ── SMART ATTENDANCE ENDPOINTS ──
 
+// Get biometric device connection status
+router.get('/attendance/device-status', authenticateToken, (req, res) => {
+  try {
+    const lastSeenRecord = db.prepare("SELECT value FROM settings WHERE key = 'device_last_seen'").get();
+    const snRecord = db.prepare("SELECT value FROM settings WHERE key = 'device_sn'").get();
+    const ipRecord = db.prepare("SELECT value FROM settings WHERE key = 'device_ip'").get();
+    
+    const lastSeen = lastSeenRecord ? lastSeenRecord.value : null;
+    const sn = snRecord ? snRecord.value : 'N/A';
+    const ip = ipRecord ? ipRecord.value : 'N/A';
+    
+    let online = false;
+    if (lastSeen) {
+      const diffMs = new Date() - new Date(lastSeen);
+      // Device is considered online if seen in the last 2 minutes
+      if (diffMs < 2 * 60 * 1000) {
+        online = true;
+      }
+    }
+    
+    res.json({
+      online,
+      lastSeen,
+      sn,
+      ip,
+      port: 5005
+    });
+  } catch (error) {
+    console.error('[HR] Get device status error:', error);
+    res.status(500).json({ error: 'Failed to fetch device status' });
+  }
+});
+
 // Get all attendance logs
 router.get('/attendance', authenticateToken, (req, res) => {
   try {
@@ -643,6 +684,59 @@ router.get('/attendance', authenticateToken, (req, res) => {
   } catch (error) {
     console.error('[HR] Get attendance error:', error);
     res.status(500).json({ error: 'Failed to fetch attendance logs' });
+  }
+});
+
+// Proxy pull logs from the physical device (HTTP GET cdata or logs)
+router.get('/attendance/device-pull', async (req, res) => {
+  try {
+    const ipRecord = db.prepare("SELECT value FROM settings WHERE key = 'device_ip'").get();
+    const portRecord = db.prepare("SELECT value FROM settings WHERE key = 'device_port'").get();
+    
+    const deviceIp = ipRecord?.value || process.env.VITE_ATTENDANCE_DEVICE_IP || '192.168.0.100';
+    const devicePort = portRecord?.value || process.env.VITE_ATTENDANCE_DEVICE_PORT || '5005';
+    
+    console.log(`[ADMS Pull] Attempting to pull logs from device at http://${deviceIp}:${devicePort}...`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    
+    try {
+      const deviceUrl = `http://${deviceIp}:${devicePort}/iclock/cdata?SN=all&table=ATTLOG`;
+      const response = await fetch(deviceUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const text = await response.text();
+        // Parse the raw cdata text if it contains tab-separated logs
+        const lines = text.split(/\r?\n/).filter(line => line.trim());
+        const records = lines.map(line => {
+          const parts = line.split(/[\t,]+| {2,}/).map(p => p.trim()).filter(Boolean);
+          if (parts.length < 2) return null;
+          return {
+            UserID: parts[0],
+            Timestamp: parts[1],
+            VerificationMethod: parts[2] || '1',
+            Status: parts[3] || '0'
+          };
+        }).filter(Boolean);
+        
+        return res.json({ success: true, source: 'device', records });
+      }
+    } catch (err) {
+      clearTimeout(timeoutId);
+      console.warn(`[ADMS Pull] Device at http://${deviceIp}:${devicePort} is unreachable (offline/unlinked).`);
+    }
+    
+    // Fallback: return empty records array
+    return res.json({ 
+      success: true, 
+      source: 'offline_fallback', 
+      records: [] 
+    });
+  } catch (error) {
+    console.error('[HR] Device pull error:', error);
+    res.status(500).json({ error: 'Failed to pull from device', message: error.message });
   }
 });
 
@@ -806,6 +900,521 @@ router.put('/employees/:id/enroll', authenticateToken, (req, res) => {
   } catch (error) {
     console.error('[HR] Enroll employee error:', error);
     res.status(500).json({ error: 'Failed to update device enroll ID' });
+  }
+});
+
+// ── EMPLOYEE TASKS ENDPOINTS ──
+
+// Get tasks
+router.get('/tasks', authenticateToken, (req, res) => {
+  try {
+    let canViewAll = req.user.role === 'admin' || req.user.role === 'audit_manager';
+    if (!canViewAll) {
+      const permission = db.prepare('SELECT allowed FROM user_permissions WHERE user_id = ? AND module = "hr" AND action = "view" AND is_archived = 0').get(req.user.id);
+      if (permission && permission.allowed === 1) {
+        canViewAll = true;
+      }
+    }
+
+    if (canViewAll) {
+      const tasks = db.prepare(`
+        SELECT t.*, e.name as employee_name, e.email as employee_email, u.name as assigned_by_name
+        FROM employee_tasks t
+        JOIN employees e ON t.employee_id = e.id
+        LEFT JOIN users u ON t.assigned_by = u.id
+        WHERE t.is_archived = 0
+        ORDER BY t.created_at DESC
+      `).all();
+      res.json(tasks);
+    } else {
+      const tasks = db.prepare(`
+        SELECT t.*, e.name as employee_name, e.email as employee_email, u.name as assigned_by_name
+        FROM employee_tasks t
+        JOIN employees e ON t.employee_id = e.id
+        LEFT JOIN users u ON t.assigned_by = u.id
+        WHERE e.email = ? AND t.is_archived = 0
+        ORDER BY t.created_at DESC
+      `).all(req.user.email);
+      res.json(tasks);
+    }
+  } catch (error) {
+    console.error('[HR Tasks] Get tasks error:', error);
+    res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
+});
+
+// Create task
+router.post('/tasks', authenticateToken, (req, res) => {
+  let canCreate = req.user.role === 'admin';
+  if (!canCreate) {
+    const permission = db.prepare('SELECT allowed FROM user_permissions WHERE user_id = ? AND module = "hr" AND action = "create" AND is_archived = 0').get(req.user.id);
+    if (permission && permission.allowed === 1) {
+      canCreate = true;
+    }
+  }
+
+  if (!canCreate) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+
+  const { employee_id, title, description, due_date } = req.body;
+  if (!employee_id || !title) {
+    return res.status(400).json({ error: 'Employee ID and Title are required' });
+  }
+
+  try {
+    const id = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO employee_tasks (id, employee_id, title, description, status, due_date, assigned_by, sync_status)
+      VALUES (?, ?, ?, ?, 'pending', ?, ?, 'pending')
+    `).run(id, employee_id, title, description || null, due_date || null, req.user.id);
+
+    const task = db.prepare('SELECT * FROM employee_tasks WHERE id = ?').get(id);
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('employee_tasks', ?, 'INSERT', ?)
+    `).run(id, JSON.stringify(task));
+
+    res.status(201).json({ success: true, id });
+  } catch (error) {
+    console.error('[HR Tasks] Create task error:', error);
+    res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+// Update task
+router.put('/tasks/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { title, description, status, due_date } = req.body;
+
+  try {
+    const existing = db.prepare(`
+      SELECT t.*, e.email as employee_email
+      FROM employee_tasks t
+      JOIN employees e ON t.employee_id = e.id
+      WHERE t.id = ?
+    `).get(id);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    const isAssignedEmployee = existing.employee_email === req.user.email;
+    let canEditAll = req.user.role === 'admin';
+    if (!canEditAll) {
+      const permission = db.prepare('SELECT allowed FROM user_permissions WHERE user_id = ? AND module = "hr" AND action = "edit" AND is_archived = 0').get(req.user.id);
+      if (permission && permission.allowed === 1) {
+        canEditAll = true;
+      }
+    }
+
+    if (!isAssignedEmployee && !canEditAll) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    if (canEditAll) {
+      db.prepare(`
+        UPDATE employee_tasks SET
+          title = ?,
+          description = ?,
+          status = ?,
+          due_date = ?,
+          sync_status = 'pending',
+          sync_updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(
+        title !== undefined ? title : existing.title,
+        description !== undefined ? description : existing.description,
+        status !== undefined ? status : existing.status,
+        due_date !== undefined ? due_date : existing.due_date,
+        id
+      );
+    } else {
+      if (status === undefined) {
+        return res.status(400).json({ error: 'Employees can only update task status' });
+      }
+      db.prepare(`
+        UPDATE employee_tasks SET
+          status = ?,
+          sync_status = 'pending',
+          sync_updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(status, id);
+    }
+
+    const updated = db.prepare('SELECT * FROM employee_tasks WHERE id = ?').get(id);
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('employee_tasks', ?, 'UPDATE', ?)
+    `).run(id, JSON.stringify(updated));
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[HR Tasks] Update task error:', error);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+// Delete task
+router.delete('/tasks/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+
+  let canDelete = req.user.role === 'admin';
+  if (!canDelete) {
+    const permission = db.prepare('SELECT allowed FROM user_permissions WHERE user_id = ? AND module = "hr" AND action = "delete" AND is_archived = 0').get(req.user.id);
+    if (permission && permission.allowed === 1) {
+      canDelete = true;
+    }
+  }
+
+  if (!canDelete) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+
+  try {
+    db.prepare("UPDATE employee_tasks SET is_archived = 1, sync_status = 'pending', sync_updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+
+    const archived = db.prepare('SELECT * FROM employee_tasks WHERE id = ?').get(id);
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('employee_tasks', ?, 'UPDATE', ?)
+    `).run(id, JSON.stringify(archived));
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[HR Tasks] Delete task error:', error);
+    res.status(500).json({ error: 'Failed to delete task' });
+  }
+});
+
+function getWeekdaysInMonth(monthStr) {
+  const [year, month] = monthStr.split('-').map(Number);
+  const date = new Date(year, month - 1, 1);
+  let count = 0;
+  while (date.getMonth() === month - 1) {
+    const day = date.getDay();
+    if (day !== 0 && day !== 6) {
+      count++;
+    }
+    date.setDate(date.getDate() + 1);
+  }
+  return count || 22;
+}
+
+function calculateAttendanceScore(employeeId, month) {
+  const monthPattern = `${month}%`;
+  const attendanceDb = db.prepare(`
+    SELECT COUNT(DISTINCT date(timestamp)) as days_present 
+    FROM attendance 
+    WHERE employee_id = ? AND timestamp LIKE ?
+  `).get(employeeId, monthPattern);
+  
+  const daysPresent = attendanceDb ? attendanceDb.days_present : 0;
+  const totalWeekdays = getWeekdaysInMonth(month);
+  
+  const anyLogs = db.prepare(`SELECT id FROM attendance WHERE timestamp LIKE ? LIMIT 1`).get(monthPattern);
+  if (!anyLogs) {
+    return 100;
+  }
+
+  const score = totalWeekdays > 0 
+    ? Math.min(100, Math.round((daysPresent / totalWeekdays) * 100)) 
+    : 100;
+  return score;
+}
+
+// Calculate composite score dynamically based on settings
+function calculateCompositeScore(scores) {
+  const peerFeedbackEnabled = db.prepare("SELECT value FROM settings WHERE key = 'peer_feedback_enabled'").get()?.value === '1';
+  
+  const {
+    task_score = 0,
+    boss_review_score = 0,
+    attendance_score = 0,
+    peer_feedback_score = 0,
+    skill_dev_score = 0,
+    overtime_score = 0
+  } = scores;
+  
+  if (peerFeedbackEnabled) {
+    const total = (task_score * 0.3) +
+                  (boss_review_score * 0.25) +
+                  (attendance_score * 0.15) +
+                  (peer_feedback_score * 0.1) +
+                  (skill_dev_score * 0.1) +
+                  (overtime_score * 0.1);
+    return Math.round(total);
+  } else {
+    const subTotal = (task_score * 0.3) +
+                     (boss_review_score * 0.25) +
+                     (attendance_score * 0.15) +
+                     (skill_dev_score * 0.1) +
+                     (overtime_score * 0.1);
+    return Math.round((subTotal / 0.9));
+  }
+}
+
+// GET /api/hr/performance/calculate-fixed-scores
+router.get('/performance/calculate-fixed-scores', authenticateToken, (req, res) => {
+  const { employee_id, month } = req.query;
+  if (!employee_id || !month) {
+    return res.status(400).json({ error: 'employee_id and month are required' });
+  }
+  if (!canAccessPerformance(req.user, employee_id)) {
+    return res.status(403).json({ error: 'Access denied: Insufficient permissions' });
+  }
+  try {
+    const score = calculateAttendanceScore(employee_id, month);
+    res.json({ attendance_score: score });
+  } catch (error) {
+    console.error('[HR Performance] Error calculating attendance score:', error);
+    res.status(500).json({ error: 'Failed to calculate attendance score' });
+  }
+});
+
+// GET /api/hr/performance/all (Admin or Supervisor)
+router.get('/performance/all', authenticateToken, (req, res) => {
+  const supervisedCount = db.prepare('SELECT COUNT(*) as count FROM employees WHERE supervisor_id = ? AND is_archived = 0').get(req.user.id)?.count || 0;
+  if (req.user.role !== 'admin' && supervisedCount === 0) {
+    return res.status(403).json({ error: 'Access denied: Admin or Supervisor only' });
+  }
+  try {
+    let records;
+    if (req.user.role === 'admin') {
+      records = db.prepare(`
+        SELECT p.*, e.name as employee_name, e.department as employee_department, e.role as employee_role
+        FROM employee_performance p
+        JOIN employees e ON p.employee_id = e.id
+        WHERE e.is_archived = 0
+        ORDER BY p.month DESC, p.composite_score DESC
+      `).all();
+    } else {
+      records = db.prepare(`
+        SELECT p.*, e.name as employee_name, e.department as employee_department, e.role as employee_role
+        FROM employee_performance p
+        JOIN employees e ON p.employee_id = e.id
+        WHERE e.is_archived = 0 AND e.supervisor_id = ?
+        ORDER BY p.month DESC, p.composite_score DESC
+      `).all(req.user.id);
+    }
+    res.json(records);
+  } catch (err) {
+    console.error('[HR Performance] Error getting all performance:', err);
+    res.status(500).json({ error: 'Failed to fetch performance data' });
+  }
+});
+
+// GET /api/hr/performance/:employeeId (Gated by canAccessPerformance)
+router.get('/performance/:employeeId', authenticateToken, (req, res) => {
+  const { employeeId } = req.params;
+  if (!canAccessPerformance(req.user, employeeId)) {
+    return res.status(403).json({ error: 'Access denied: Insufficient permissions' });
+  }
+  try {
+    const records = db.prepare(`
+      SELECT p.*, e.name as employee_name, e.department as employee_department, e.role as employee_role
+      FROM employee_performance p
+      JOIN employees e ON p.employee_id = e.id
+      WHERE p.employee_id = ? AND e.is_archived = 0
+      ORDER BY p.month DESC
+    `).all(employeeId);
+    res.json(records);
+  } catch (err) {
+    console.error('[HR Performance] Error getting employee performance:', err);
+    res.status(500).json({ error: 'Failed to fetch performance data' });
+  }
+});
+
+// GET /api/hr/performance/:employeeId/:month (Gated by canAccessPerformance)
+router.get('/performance/:employeeId/:month', authenticateToken, (req, res) => {
+  const { employeeId, month } = req.params;
+  if (!canAccessPerformance(req.user, employeeId)) {
+    return res.status(403).json({ error: 'Access denied: Insufficient permissions' });
+  }
+  try {
+    const record = db.prepare(`
+      SELECT p.*, e.name as employee_name, e.department as employee_department, e.role as employee_role
+      FROM employee_performance p
+      JOIN employees e ON p.employee_id = e.id
+      WHERE p.employee_id = ? AND p.month = ? AND e.is_archived = 0
+    `).get(employeeId, month);
+    if (!record) {
+      return res.status(404).json({ error: 'Performance record not found for this month' });
+    }
+    res.json(record);
+  } catch (err) {
+    console.error('[HR Performance] Error getting month performance:', err);
+    res.status(500).json({ error: 'Failed to fetch performance data' });
+  }
+});
+
+// POST /api/hr/performance (Admin or Supervisor)
+router.post('/performance', authenticateToken, (req, res) => {
+  const {
+    employee_id,
+    month,
+    task_score,
+    boss_review_score,
+    peer_feedback_score,
+    skill_dev_score,
+    overtime_score
+  } = req.body;
+  
+  if (!employee_id || !month) {
+    return res.status(400).json({ error: 'employee_id and month are required' });
+  }
+  
+  const targetEmployee = db.prepare('SELECT supervisor_id FROM employees WHERE id = ? AND is_archived = 0').get(employee_id);
+  if (!targetEmployee) {
+    return res.status(404).json({ error: 'Employee not found' });
+  }
+  
+  const isSupervisor = targetEmployee.supervisor_id === req.user.id;
+  if (req.user.role !== 'admin' && !isSupervisor) {
+    return res.status(403).json({ error: 'Access denied: You are not the supervisor of this employee' });
+  }
+  
+  try {
+    const computedAttendance = calculateAttendanceScore(employee_id, month);
+    const composite_score = calculateCompositeScore({
+      task_score,
+      boss_review_score,
+      attendance_score: computedAttendance,
+      peer_feedback_score,
+      skill_dev_score,
+      overtime_score
+    });
+    
+    const existing = db.prepare('SELECT id FROM employee_performance WHERE employee_id = ? AND month = ?').get(employee_id, month);
+    let recordId;
+    
+    if (existing) {
+      recordId = existing.id;
+      db.prepare(`
+        UPDATE employee_performance SET
+          task_score = ?,
+          boss_review_score = ?,
+          attendance_score = ?,
+          peer_feedback_score = ?,
+          skill_dev_score = ?,
+          overtime_score = ?,
+          composite_score = ?,
+          sync_status = 'pending',
+          sync_updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(
+        task_score ?? 0,
+        boss_review_score ?? 0,
+        computedAttendance,
+        peer_feedback_score ?? 0,
+        skill_dev_score ?? 0,
+        overtime_score ?? 0,
+        composite_score,
+        existing.id
+      );
+    } else {
+      recordId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO employee_performance (
+          id, employee_id, month, task_score, boss_review_score, attendance_score,
+          peer_feedback_score, skill_dev_score, overtime_score, composite_score, sync_status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+      `).run(
+        recordId,
+        employee_id,
+        month,
+        task_score ?? 0,
+        boss_review_score ?? 0,
+        computedAttendance,
+        peer_feedback_score ?? 0,
+        skill_dev_score ?? 0,
+        overtime_score ?? 0,
+        composite_score
+      );
+    }
+    
+    // Create sync queue entry
+    const saved = db.prepare('SELECT * FROM employee_performance WHERE id = ?').get(recordId);
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('employee_performance', ?, ?, ?)
+    `).run(recordId, existing ? 'UPDATE' : 'INSERT', JSON.stringify(saved));
+
+    // File dynamic performance notification
+    const emp = db.prepare('SELECT name FROM employees WHERE id = ?').get(employee_id);
+    const empName = emp ? emp.name : 'Employee';
+    const notifId = crypto.randomUUID();
+    const notifMsg = `Performance review compiled for ${empName} (${month}). Composite score: ${composite_score}%. Click to discuss recommendations with Ikiké.`;
+    
+    db.prepare(`
+      INSERT INTO notifications (id, message, type, is_read, sync_status)
+      VALUES (?, ?, 'performance', 0, 'pending')
+    `).run(notifId, notifMsg);
+    
+    db.prepare(`
+      INSERT INTO sync_queue (table_name, record_id, action, data)
+      VALUES ('notifications', ?, 'INSERT', ?)
+    `).run(notifId, JSON.stringify({
+      id: notifId, message: notifMsg, type: 'performance', is_read: 0, created_at: new Date().toISOString()
+    }));
+
+    res.json({ success: true, id: recordId, composite_score });
+  } catch (err) {
+    console.error('[HR Performance] Error saving performance:', err);
+    res.status(500).json({ error: 'Failed to save performance record' });
+  }
+});
+
+// POST /api/hr/performance/boss-score (Admin only)
+router.post('/performance/boss-score', authenticateToken, async (req, res) => {
+  try {
+    const { commentary } = req.body;
+    if (!commentary) {
+      return res.status(400).json({ error: 'Commentary is required' });
+    }
+
+    let activeModel = 'gemini';
+    let geminiKey = process.env.GEMINI_API_KEY;
+    let deepseekKey = '';
+
+    const settingsRecords = db.prepare("SELECT key, value FROM settings WHERE key IN ('gemini_api_key', 'deepseek_api_key', 'active_agent_model')").all();
+    for (const s of settingsRecords) {
+      if (s.key === 'gemini_api_key' && !geminiKey) geminiKey = s.value;
+      if (s.key === 'deepseek_api_key') deepseekKey = s.value;
+      if (s.key === 'active_agent_model') activeModel = s.value;
+    }
+
+    const fallbackScore = 75; // reasonable fallback
+    
+    // Fallback logic if keys are missing
+    if (!geminiKey && !deepseekKey) {
+      return res.json({ score: fallbackScore });
+    }
+
+    const systemPrompt = `You are an expert HR evaluation engine. Read the boss commentary and translate it into a numerical performance score from 0 to 100.
+Respond ONLY with a single JSON object in this format: { "score": 85 }. Do not include markdown tags, other text, or explanation.`;
+
+    let replyText = '';
+    if (activeModel === 'gemini' && geminiKey) {
+      replyText = await callGeminiHr(geminiKey, commentary, systemPrompt);
+    } else if (deepseekKey) {
+      replyText = await callDeepSeekHr(deepseekKey, commentary, systemPrompt);
+    } else {
+      return res.json({ score: fallbackScore });
+    }
+
+    let cleanJson = replyText.trim();
+    if (cleanJson.startsWith('```json')) {
+      cleanJson = cleanJson.replace(/^```json/, '').replace(/```$/, '').trim();
+    } else if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson.replace(/^```/, '').replace(/```$/, '').trim();
+    }
+
+    let parsed = JSON.parse(cleanJson);
+    res.json({ score: Number(parsed.score || fallbackScore) });
+  } catch (err) {
+    console.error('[HR] Error translating commentary to score:', err);
+    res.status(500).json({ error: 'Failed to evaluate commentary' });
   }
 });
 

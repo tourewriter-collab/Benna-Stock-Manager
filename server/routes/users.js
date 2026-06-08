@@ -50,9 +50,9 @@ router.post('/', authenticateToken, requireRole('admin'), (req, res) => {
 
 router.put('/:id', authenticateToken, requireRole('admin'), (req, res) => {
   const { id } = req.params;
-  const { role } = req.body;
+  const { role, name } = req.body;
 
-  if (!role || !['admin', 'audit_manager', 'user'].includes(role)) {
+  if (role && !['admin', 'audit_manager', 'user'].includes(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
 
@@ -63,11 +63,14 @@ router.put('/:id', authenticateToken, requireRole('admin'), (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (user.email === 'admin@inventory.com' && role !== 'admin') {
+    if (role && user.email === 'admin@inventory.com' && role !== 'admin') {
       return res.status(400).json({ error: 'Cannot change default admin role' });
     }
 
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+    const updatedRole = role !== undefined ? role : user.role;
+    const updatedName = name !== undefined ? name : user.name;
+
+    db.prepare('UPDATE users SET role = ?, name = ? WHERE id = ?').run(updatedRole, updatedName, id);
 
     const updatedUser = db.prepare('SELECT id, email, name, role, created_at FROM users WHERE id = ?').get(id);
 
@@ -75,6 +78,57 @@ router.put('/:id', authenticateToken, requireRole('admin'), (req, res) => {
   } catch (error) {
     console.error('Update user error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/:id/permissions', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  try {
+    const permissions = db.prepare('SELECT id, module, action, allowed FROM user_permissions WHERE user_id = ? AND is_archived = 0').all(id);
+    res.json(permissions);
+  } catch (error) {
+    console.error('Get permissions error:', error);
+    res.status(500).json({ error: 'Failed to fetch user permissions' });
+  }
+});
+
+router.put('/:id/permissions', authenticateToken, requireRole('admin'), (req, res) => {
+  const { id } = req.params;
+  const { permissions } = req.body;
+
+  if (!Array.isArray(permissions)) {
+    return res.status(400).json({ error: 'Permissions must be an array' });
+  }
+
+  try {
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    db.transaction(() => {
+      // Archive current permissions
+      db.prepare('UPDATE user_permissions SET is_archived = 1, sync_status = "pending", sync_updated_at = CURRENT_TIMESTAMP WHERE user_id = ?').run(id);
+
+      const insertStmt = db.prepare(`
+        INSERT INTO user_permissions (user_id, module, action, allowed, sync_status)
+        VALUES (?, ?, ?, ?, 'pending')
+        ON CONFLICT(user_id, module, action) DO UPDATE SET
+          allowed = excluded.allowed,
+          is_archived = 0,
+          sync_status = 'pending',
+          sync_updated_at = CURRENT_TIMESTAMP
+      `);
+
+      for (const p of permissions) {
+        insertStmt.run(id, p.module, p.action, p.allowed ? 1 : 0);
+      }
+    })();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update permissions error:', error);
+    res.status(500).json({ error: 'Failed to update user permissions' });
   }
 });
 

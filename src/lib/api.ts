@@ -5,7 +5,7 @@ async function getApiRoot() {
   
   const isElectron = !!window.electron;
   const isPackagedProd = isElectron && window.location.protocol === 'file:';
-  const expectedPort = isPackagedProd ? 57234 : 5000;
+  const expectedPort = isPackagedProd ? 57234 : 7005;
 
   if (window.electron) {
     try {

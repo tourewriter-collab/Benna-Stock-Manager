@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { fetchApi } from '../lib/api';
-import { Users, UserPlus, FileText, BrainCircuit, Search, Plus, Briefcase, Upload, Cpu, FileSpreadsheet, CheckCircle, AlertTriangle, X } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { Users, UserPlus, FileText, BrainCircuit, Search, Plus, Briefcase, Upload, Cpu, FileSpreadsheet, CheckCircle, AlertTriangle, X, ClipboardList, Calendar, Trash2, Award, RefreshCw } from 'lucide-react';
+import { Dialog } from '@headlessui/react';
+import EmployeePerformance from './EmployeePerformance';
+import { supabase } from '../lib/supabase';
+import { pullAttendance } from '../services/attendanceSync';
+
 
 interface Employee {
   id: string;
@@ -15,6 +21,8 @@ interface Employee {
   status: string;
   performance_notes: string;
   device_enroll_id?: string;
+  supervisor_id?: number | string;
+  supervisor_name?: string;
 }
 
 interface Applicant {
@@ -45,23 +53,69 @@ interface AttendanceLog {
   employee_department?: string;
 }
 
+interface Task {
+  id: string;
+  employee_id: string;
+  employee_name?: string;
+  employee_email?: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  due_date: string;
+  assigned_by_name?: string;
+  created_at: string;
+}
+
 const HumanResources: React.FC = () => {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'staff' | 'applicants' | 'screening' | 'attendance'>('staff');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'staff' | 'applicants' | 'screening' | 'attendance' | 'tasks' | 'performance'>('staff');
   
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deviceStatus, setDeviceStatus] = useState<{ online: boolean; lastSeen: string | null; sn: string; ip: string; port: number } | null>(null);
+
+  // Users for supervisor assignment
+  const [users, setUsers] = useState<any[]>([]);
+
+  // Supervisor assignment modal state
+  const [supervisorModal, setSupervisorModal] = useState<{ open: boolean; employee: Employee | null }>({ open: false, employee: null });
+  const [supervisorModalValue, setSupervisorModalValue] = useState<string>('');
+  const [supervisorSaving, setSupervisorSaving] = useState(false);
+
+  // Delete employee modal state
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; employee: Employee | null }>({ open: false, employee: null });
+  const [deletePassword, setDeletePassword] = useState<string>('');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Task Assignment State
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTask, setNewTask] = useState({ employee_id: '', title: '', description: '', due_date: '' });
 
   // AI Screening State
   const [jobDescription, setJobDescription] = useState('');
   const [isScreening, setIsScreening] = useState(false);
   const [screeningResults, setScreeningResults] = useState<Applicant[]>([]);
-  
+
+  // Performance Tab State
+  const [allPerformanceRecords, setAllPerformanceRecords] = useState<any[]>([]);
+  const [selectedPerfEmployee, setSelectedPerfEmployee] = useState<string | null>(null);
+  const [showAddPerf, setShowAddPerf] = useState(false);
+  const [newPerf, setNewPerf] = useState({
+    employee_id: '', month: new Date().toISOString().slice(0, 7),
+    task_score: 80, boss_review_score: 0, boss_commentary: '',
+    attendance_score: 80, peer_feedback_score: 0, skill_dev_score: 70, overtime_score: 70
+  });
+  const [bossCommentaryLoading, setBossCommentaryLoading] = useState(false);
+  const [perfSaving, setPerfSaving] = useState(false);
+
   // New Staff Form State
   const [showAddStaff, setShowAddStaff] = useState(false);
-  const [newStaff, setNewStaff] = useState({ name: '', email: '', phone: '', role: '', department: '', salary: 0, hire_date: new Date().toISOString().split('T')[0] });
+  const [newStaff, setNewStaff] = useState({ name: '', email: '', phone: '', role: '', department: '', salary: 0, hire_date: new Date().toISOString().split('T')[0], supervisor_id: '' });
 
   // Excel Import State
   const [isImporting, setIsImporting] = useState(false);
@@ -75,27 +129,149 @@ const HumanResources: React.FC = () => {
     fetchData();
   }, [activeTab]);
 
+  const fetchCalculatedAttendance = async (empId: string, monthStr: string) => {
+    if (!empId || !monthStr) return;
+    try {
+      const res = await fetchApi(`/hr/performance/calculate-fixed-scores?employee_id=${empId}&month=${monthStr}`);
+      if (res && res.attendance_score !== undefined) {
+        setNewPerf(prev => ({ ...prev, attendance_score: res.attendance_score }));
+      }
+    } catch (e) {
+      console.error('[HR Performance] Error fetching calculated attendance score:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (newPerf.employee_id && newPerf.month) {
+      fetchCalculatedAttendance(newPerf.employee_id, newPerf.month);
+    }
+  }, [newPerf.employee_id, newPerf.month]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
       if (activeTab === 'staff') {
         const data = await fetchApi('/hr/employees');
         setEmployees(data);
+        // Fetch users for supervisor dropdown — admins assign supervisors
+        if (user?.role === 'admin') {
+          const usersData = await fetchApi('/users').catch(() => []);
+          setUsers(usersData || []);
+        }
       } else if (activeTab === 'applicants') {
         const data = await fetchApi('/hr/applicants');
         setApplicants(data);
       } else if (activeTab === 'attendance') {
-        const [logsData, employeesData] = await Promise.all([
+        const [logsData, employeesData, statusData] = await Promise.all([
           fetchApi('/hr/attendance'),
-          fetchApi('/hr/employees')
+          fetchApi('/hr/employees'),
+          fetchApi('/hr/attendance/device-status').catch(() => null)
         ]);
         setAttendanceLogs(logsData);
         setEmployees(employeesData);
+        if (statusData) {
+          setDeviceStatus(statusData);
+        }
+      } else if (activeTab === 'tasks') {
+        const [tasksData, employeesData] = await Promise.all([
+          fetchApi('/hr/tasks'),
+          fetchApi('/hr/employees')
+        ]);
+        setTasks(tasksData || []);
+        setEmployees(employeesData || []);
+      } else if (activeTab === 'performance') {
+        const [perfData, employeesData] = await Promise.all([
+          fetchApi('/hr/performance/all').catch(() => []),
+          fetchApi('/hr/employees')
+        ]);
+        setAllPerformanceRecords(perfData || []);
+        setEmployees(employeesData || []);
+        if (user?.role === 'admin') {
+          const usersData = await fetchApi('/users').catch(() => []);
+          setUsers(usersData || []);
+        }
       }
     } catch (error) {
       console.error('[HR] Fetch error:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePullAttendance = async () => {
+    setIsSyncing(true);
+    try {
+      const result = await pullAttendance();
+      if (result.errors.length > 0) {
+        alert(t('hr_sync_error_alert', 'Sync completed with errors: ') + result.errors.join(', '));
+      } else {
+        alert(t('hr_sync_success_alert', 'Successfully pulled {{count}} records from biometric device!').replace('{{count}}', String(result.count)));
+      }
+      fetchData();
+    } catch (err: any) {
+      alert(t('hr_sync_failed_alert', 'Failed to pull attendance data: ') + (err.message || err));
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleTranslateCommentary = async () => {
+    if (!newPerf.boss_commentary.trim()) return;
+    setBossCommentaryLoading(true);
+    try {
+      const res = await fetchApi('/hr/performance/boss-score', {
+        method: 'POST',
+        body: JSON.stringify({ commentary: newPerf.boss_commentary })
+      });
+      if (res && res.score !== undefined) {
+        setNewPerf(prev => ({ ...prev, boss_review_score: res.score }));
+      }
+    } catch (e) {
+      console.error('[HR Perf] Commentary translation error:', e);
+    } finally {
+      setBossCommentaryLoading(false);
+    }
+  };
+
+  const handleSavePerformance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPerf.employee_id || !newPerf.month) return;
+    setPerfSaving(true);
+    try {
+      await fetchApi('/hr/performance', {
+        method: 'POST',
+        body: JSON.stringify(newPerf)
+      });
+      setShowAddPerf(false);
+      setNewPerf(prev => ({ ...prev, employee_id: '', boss_commentary: '', boss_review_score: 0 }));
+      fetchData();
+    } catch (err: any) {
+      alert('Failed to save performance: ' + err.message);
+    } finally {
+      setPerfSaving(false);
+    }
+  };
+
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTask.employee_id || !newTask.title) return;
+    try {
+      await fetchApi('/hr/tasks', { method: 'POST', body: JSON.stringify(newTask) });
+      setShowAddTask(false);
+      fetchData();
+      setNewTask({ employee_id: '', title: '', description: '', due_date: '' });
+    } catch (error) {
+      alert(t('hr_alert_failed_task', 'Failed to assign task'));
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm(t('confirm_delete_task', 'Are you sure you want to delete this task?'))) return;
+    try {
+      await fetchApi(`/hr/tasks/${taskId}`, { method: 'DELETE' });
+      fetchData();
+    } catch (error) {
+      alert(t('hr_alert_failed_delete_task', 'Failed to delete task'));
     }
   };
 
@@ -105,7 +281,7 @@ const HumanResources: React.FC = () => {
       await fetchApi('/hr/employees', { method: 'POST', body: JSON.stringify(newStaff) });
       setShowAddStaff(false);
       fetchData();
-      setNewStaff({ name: '', email: '', phone: '', role: '', department: '', salary: 0, hire_date: new Date().toISOString().split('T')[0] });
+      setNewStaff({ name: '', email: '', phone: '', role: '', department: '', salary: 0, hire_date: new Date().toISOString().split('T')[0], supervisor_id: '' });
     } catch (error) {
       alert(t('hr_alert_failed_staff', 'Failed to add staff'));
     }
@@ -274,6 +450,22 @@ const HumanResources: React.FC = () => {
               <Cpu className="w-4 h-4" />
               {t('hr_tab_attendance', 'Attendance')}
             </button>
+            <button
+              onClick={() => setActiveTab('tasks')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'tasks' ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+            >
+              <ClipboardList className="w-4 h-4" />
+              {t('hr_tab_tasks', 'Tasks')}
+            </button>
+            {(user?.role === 'admin' || employees.some(emp => String(emp.supervisor_id) === String(user?.id))) && (
+              <button
+                onClick={() => { setSelectedPerfEmployee(null); setActiveTab('performance'); }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'performance' ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+              >
+                <Award className="w-4 h-4" />
+                {t('hr_tab_performance', 'Performance')}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -370,21 +562,48 @@ const HumanResources: React.FC = () => {
                 {showAddStaff && (
                   <form onSubmit={handleAddStaff} className="bg-white p-6 rounded-xl border border-indigo-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_full_name', 'Full Name')}</label>
-                      <input type="text" required value={newStaff.name} onChange={e => setNewStaff({...newStaff, name: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_full_name', 'Full Name')} *</label>
+                      <input type="text" required value={newStaff.name} onChange={e => setNewStaff({...newStaff, name: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Jane Doe" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_role', 'Role')}</label>
-                      <input type="text" required value={newStaff.role} onChange={e => setNewStaff({...newStaff, role: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_role', 'Role')} *</label>
+                      <input type="text" required value={newStaff.role} onChange={e => setNewStaff({...newStaff, role: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Accountant" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_department', 'Department')}</label>
-                      <input type="text" required value={newStaff.department} onChange={e => setNewStaff({...newStaff, department: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_department', 'Department')} *</label>
+                      <input type="text" required value={newStaff.department} onChange={e => setNewStaff({...newStaff, department: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Finance" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_hire_date', 'Hire Date')} *</label>
+                      <input type="date" required value={newStaff.hire_date} onChange={e => setNewStaff({...newStaff, hire_date: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_email', 'Email')}</label>
-                      <input type="email" value={newStaff.email} onChange={e => setNewStaff({...newStaff, email: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      <input type="email" value={newStaff.email} onChange={e => setNewStaff({...newStaff, email: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="jane@company.com" />
                     </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_phone', 'Phone')}</label>
+                      <input type="tel" value={newStaff.phone} onChange={e => setNewStaff({...newStaff, phone: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="+237 6XX XXX XXX" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_salary', 'Monthly Salary (FCFA)')}</label>
+                      <input type="number" min="0" value={newStaff.salary} onChange={e => setNewStaff({...newStaff, salary: parseFloat(e.target.value) || 0})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="350000" />
+                    </div>
+                    {user?.role === 'admin' && (
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Supervisor</label>
+                        <select 
+                          value={newStaff.supervisor_id || ''} 
+                          onChange={e => setNewStaff({...newStaff, supervisor_id: e.target.value})} 
+                          className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-white"
+                        >
+                          <option value="">-- No Supervisor (Admin only) --</option>
+                          {users.map(u => (
+                            <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <div className="md:col-span-2 flex justify-end mt-2">
                       <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:bg-indigo-700 transition">{t('hr_save_employee', 'Save Employee')}</button>
                     </div>
@@ -443,6 +662,49 @@ const HumanResources: React.FC = () => {
                           </button>
                         </div>
                       </div>
+
+                      {/* Supervisor UI */}
+                      <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-2">
+                        <span className="text-gray-400 text-xs font-semibold flex items-center gap-1">
+                          <Users className="w-3.5 h-3.5 text-indigo-400" />
+                          Supervisor
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {emp.supervisor_name ? (
+                            <span className="font-bold text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md">{emp.supervisor_name}</span>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic bg-gray-50 px-2.5 py-1 rounded-md">None</span>
+                          )}
+                          {user?.role === 'admin' && (
+                            <button
+                              onClick={() => {
+                                setSupervisorModal({ open: true, employee: emp });
+                                setSupervisorModalValue(emp.supervisor_id ? String(emp.supervisor_id) : '');
+                              }}
+                              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-md transition"
+                              title="Assign Supervisor"
+                            >
+                              {t('edit')}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {user?.role === 'admin' && (
+                        <div className="flex justify-end border-t border-gray-100 pt-3 mt-2">
+                          <button
+                            onClick={() => {
+                              setDeleteModal({ open: true, employee: emp });
+                              setDeletePassword('');
+                            }}
+                            className="text-xs font-bold text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-md transition flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete Employee
+                          </button>
+                        </div>
+                      )}
+
                     </div>
                   ))}
                   {employees.length === 0 && (
@@ -452,6 +714,153 @@ const HumanResources: React.FC = () => {
               </div>
             )}
 
+              {/* ── SUPERVISOR ASSIGNMENT MODAL ── */}
+              {supervisorModal.open && supervisorModal.employee && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                  <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-6 w-full max-w-md mx-4 relative">
+                    <button
+                      onClick={() => setSupervisorModal({ open: false, employee: null })}
+                      className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 transition"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                        <Users className="w-5 h-5 text-indigo-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900 text-sm">Assign Supervisor</h3>
+                        <p className="text-xs text-gray-500">{supervisorModal.employee.name} · {supervisorModal.employee.role}</p>
+                      </div>
+                    </div>
+
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Select Supervisor</label>
+                    <select
+                      value={supervisorModalValue}
+                      onChange={e => setSupervisorModalValue(e.target.value)}
+                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm bg-white mb-5"
+                    >
+                      <option value="">— No Supervisor (Admin Managed) —</option>
+                      {users.map(u => (
+                        <option key={u.id} value={String(u.id)}>
+                          {u.name} · {u.role} ({u.email})
+                        </option>
+                      ))}
+                    </select>
+
+                    <div className="flex justify-end gap-3">
+                      <button
+                        onClick={() => setSupervisorModal({ open: false, employee: null })}
+                        className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        disabled={supervisorSaving}
+                        onClick={async () => {
+                          if (!supervisorModal.employee) return;
+                          setSupervisorSaving(true);
+                          try {
+                            await fetchApi(`/hr/employees/${supervisorModal.employee.id}`, {
+                              method: 'PUT',
+                              body: JSON.stringify({
+                                supervisor_id: supervisorModalValue === '' ? null : parseInt(supervisorModalValue)
+                              })
+                            });
+                            setSupervisorModal({ open: false, employee: null });
+                            fetchData();
+                          } catch (e: any) {
+                            alert('Failed to update supervisor: ' + e.message);
+                          } finally {
+                            setSupervisorSaving(false);
+                          }
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md transition"
+                      >
+                        {supervisorSaving ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            {/* Delete Employee Modal */}
+            {deleteModal.open && deleteModal.employee && (
+              <Dialog 
+                open={deleteModal.open} 
+                onClose={() => setDeleteModal({ open: false, employee: null })} 
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+              >
+                <Dialog.Panel className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-6 w-full max-w-md mx-4 relative">
+                  <button 
+                    onClick={() => setDeleteModal({ open: false, employee: null })} 
+                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                  
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                      <Trash2 className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div>
+                      <Dialog.Title className="font-bold text-gray-900 text-base">Delete Employee</Dialog.Title>
+                      <p className="text-xs text-gray-500">{deleteModal.employee.name} · {deleteModal.employee.role}</p>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                    This action is permanent and cannot be undone. To verify, please enter the admin security password below:
+                  </p>
+
+                  <div className="mb-5">
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Admin Password</label>
+                    <input
+                      type="password"
+                      value={deletePassword}
+                      onChange={e => setDeletePassword(e.target.value)}
+                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 text-sm"
+                      placeholder="Enter admin password"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setDeleteModal({ open: false, employee: null })}
+                      className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 font-medium transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      disabled={deleting || !deletePassword}
+                      onClick={async () => {
+                        const adminPass = import.meta.env.VITE_ADMIN_PASSWORD;
+                        if (deletePassword !== adminPass) {
+                          alert('Incorrect admin password');
+                          return;
+                        }
+                        setDeleting(true);
+                        try {
+                          const { error } = await supabase.from('employees').delete().eq('id', deleteModal.employee!.id);
+                          if (error) throw error;
+                          alert('Employee deleted successfully');
+                          setDeleteModal({ open: false, employee: null });
+                          setDeletePassword('');
+                          fetchData();
+                        } catch (e: any) {
+                          alert('Deletion failed: ' + e.message);
+                        } finally {
+                          setDeleting(false);
+                        }
+                      }}
+                      className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md transition"
+                    >
+                      {deleting ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </div>
+                </Dialog.Panel>
+              </Dialog>
+            )}
             {/* ── APPLICANTS TAB ── */}
             {activeTab === 'applicants' && (
               <div className="space-y-6">
@@ -646,16 +1055,37 @@ const HumanResources: React.FC = () => {
                     </div>
 
                     <div className="mt-4 flex items-center gap-3">
-                      <div className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                      </div>
-                      <span className="font-bold text-sm text-emerald-600">{t('hr_device_online', 'Online')}</span>
+                      {deviceStatus?.online ? (
+                        <>
+                          <div className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                          </div>
+                          <span className="font-bold text-sm text-emerald-600">{t('hr_device_online', 'Online')}</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="relative flex h-3 w-3">
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                          </div>
+                          <span className="font-bold text-sm text-rose-500">
+                            {t('hr_device_offline', 'Offline')}
+                          </span>
+                        </>
+                      )}
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-gray-100 text-xs text-gray-400 flex justify-between">
-                      <span>IP: 192.168.1.180</span>
-                      <span>Port: 5005 (ADMS)</span>
+                    <div className="mt-4 pt-3 border-t border-gray-100 text-xs text-gray-400 flex flex-col gap-1">
+                      <div className="flex justify-between">
+                        <span>IP: {deviceStatus?.ip || '192.168.1.200'}</span>
+                        <span>Port: {deviceStatus?.port || 5005} (ADMS)</span>
+                      </div>
+                      {deviceStatus?.lastSeen && (
+                        <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                          <span>SN: {deviceStatus.sn || 'N/A'}</span>
+                          <span>Seen: {new Date(deviceStatus.lastSeen).toLocaleTimeString()}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -682,10 +1112,20 @@ const HumanResources: React.FC = () => {
 
                 {/* Daily Attendance Logs */}
                 <div className="space-y-4">
-                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-indigo-600" />
-                    {t('hr_attendance_records', 'Smart Attendance Log')}
-                  </h3>
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-indigo-600" />
+                      {t('hr_attendance_records', 'Smart Attendance Log')}
+                    </h3>
+                    <button
+                      onClick={handlePullAttendance}
+                      disabled={isSyncing}
+                      className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                      {isSyncing ? t('hr_syncing', 'Syncing...') : t('hr_sync_device', 'Sync Device')}
+                    </button>
+                  </div>
 
                   <div className="overflow-hidden bg-white shadow-sm border border-gray-200 rounded-xl">
                     <table className="min-w-full divide-y divide-gray-200">
@@ -757,6 +1197,328 @@ const HumanResources: React.FC = () => {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ── TASKS TAB ── */}
+            {activeTab === 'tasks' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-indigo-600" />
+                    {t('hr_task_assignment', 'Employee Task Assignment')}
+                  </h2>
+                  <button
+                    onClick={() => setShowAddTask(!showAddTask)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {showAddTask ? t('hr_cancel', 'Cancel') : t('hr_assign_task', 'Assign New Task')}
+                  </button>
+                </div>
+
+                {showAddTask && (
+                  <form onSubmit={handleAddTask} className="bg-white p-6 rounded-xl border border-indigo-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                        {t('hr_employee', 'Select Employee')} *
+                      </label>
+                      <select
+                        required
+                        value={newTask.employee_id}
+                        onChange={e => setNewTask({ ...newTask, employee_id: e.target.value })}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-white"
+                      >
+                        <option value="">-- {t('hr_select_employee', 'Select Employee')} --</option>
+                        {employees.map(emp => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.name} ({emp.role} - {emp.department})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                        {t('hr_task_title', 'Task Title')} *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newTask.title}
+                        onChange={e => setNewTask({ ...newTask, title: e.target.value })}
+                        placeholder={t('hr_task_title_placeholder', 'e.g. Complete inventory audit')}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                        {t('hr_task_due_date', 'Due Date')}
+                      </label>
+                      <input
+                        type="date"
+                        value={newTask.due_date}
+                        onChange={e => setNewTask({ ...newTask, due_date: e.target.value })}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                        {t('hr_task_description', 'Task Description')}
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={newTask.description}
+                        onChange={e => setNewTask({ ...newTask, description: e.target.value })}
+                        placeholder={t('hr_task_description_placeholder', 'Detail the instructions, tools needed, and desired outcome...')}
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 flex justify-end mt-2">
+                      <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:bg-indigo-700 transition">
+                        {t('hr_submit_task', 'Assign Task')}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                <div className="overflow-hidden bg-white shadow-sm border border-gray-200 rounded-xl">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{t('hr_task', 'Task')}</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{t('hr_employee', 'Assigned To')}</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{t('hr_status', 'Status')}</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{t('hr_due_date', 'Due Date')}</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">{t('hr_actions', 'Actions')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {tasks.map(task => (
+                        <tr key={task.id} className="hover:bg-gray-50 transition">
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-gray-900">{task.title}</div>
+                            {task.description && <div className="text-xs text-gray-500 max-w-md mt-0.5">{task.description}</div>}
+                            <div className="text-[10px] text-gray-400 mt-1">
+                              {t('hr_assigned_by', 'Assigned by')}: {task.assigned_by_name || 'System'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="font-semibold text-gray-900">{task.employee_name}</div>
+                            <div className="text-xs text-indigo-600 font-medium">{task.employee_email}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize
+                              ${task.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : ''}
+                              ${task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : ''}
+                              ${task.status === 'pending' ? 'bg-amber-100 text-amber-800' : ''}
+                            `}>
+                              {t(task.status)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                            {task.due_date ? (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                {task.due_date}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 italic text-xs">{t('none', 'No deadline')}</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <button
+                              onClick={() => handleDeleteTask(task.id)}
+                              className="text-rose-600 hover:text-rose-800 transition p-1.5 rounded-lg hover:bg-rose-50"
+                              title={t('delete')}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {tasks.length === 0 && (
+                    <div className="py-12 text-center text-gray-400">{t('hr_no_tasks', 'No tasks assigned yet.')}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── PERFORMANCE TAB (Admin or Supervisor) ── */}
+            {activeTab === 'performance' && (user?.role === 'admin' || employees.some(emp => String(emp.supervisor_id) === String(user?.id))) && (
+              <div className="space-y-6">
+                {/* If drilling into a specific employee's performance */}
+                {selectedPerfEmployee ? (
+                  <div>
+                    <EmployeePerformance
+                      overrideEmployeeId={selectedPerfEmployee}
+                      onBack={() => setSelectedPerfEmployee(null)}
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap justify-between items-center gap-3">
+                      <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <Award className="w-5 h-5 text-amber-500" />
+                        {t('hr_performance_management', 'Performance Management')}
+                        <span className="ml-1 text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{allPerformanceRecords.length} records</span>
+                      </h2>
+                      <button
+                        onClick={() => setShowAddPerf(!showAddPerf)}
+                        className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        {showAddPerf ? t('hr_cancel', 'Cancel') : t('hr_add_evaluation', 'Add Evaluation')}
+                      </button>
+                    </div>
+
+                    {showAddPerf && (
+                      <form onSubmit={handleSavePerformance} className="bg-white p-6 rounded-2xl border border-amber-100 shadow-md grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                          <h3 className="font-bold text-gray-800 mb-1 text-sm">New Performance Evaluation</h3>
+                          <p className="text-xs text-gray-400">Scores are from 0–100. Use the AI commentary translator to auto-score manager feedback.</p>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Employee *</label>
+                          <select required value={newPerf.employee_id} onChange={e => setNewPerf({...newPerf, employee_id: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm bg-white">
+                            <option value="">-- Select Employee --</option>
+                            {employees
+                              .filter(emp => user?.role === 'admin' || String(emp.supervisor_id) === String(user?.id))
+                              .map(emp => (
+                                <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>
+                              ))
+                            }
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Month *</label>
+                          <input type="month" required value={newPerf.month} onChange={e => setNewPerf({...newPerf, month: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm" />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Task Accomplishment (0–100)</label>
+                          <input type="number" min="0" max="100" value={newPerf.task_score} onChange={e => setNewPerf({...newPerf, task_score: parseInt(e.target.value)||0})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm" />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                            Attendance Score (0–100) <span className="text-[10px] text-indigo-650 font-bold">(Auto-calculated)</span>
+                          </label>
+                          <input 
+                            type="number" 
+                            disabled 
+                            value={newPerf.attendance_score} 
+                            className="w-full rounded-md border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed shadow-sm focus:outline-none sm:text-sm" 
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Skill Development (0–100)</label>
+                          <input type="number" min="0" max="100" value={newPerf.skill_dev_score} onChange={e => setNewPerf({...newPerf, skill_dev_score: parseInt(e.target.value)||0})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm" />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Overtime Balance (0–100)</label>
+                          <input type="number" min="0" max="100" value={newPerf.overtime_score} onChange={e => setNewPerf({...newPerf, overtime_score: parseInt(e.target.value)||0})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm" />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Manager Commentary (AI will translate to a score)</label>
+                          <div className="flex gap-2">
+                            <textarea
+                              rows={3}
+                              value={newPerf.boss_commentary}
+                              onChange={e => setNewPerf({...newPerf, boss_commentary: e.target.value})}
+                              placeholder="e.g. John has shown exceptional leadership in Q1 but needs to improve his time management..."
+                              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 sm:text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleTranslateCommentary}
+                              disabled={bossCommentaryLoading || !newPerf.boss_commentary.trim()}
+                              className="self-start px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition disabled:opacity-50 whitespace-nowrap flex items-center gap-1.5"
+                            >
+                              {bossCommentaryLoading ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> : <BrainCircuit className="w-3 h-3" />}
+                              AI Score
+                            </button>
+                          </div>
+                          {newPerf.boss_review_score > 0 && (
+                            <p className="text-xs font-bold text-indigo-700 mt-1.5">
+                              ✓ Manager Score translated: <span className="text-lg">{newPerf.boss_review_score}</span>/100
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="md:col-span-2 flex justify-end gap-3 mt-2">
+                          <button type="button" onClick={() => setShowAddPerf(false)} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition">Cancel</button>
+                          <button type="submit" disabled={perfSaving} className="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-medium shadow-md transition">
+                            {perfSaving ? 'Saving...' : 'Save Evaluation'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Performance records table */}
+                    <div className="overflow-hidden bg-white shadow-sm border border-gray-200 rounded-xl">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Employee</th>
+                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Month</th>
+                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Tasks</th>
+                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Manager</th>
+                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Attend.</th>
+                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Composite</th>
+                            <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {allPerformanceRecords.map(rec => (
+                            <tr key={rec.id} className="hover:bg-amber-50/40 transition">
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="font-semibold text-gray-900">{rec.employee_name}</div>
+                                <div className="text-xs text-indigo-600 font-medium">{rec.employee_role}</div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-700">{rec.month}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-800">{rec.task_score}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-800">{rec.boss_review_score}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-800">{rec.attendance_score}</td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-extrabold ${
+                                  rec.composite_score >= 80 ? 'bg-emerald-100 text-emerald-800' :
+                                  rec.composite_score >= 60 ? 'bg-amber-100 text-amber-800' :
+                                  'bg-rose-100 text-rose-700'
+                                }`}>{rec.composite_score}%</span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <button
+                                  onClick={() => setSelectedPerfEmployee(rec.employee_id)}
+                                  className="text-indigo-600 hover:text-indigo-800 text-xs font-bold flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition"
+                                >
+                                  View Full
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {allPerformanceRecords.length === 0 && (
+                        <div className="py-12 text-center text-gray-400 flex flex-col items-center gap-2">
+                          <Award className="w-10 h-10 text-gray-200" />
+                          <p className="font-semibold">No performance evaluations compiled yet.</p>
+                          <p className="text-sm">Use the "Add Evaluation" button to compile monthly scores for each employee.</p>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </>

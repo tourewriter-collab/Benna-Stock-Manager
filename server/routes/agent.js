@@ -92,12 +92,12 @@ function fileMemory(source, category, text, accessUrl = '') {
     reflection.memories = {
       integrations: [
         {
-          name: "Benna Stock Manager",
+          name: "Benna Projects Manager",
           type: "ERP / Fleet & Stock Management",
           data_scope: "Inventory (spare parts, lubricants, tools), Trucks fleet, Granite Deliveries, Accounting (Invoices, Ledger)",
           location: "Local SQLite database (`database.sqlite`) / Synced Supabase Cloud",
           status: "active",
-          online_access_endpoint: "http://localhost:5000/api/agent",
+          online_access_endpoint: `http://localhost:${process.env.PORT || 5000}/api/agent`,
           last_sync: new Date().toISOString()
         },
         {
@@ -149,7 +149,7 @@ function fileMemory(source, category, text, accessUrl = '') {
     source,
     category,
     content: text,
-    access_online: accessUrl || `http://localhost:5000/api/agent?source=${encodeURIComponent(source)}`
+    access_online: accessUrl || `http://localhost:${process.env.PORT || 5000}/api/agent?source=${encodeURIComponent(source)}`
   });
 
   // Keep memory logs capped at 50 to avoid bloating
@@ -162,7 +162,7 @@ function fileMemory(source, category, text, accessUrl = '') {
 
 // Ikiké's default identity — adapted from the Ikiké Collective engine
 const IKIKE_SYSTEM_PROMPT = `You are IKIKÉ, an elite strategic advisor built by the Ikiké Collective SARL.
-You are embedded inside Benna Stock Manager — a business management application for a construction/mining company in Guinea.
+You are embedded inside Benna Projects Manager — a business management application for a construction/mining company in Guinea.
 
 CORE IDENTITY:
 You are clinical, direct, and data-driven. You provide actionable business insights. No theatrics, no philosophical metaphors.
@@ -582,42 +582,43 @@ router.post('/execute', authenticateToken, async (req, res) => {
     let memoryCategory = '';
     let accessLink = '';
     
+    const backendPort = process.env.PORT || 5000;
     switch (actionType) {
       case 'create_inventory':
         memoryDesc = `Added spare part/inventory item "${data.name}" (Quantity: ${data.quantity}, Price: ${data.price} GNF) in location "${data.location || 'Main Store'}".`;
         memoryCategory = 'inventory_management';
-        accessLink = 'http://localhost:5000/inventory';
+        accessLink = `http://localhost:${backendPort}/inventory`;
         break;
       case 'create_truck':
         memoryDesc = `Registered fleet truck "${data.plate_number}" (Model: ${data.model || 'Unknown'}, Capacity: ${data.capacity || 0} tons).`;
         memoryCategory = 'fleet_management';
-        accessLink = 'http://localhost:5000/fleet';
+        accessLink = `http://localhost:${backendPort}/fleet`;
         break;
       case 'create_trip':
         memoryDesc = `Logged granite delivery trip for truck UUID "${data.truck_id}" by driver "${data.driver_name}" (Quantity: ${data.quantity}T, Client: "${data.client_name || 'N/A'}").`;
         memoryCategory = 'fleet_deliveries';
-        accessLink = 'http://localhost:5000/fleet';
+        accessLink = `http://localhost:${backendPort}/fleet`;
         break;
       case 'create_invoice':
         memoryDesc = `Created customer invoice for Client UUID "${data.client_id}" with total amount ${data.total_amount} GNF (Due: ${data.due_date || 'N/A'}).`;
         memoryCategory = 'accounting_receivables';
-        accessLink = 'http://localhost:5000/accounting/invoices';
+        accessLink = `http://localhost:${backendPort}/accounting/invoices`;
         break;
       case 'create_account':
         memoryDesc = `Opened new general ledger account "${data.name}" (Type: "${data.type}", Opening Balance: ${data.balance || 0} GNF).`;
         memoryCategory = 'accounting_chart';
-        accessLink = 'http://localhost:5000/accounting/accounts';
+        accessLink = `http://localhost:${backendPort}/accounting/accounts`;
         break;
       case 'create_transaction':
         memoryDesc = `Recorded ledger transaction of ${data.amount} GNF (${data.type}) for Account UUID "${data.account_id}" (Ref: "${data.reference || 'N/A'}", Description: "${data.description || 'N/A'}").`;
         memoryCategory = 'accounting_ledger';
-        accessLink = 'http://localhost:5000/accounting/transactions';
+        accessLink = `http://localhost:${backendPort}/accounting/transactions`;
         break;
     }
 
     if (memoryDesc) {
       try {
-        fileMemory('Benna Stock Manager', memoryCategory, memoryDesc, accessLink);
+        fileMemory('Benna Projects Manager', memoryCategory, memoryDesc, accessLink);
       } catch (err) {
         console.error('[Ikiké] Failed to auto-file memory:', err);
       }
@@ -713,6 +714,186 @@ router.post('/clear', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('[Ikiké] Clear history error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Post performance chat query
+router.post('/performance-chat', authenticateToken, async (req, res) => {
+  try {
+    const { message, employeeId: inputEmployeeId } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    let employeeId = inputEmployeeId;
+    let employeeName = 'Employee';
+    
+    // Resolve employee id if not admin
+    if (req.user.role !== 'admin') {
+      const emp = db.prepare('SELECT id, name FROM employees WHERE email = ?').get(req.user.email);
+      if (!emp) {
+        return res.status(403).json({ error: 'Access denied: No employee profile linked to your user account' });
+      }
+      employeeId = emp.id;
+      employeeName = emp.name;
+    } else if (employeeId) {
+      const emp = db.prepare('SELECT name FROM employees WHERE id = ?').get(employeeId);
+      if (emp) {
+        employeeName = emp.name;
+      }
+    } else {
+      employeeName = 'All Employees';
+    }
+
+    // Load settings
+    let activeModel = 'gemini';
+    let geminiKey = process.env.GEMINI_API_KEY;
+    let deepseekKey = '';
+
+    const settingsRecords = db.prepare("SELECT key, value FROM settings WHERE key IN ('gemini_api_key', 'deepseek_api_key', 'active_agent_model', 'global_ai_access')").all();
+    let globalAiAccess = false;
+    for (const s of settingsRecords) {
+      if (s.key === 'gemini_api_key' && !geminiKey) geminiKey = s.value;
+      if (s.key === 'deepseek_api_key') deepseekKey = s.value;
+      if (s.key === 'active_agent_model') activeModel = s.value;
+      if (s.key === 'global_ai_access') globalAiAccess = s.value === 'true';
+    }
+
+    const fallbackMessage = "The strategic performance evaluation engine is currently offline. Please try again shortly.";
+    if (activeModel === 'deepseek' && !deepseekKey) {
+      if (geminiKey) activeModel = 'gemini';
+      else return res.json({ reply: fallbackMessage });
+    } else if (activeModel === 'gemini' && !geminiKey) {
+      if (deepseekKey) activeModel = 'deepseek';
+      else return res.json({ reply: fallbackMessage });
+    }
+
+    // Determine performance context
+    let performanceContext = '';
+    if (req.user.role === 'admin' && globalAiAccess) {
+      const allPerf = db.prepare(`
+        SELECT p.*, e.name as employee_name, e.department, e.role
+        FROM employee_performance p
+        JOIN employees e ON p.employee_id = e.id
+        WHERE e.is_archived = 0
+      `).all();
+      performanceContext = `GLOBAL PERFORMANCE CONTEXT (All Employees):\n${JSON.stringify(allPerf, null, 2)}\n`;
+    } else if (employeeId) {
+      const empPerf = db.prepare(`
+        SELECT p.*, e.name as employee_name, e.department, e.role
+        FROM employee_performance p
+        JOIN employees e ON p.employee_id = e.id
+        WHERE p.employee_id = ? AND e.is_archived = 0
+      `).all(employeeId);
+      performanceContext = `SILOED PERFORMANCE CONTEXT (Employee: ${employeeName}):\n${JSON.stringify(empPerf, null, 2)}\n`;
+    } else {
+      return res.status(400).json({ error: 'employeeId is required for this action' });
+    }
+
+    // Load or create siloed user memory JSON
+    const userMemoryDir = path.join(__dirname, '..', 'user_memory');
+    if (!fs.existsSync(userMemoryDir)) {
+      fs.mkdirSync(userMemoryDir, { recursive: true });
+    }
+
+    const memoryFile = path.join(userMemoryDir, `${employeeId || 'admin_global'}.json`);
+    let memoryData = { history: [], recommendations: [] };
+    if (fs.existsSync(memoryFile)) {
+      try {
+        memoryData = JSON.parse(fs.readFileSync(memoryFile, 'utf8'));
+      } catch (e) {
+        console.error('[Ikiké] Failed to parse memory file:', e);
+      }
+    }
+
+    // Compile system prompt
+    const performanceSystemPrompt = `You are IKIKÉ, an elite performance evaluation and coaching AI expert.
+Your goal is to help employees understand their performance metrics, provide actionable growth advice, and suggest concrete steps to improve.
+You communicate directly and clinically, but remain constructive and focused on operational excellence.
+
+RULES:
+1. You have access to performance data and a historical memory file for the user.
+2. Keep your recommendations highly personalized, data-driven, and focused on Guinean operational compliance and corporate standards.
+3. Suggest training resources, time-management tips, or direct peer-feedback strategies.
+4. If the user is an admin and global AI access is enabled, you can provide cross-employee comparisons and company-wide trends.
+
+CONTEXT DATA:
+${performanceContext}
+`;
+
+    // Add user message to history
+    memoryData.history = memoryData.history || [];
+    memoryData.history.push({ role: 'user', content: message, timestamp: new Date().toISOString() });
+
+    // Truncate history to last 10 messages for prompt to avoid token bloat
+    const truncatedHistory = memoryData.history.slice(-10);
+
+    let replyText = '';
+    if (activeModel === 'gemini') {
+      replyText = await callGemini(geminiKey, performanceSystemPrompt, truncatedHistory, message, null, null);
+    } else {
+      replyText = await callDeepSeek(deepseekKey, performanceSystemPrompt, truncatedHistory, message, null);
+    }
+
+    // Add AI reply to history
+    memoryData.history.push({ role: 'assistant', content: replyText, timestamp: new Date().toISOString() });
+
+    // Store a recommendation entry
+    memoryData.recommendations = memoryData.recommendations || [];
+    memoryData.recommendations.push({
+      date: new Date().toISOString(),
+      message,
+      aiSuggestion: replyText
+    });
+
+    // Write back to user memory file
+    fs.writeFileSync(memoryFile, JSON.stringify(memoryData, null, 2), 'utf8');
+
+    // Also write user chat interaction to database ai_insights for general audit
+    const aiInsightId = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO ai_insights (id, role, content, metadata)
+      VALUES (?, 'agent', ?, ?)
+    `).run(aiInsightId, replyText, JSON.stringify({ employeeId, type: 'performance' }));
+
+    res.json({ reply: replyText, history: memoryData.history });
+  } catch (error) {
+    console.error('[Ikiké] Performance chat error:', error);
+    res.status(500).json({ error: error.message || 'Failed to process performance conversation' });
+  }
+});
+
+// Get performance chat history for a specific employee
+router.get('/performance-chat/history', authenticateToken, (req, res) => {
+  try {
+    let employeeId = req.query.employeeId;
+    if (req.user.role !== 'admin') {
+      const emp = db.prepare('SELECT id FROM employees WHERE email = ?').get(req.user.email);
+      if (!emp) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      employeeId = emp.id;
+    }
+    
+    if (!employeeId) {
+      return res.status(400).json({ error: 'employeeId is required' });
+    }
+
+    const userMemoryDir = path.join(__dirname, '..', 'user_memory');
+    const memoryFile = path.join(userMemoryDir, `${employeeId}.json`);
+    
+    if (fs.existsSync(memoryFile)) {
+      try {
+        const memoryData = JSON.parse(fs.readFileSync(memoryFile, 'utf8'));
+        return res.json(memoryData.history || []);
+      } catch (e) {
+        return res.json([]);
+      }
+    }
+    res.json([]);
+  } catch (error) {
+    console.error('[Ikiké] Get performance history error:', error);
+    res.status(500).json({ error: 'Failed to fetch performance history' });
   }
 });
 
