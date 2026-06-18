@@ -190,7 +190,7 @@ db.exec(`
     name TEXT NOT NULL,
     type TEXT NOT NULL CHECK(type IN ('asset', 'liability', 'equity', 'revenue', 'expense')),
     balance REAL DEFAULT 0,
-    currency TEXT DEFAULT 'USD',
+    currency TEXT DEFAULT 'XAF',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     sync_status TEXT DEFAULT 'pending',
     sync_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -239,6 +239,11 @@ db.exec(`
 `);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  );
+
   INSERT OR IGNORE INTO settings (key, value) VALUES ('global_ai_access', 'false');
 `);
 
@@ -276,12 +281,7 @@ db.exec(`
   )
 `);
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  )
-`);
+
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS trucks (
@@ -499,6 +499,24 @@ try {
   db.prepare("DELETE FROM sync_queue WHERE table_name = 'usage_logs' AND (record_id LIKE '%.%' OR length(record_id) < 10 OR data IS NULL OR data = 'null')").run();
   db.prepare("DELETE FROM sync_queue WHERE data IS NULL OR data = 'null'").run();
 } catch (e) {}
+
+// One-time migration: reset sync_meta pull timestamps now that we use `sync_updated_at`
+// instead of the incorrect `updated_at` column. This forces a full re-pull on next sync
+// so no records are missed due to stale bookmarks from the old (wrong) column name.
+try {
+  const metaExists = db.prepare("SELECT COUNT(*) as c FROM sqlite_master WHERE type='table' AND name='sync_meta'").get().c;
+  if (metaExists > 0) {
+    const alreadyMigrated = db.prepare("SELECT value FROM app_config WHERE key = 'sync_meta_col_fix_v1'").get();
+    if (!alreadyMigrated) {
+      console.log('[Database] Resetting sync_meta timestamps for tableTimeCols column fix...');
+      db.prepare("DELETE FROM sync_meta WHERE table_name != '_system_init'").run();
+      db.prepare("INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES ('sync_meta_col_fix_v1', 'done', CURRENT_TIMESTAMP)").run();
+      console.log('[Database] sync_meta reset complete. Next pull will be a full re-pull.');
+    }
+  }
+} catch (e) {
+  console.warn('[Database] sync_meta reset skipped (non-fatal):', e.message);
+}
 
 // --- 4. CORE FUNCTIONS ---
 
@@ -742,6 +760,44 @@ export function deduplicateInventory() {
 }
 
 
+export function runIntegrityAnalysis() {
+  console.log('--- [Database Integrity Analysis] ---');
+  let issues = 0;
+
+  // 1. Check for orphaned foreign keys
+  const orphanChecks = [
+    { table: 'order_items', fk: 'order_id', parent: 'orders' },
+    { table: 'payments', fk: 'order_id', parent: 'orders' },
+    { table: 'usage_logs', fk: 'inventory_item_id', parent: 'inventory' },
+    { table: 'employee_performance', fk: 'employee_id', parent: 'employees' },
+    { table: 'employee_tasks', fk: 'employee_id', parent: 'employees' },
+    { table: 'attendance', fk: 'employee_id', parent: 'employees' }
+  ];
+
+  for (const check of orphanChecks) {
+    try {
+      const orphans = db.prepare(`SELECT COUNT(*) as count FROM ${check.table} WHERE ${check.fk} NOT IN (SELECT id FROM ${check.parent}) AND ${check.fk} IS NOT NULL`).get();
+      if (orphans.count > 0) {
+        console.warn(`[Integrity] Found ${orphans.count} orphaned records in ${check.table} (missing ${check.parent})`);
+        issues += orphans.count;
+      }
+    } catch(e) {}
+  }
+
+  // 2. Check sync queue status
+  try {
+    const queueStats = db.prepare('SELECT synced, COUNT(*) as count FROM sync_queue GROUP BY synced').all();
+    let pending = 0;
+    for (const stat of queueStats) {
+      if (stat.synced === 0) pending = stat.count;
+    }
+    const errors = db.prepare('SELECT COUNT(*) as count FROM sync_queue WHERE _sync_error IS NOT NULL AND synced = 0').get().count;
+    console.log(`[Integrity] Sync Queue: ${pending} pending items (${errors} currently in error state)`);
+  } catch(e) {}
+
+  console.log(`--- [Analysis Complete] Found ${issues} issues. ---`);
+}
+
 export function runPostStartupMaintenance() {
   console.log('[Database] Starting post-startup maintenance...');
   const defaultCategories = [
@@ -766,6 +822,19 @@ export function runPostStartupMaintenance() {
     sanitizeSchema();
     repairAllIds();
     reconcileLedger();
+    
+    // Auto-retry queue items that previously failed due to schema mismatches or missing parents
+    console.log('[Database] Resetting stuck sync_queue items...');
+    const result = db.prepare(`
+      UPDATE sync_queue 
+      SET synced = 0, _sync_error = NULL 
+      WHERE _sync_error LIKE '%schema%' OR _sync_error LIKE '%Could not find%' OR _sync_error LIKE '%foreign key%'
+    `).run();
+    if (result.changes > 0) {
+      console.log(`[Database] Unblocked ${result.changes} stuck sync items for retry.`);
+    }
+
+    runIntegrityAnalysis();
   } catch (error) {
     console.error('[Database] Post-startup maintenance failed:', error);
   }

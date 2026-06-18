@@ -159,7 +159,7 @@ export default function Suppliers() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-[#001f3f]">{t('suppliers')}</h1>
+        <h1 className="text-3xl font-bold text-[#0a0c10]">{t('suppliers')}</h1>
         <div className="flex items-center gap-3">
           {canEdit && (
             <button
@@ -173,7 +173,7 @@ export default function Suppliers() {
           {canEdit && !showArchived && (
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors"
+              className="flex items-center gap-2 bg-[#0a0c10] text-white px-4 py-2 rounded-lg hover:bg-[#1a1a1a] transition-colors"
             >
               <Plus className="w-5 h-5" />
               {t('add_supplier')}
@@ -189,14 +189,14 @@ export default function Suppliers() {
             className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
           >
             <div className="flex items-start justify-between mb-4">
-              <h3 className="text-xl font-semibold text-[#001f3f]">{supplier.name}</h3>
+              <h3 className="text-xl font-semibold text-[#0a0c10]">{supplier.name}</h3>
               {canEdit && (
                 <div className="flex gap-2">
                   {!showArchived ? (
                     <>
                       <button
                         onClick={() => handleEdit(supplier)}
-                        className="text-blue-600 hover:text-blue-800"
+                        className="text-gold-600 hover:text-gold-800"
                         title={t('edit')}
                       >
                         <Edit2 className="w-4 h-4" />
@@ -278,7 +278,7 @@ export default function Suppliers() {
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold text-[#001f3f] mb-4">
+            <h2 className="text-2xl font-bold text-[#0a0c10] mb-4">
               {editingSupplier ? t('edit_supplier') : t('add_supplier')}
             </h2>
 
@@ -292,7 +292,7 @@ export default function Suppliers() {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
                 />
               </div>
 
@@ -304,7 +304,7 @@ export default function Suppliers() {
                   type="text"
                   value={formData.contact}
                   onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
                 />
               </div>
 
@@ -316,7 +316,7 @@ export default function Suppliers() {
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
                 />
               </div>
 
@@ -328,7 +328,7 @@ export default function Suppliers() {
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
                 />
               </div>
 
@@ -340,7 +340,7 @@ export default function Suppliers() {
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
                 />
               </div>
 
@@ -348,7 +348,7 @@ export default function Suppliers() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 bg-[#001f3f] text-white py-2 rounded-lg hover:bg-[#003366] transition-colors disabled:opacity-50"
+                  className="flex-1 bg-[#0a0c10] text-white py-2 rounded-lg hover:bg-[#1a1a1a] transition-colors disabled:opacity-50"
                 >
                   {saving ? (t('loading') || 'Saving...') : (editingSupplier ? t('update') : t('create'))}
                 </button>

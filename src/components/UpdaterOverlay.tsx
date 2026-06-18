@@ -69,7 +69,7 @@ const UpdaterOverlay: React.FC = () => {
         {/* Header */}
         <div className="bg-navy p-4 flex items-center justify-between">
           <div className="flex items-center gap-2 text-white">
-            <ArrowUpCircle className="w-5 h-5 text-blue-400" />
+            <ArrowUpCircle className="w-5 h-5 text-gold-400" />
             <span className="font-bold text-sm tracking-tight">{t('software_updates')}</span>
           </div>
           <button 
@@ -90,7 +90,7 @@ const UpdaterOverlay: React.FC = () => {
               </div>
               <button 
                 onClick={handleDownload}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition shadow-lg shadow-blue-200"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gold-600 text-white rounded-xl font-bold text-sm hover:bg-gold-700 transition shadow-lg shadow-gold-200"
               >
                 <Download size={16} />
                 {t('download_update')}
@@ -102,11 +102,11 @@ const UpdaterOverlay: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-bold text-gray-900">{t('downloading_update')}...</span>
-                <span className="text-xs font-black text-blue-600">{Math.round(progress)}%</span>
+                <span className="text-xs font-black text-gold-600">{Math.round(progress)}%</span>
               </div>
               <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-blue-600 transition-all duration-300 ease-out" 
+                  className="h-full bg-gold-600 transition-all duration-300 ease-out" 
                   style={{ width: `${progress}%` }}
                 />
               </div>

@@ -197,16 +197,16 @@ export default function CreateOrder() {
       <div className="flex items-center gap-4">
         <button
           onClick={() => navigate('/orders')}
-          className="text-[#001f3f] hover:text-[#003366]"
+          className="text-[#0a0c10] hover:text-[#1a1a1a]"
         >
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h1 className="text-3xl font-bold text-[#001f3f]">{t('create_order')}</h1>
+        <h1 className="text-3xl font-bold text-[#0a0c10]">{t('create_order')}</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-[#001f3f] mb-4">{t('order_information')}</h2>
+          <h2 className="text-xl font-semibold text-[#0a0c10] mb-4">{t('order_information')}</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -217,7 +217,7 @@ export default function CreateOrder() {
                 required
                 value={formData.supplier_id}
                 onChange={(e) => setFormData({ ...formData, supplier_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
               >
                 <option value="">{t('select_supplier')}</option>
                 {suppliers.map((supplier) => (
@@ -236,12 +236,12 @@ export default function CreateOrder() {
                 type="date"
                 value={formData.expected_date}
                 onChange={(e) => setFormData({ ...formData, expected_date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
               />
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-blue-50/50 rounded-lg border border-blue-100">
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gold-50/50 rounded-lg border border-gold-100">
             <label className="flex items-center gap-3 cursor-pointer group">
               <input
                 type="checkbox"
@@ -250,7 +250,7 @@ export default function CreateOrder() {
                 className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
               />
               <div className="flex flex-col">
-                <span className="text-sm font-bold text-[#001f3f] group-hover:text-blue-700 transition-colors">
+                <span className="text-sm font-bold text-[#0a0c10] group-hover:text-gold-700 transition-colors">
                   {t('full_payment_made') || 'Full Payment Made'}
                 </span>
                 <span className="text-xs text-gray-500">{t('mark_as_fully_paid_desc') || 'Record total amount as paid immediately'}</span>
@@ -265,7 +265,7 @@ export default function CreateOrder() {
                 className="w-5 h-5 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
               />
               <div className="flex flex-col">
-                <span className="text-sm font-bold text-[#001f3f] group-hover:text-blue-700 transition-colors">
+                <span className="text-sm font-bold text-[#0a0c10] group-hover:text-gold-700 transition-colors">
                   {t('fully_delivered') || 'Fully Delivered'}
                 </span>
                 <span className="text-xs text-gray-500">{t('mark_as_fully_delivered_desc') || 'Receive all items into stock immediately'}</span>
@@ -281,19 +281,19 @@ export default function CreateOrder() {
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
             />
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-[#001f3f]">{t('order_items')}</h2>
+            <h2 className="text-xl font-semibold text-[#0a0c10]">{t('order_items')}</h2>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setIsScanModalOpen(true)}
-                className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 text-sm shadow-sm"
+                className="flex items-center gap-2 bg-neutral-600 text-white px-3 py-1.5 rounded-lg hover:bg-neutral-700 text-sm shadow-sm"
               >
                 <Camera className="w-4 h-4" />
                 {t('scan_document')}
@@ -301,7 +301,7 @@ export default function CreateOrder() {
               <button
                 type="button"
                 onClick={handleAddItem}
-                className="flex items-center gap-2 bg-[#001f3f] text-white px-3 py-1.5 rounded-lg hover:bg-[#003366] text-sm shadow-sm"
+                className="flex items-center gap-2 bg-[#0a0c10] text-white px-3 py-1.5 rounded-lg hover:bg-[#1a1a1a] text-sm shadow-sm"
               >
                 <Plus className="w-4 h-4" />
                 {t('add_item')}
@@ -322,7 +322,7 @@ export default function CreateOrder() {
                     required
                     value={item.description}
                     onChange={(e) => handleItemChange(index, 'description', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
                     placeholder={t('search_or_type_product')}
                   />
                   <datalist id={`inventory-list-${item.localId}`}>
@@ -337,7 +337,7 @@ export default function CreateOrder() {
                       <select
                         value={item.category_id || ''}
                         onChange={(e) => handleItemChange(index, 'category_id', e.target.value)}
-                        className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent bg-blue-50 text-sm"
+                        className="w-full px-3 py-2 border border-gold-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent bg-gold-50 text-sm"
                         required
                       >
                         <option value="">{t('select_category')} (Required for new items)</option>
@@ -364,7 +364,7 @@ export default function CreateOrder() {
                       const val = e.target.value.replace(/[^0-9]/g, '');
                       handleItemChange(index, 'quantity', parseInt(val) || 0);
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
                   />
                 </div>
                  <div className="w-24">
@@ -379,7 +379,7 @@ export default function CreateOrder() {
                       const val = e.target.value.replace(/[^0-9]/g, '');
                       handleItemChange(index, 'delivered_quantity', parseInt(val) || 0);
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent bg-green-50"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent bg-green-50"
                   />
                 </div>
 
@@ -396,7 +396,7 @@ export default function CreateOrder() {
                       const val = e.target.value.replace(/[^0-9.]/g, '');
                       handleItemChange(index, 'unit_price', parseFloat(val) || 0);
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
                   />
                 </div>
 
@@ -426,7 +426,7 @@ export default function CreateOrder() {
           <div className="mt-6 pt-4 border-t">
             <div className="flex justify-between items-center text-lg">
               <span className="font-semibold text-gray-700">{t('total_amount')}:</span>
-              <span className="font-bold text-[#001f3f]">{formatCurrency(calculateTotal())}</span>
+              <span className="font-bold text-[#0a0c10]">{formatCurrency(calculateTotal())}</span>
             </div>
           </div>
         </div>
@@ -434,7 +434,7 @@ export default function CreateOrder() {
         <div className="flex gap-4">
           <button
             type="submit"
-            className="flex-1 bg-[#001f3f] text-white py-3 rounded-lg hover:bg-[#003366] transition-colors font-semibold"
+            className="flex-1 bg-[#0a0c10] text-white py-3 rounded-lg hover:bg-[#1a1a1a] transition-colors font-semibold"
           >
             {t('create_order')}
           </button>

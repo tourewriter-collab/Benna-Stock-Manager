@@ -60,7 +60,7 @@ const AccountingDashboard: React.FC = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-navy flex items-center">
-          <Calculator className="mr-3 text-blue-500 w-8 h-8" />
+          <Calculator className="mr-3 text-gold-500 w-8 h-8" />
           {t('financial_overview', 'Financial Overview')}
         </h1>
       </div>
@@ -98,15 +98,15 @@ const AccountingDashboard: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow relative overflow-hidden group">
-          <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-blue-50 rounded-full group-hover:scale-110 transition-transform duration-500 ease-in-out"></div>
+          <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-gold-50 rounded-full group-hover:scale-110 transition-transform duration-500 ease-in-out"></div>
           <div className="relative">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('net_profit', 'Net Profit')}</p>
-                <h3 className="text-2xl font-black text-blue-600 mt-1">{formatPrice(stats?.netProfit || 0)}</h3>
-                <p className="text-xs font-medium text-blue-500 mt-1">{profitMargin}% margin</p>
+                <h3 className="text-2xl font-black text-gold-600 mt-1">{formatPrice(stats?.netProfit || 0)}</h3>
+                <p className="text-xs font-medium text-gold-500 mt-1">{profitMargin}% margin</p>
               </div>
-              <div className="p-3 bg-blue-100 rounded-xl text-blue-600">
+              <div className="p-3 bg-gold-100 rounded-xl text-gold-600">
                 <DollarSign size={20} />
               </div>
             </div>
@@ -114,14 +114,14 @@ const AccountingDashboard: React.FC = () => {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow relative overflow-hidden group">
-          <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-indigo-50 rounded-full group-hover:scale-110 transition-transform duration-500 ease-in-out"></div>
+          <div className="absolute top-0 right-0 -mr-4 -mt-4 w-24 h-24 bg-neutral-50 rounded-full group-hover:scale-110 transition-transform duration-500 ease-in-out"></div>
           <div className="relative">
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('pending_receivables', 'Pending Receivables')}</p>
-                <h3 className="text-2xl font-black text-indigo-600 mt-1">{formatPrice(stats?.pendingInvoicesAmount || 0)}</h3>
+                <h3 className="text-2xl font-black text-neutral-600 mt-1">{formatPrice(stats?.pendingInvoicesAmount || 0)}</h3>
               </div>
-              <div className="p-3 bg-indigo-100 rounded-xl text-indigo-600">
+              <div className="p-3 bg-neutral-100 rounded-xl text-neutral-600">
                 <FileText size={20} />
               </div>
             </div>
@@ -170,19 +170,19 @@ const AccountingDashboard: React.FC = () => {
         </div>
 
         {/* Assets Summary */}
-        <div className="bg-gradient-to-br from-navy to-[#003366] rounded-2xl shadow-lg p-6 text-white relative overflow-hidden flex flex-col justify-between">
+        <div className="bg-gradient-to-br from-navy to-[#1a1a1a] rounded-2xl shadow-lg p-6 text-white relative overflow-hidden flex flex-col justify-between">
           <div className="absolute -right-10 -top-10 w-48 h-48 bg-white opacity-5 rounded-full blur-2xl"></div>
-          <div className="absolute -left-10 -bottom-10 w-48 h-48 bg-blue-400 opacity-10 rounded-full blur-2xl"></div>
+          <div className="absolute -left-10 -bottom-10 w-48 h-48 bg-gold-400 opacity-10 rounded-full blur-2xl"></div>
           
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-lg font-bold text-blue-100">{t('total_assets', 'Total Assets')}</h2>
-              <CreditCard className="text-blue-300 w-6 h-6" />
+              <h2 className="text-lg font-bold text-gold-100">{t('total_assets', 'Total Assets')}</h2>
+              <CreditCard className="text-gold-300 w-6 h-6" />
             </div>
             
             <div>
               <p className="text-4xl font-black tracking-tight">{formatPrice(stats?.totalAssets || 0)}</p>
-              <p className="text-sm text-blue-200 mt-2">{t('total_assets_desc', 'Combined value of all asset accounts')}</p>
+              <p className="text-sm text-gold-200 mt-2">{t('total_assets_desc', 'Combined value of all asset accounts')}</p>
             </div>
           </div>
         </div>

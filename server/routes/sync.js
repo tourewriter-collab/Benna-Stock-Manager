@@ -12,48 +12,36 @@ const MAPPERS_PUSH = {
   inventory: (d) => ({
     id: d.id,
     name: d.name || 'Unnamed Item',
-    reference: d.id ? d.id.substring(0, 8) : '',
     category: d.category || 'General',
     quantity: d.quantity || 0,
-    min_quantity: d.min_stock || d.min_quantity || 0,
+    min_stock: d.min_stock || d.min_quantity || 0,
     unit_price: d.price || d.unit_price || 0,
     supplier: d.supplier || null,
     location: d.location || 'Main Store',
     category_id: d.category_id || null
   }),
   orders: (d) => {
-    // Map local status ('pending', 'partial', 'paid', 'cancelled') 
-    // to remote constraint ('pending', 'confirmed', 'shipped', 'delivered', 'cancelled')
-    let remoteStatus = 'pending';
-    if (d.status === 'paid') {
-      remoteStatus = d.delivery_status === 'delivered' ? 'delivered' : 'confirmed';
-    } else if (d.status === 'partial') {
-      remoteStatus = 'confirmed';
-    } else if (d.status === 'cancelled') {
-      remoteStatus = 'cancelled';
-    } else if (d.status === 'confirmed' || d.status === 'shipped' || d.status === 'delivered') {
-      remoteStatus = d.status;
-    }
     return {
       id: d.id,
-      order_number: d.order_number || `ORD-${d.id ? d.id.substring(0, 8).toUpperCase() : ''}`,
       supplier_id: d.supplier_id || null,
       order_date: d.order_date || new Date().toISOString(),
-      expected_delivery_date: d.expected_date || d.expected_delivery_date || null,
-      status: remoteStatus,
+      expected_date: d.expected_date || d.expected_delivery_date || null,
+      status: d.status || 'pending',
       total_amount: d.total_amount || 0,
       paid_amount: d.paid_amount || 0,
       notes: d.notes || null,
-      delivery_status: d.delivery_status || 'pending'
+      delivery_status: d.delivery_status || 'pending',
+      actual_delivery_date: d.actual_delivery_date || null,
+      created_by: d.created_by || null
     };
   },
   order_items: (d) => ({
     id: d.id,
     order_id: d.order_id,
-    inventory_id: d.inventory_item_id || d.inventory_id || '00000000-0000-0000-0000-000000000000',
+    inventory_item_id: d.inventory_item_id || d.inventory_id || '00000000-0000-0000-0000-000000000000',
     quantity: d.quantity || 1,
     unit_price: d.unit_price || 0,
-    total_price: d.total || d.total_price || 0,
+    total: d.total || d.total_price || 0,
     delivered_quantity: d.delivered_quantity || 0,
     description: d.description || null
   }),
@@ -62,7 +50,7 @@ const MAPPERS_PUSH = {
     order_id: d.order_id,
     payment_date: d.payment_date || new Date().toISOString(),
     amount: d.amount || 0,
-    payment_method: d.method || d.payment_method || 'cash',
+    method: d.method || d.payment_method || 'cash',
     reference: d.reference || null,
     notes: d.notes || null
   }),
@@ -109,7 +97,8 @@ const MAPPERS_PUSH = {
     id: d.id,
     message: d.message,
     type: d.type,
-    is_read: !!d.is_read
+    is_read: !!d.is_read,
+    created_at: d.created_at || new Date().toISOString()
   }),
   employees: (d) => ({
     id: d.id,
@@ -154,11 +143,14 @@ const MAPPERS_PUSH = {
     month: d.month,
     task_score: d.task_score || 0,
     boss_review_score: d.boss_review_score || 0,
+    // NOTE: boss_commentary is a Supabase-only field; include if present
+    boss_commentary: d.boss_commentary || null,
     attendance_score: d.attendance_score || 0,
     peer_feedback_score: d.peer_feedback_score || 0,
     skill_dev_score: d.skill_dev_score || 0,
-    overtime_score: d.overtime_score || 0,
-    composite_score: d.composite_score || 0
+    overtime_score: d.overtime_score || 0
+    // composite_score is OMITTED — it is a GENERATED ALWAYS column in Supabase
+    // and cannot be set manually. Supabase computes it automatically.
   }),
   employee_tasks: (d) => ({
     id: d.id,
@@ -186,19 +178,6 @@ const MAPPERS_PULL = {
     is_archived: row.is_archived ? 1 : 0
   }),
   orders: (row) => {
-    // Map remote status ('pending', 'confirmed', 'shipped', 'delivered', 'cancelled')
-    // back to local status ('pending', 'partial', 'paid', 'cancelled')
-    let localStatus = 'pending';
-    if (row.status === 'delivered') {
-      localStatus = 'paid';
-    } else if (row.status === 'confirmed' || row.status === 'shipped') {
-      localStatus = 'partial'; // best effort local mapping
-    } else if (row.status === 'cancelled') {
-      localStatus = 'cancelled';
-    } else if (row.status === 'paid' || row.status === 'partial') {
-      localStatus = row.status;
-    }
-
     // Determine paid_amount: fallback to local value if remote value is not defined
     let paidAmount = row.paid_amount;
     if (paidAmount === undefined || paidAmount === null) {
@@ -217,8 +196,10 @@ const MAPPERS_PULL = {
       expected_date: row.expected_delivery_date || row.expected_date || null,
       total_amount: row.total_amount || 0,
       paid_amount: paidAmount,
-      status: localStatus,
+      status: row.status || 'pending',
       delivery_status: row.delivery_status || 'pending',
+      actual_delivery_date: row.actual_delivery_date || null,
+      created_by: row.created_by || null,
       notes: row.notes || null,
       is_archived: row.is_archived ? 1 : 0
     };
@@ -362,13 +343,17 @@ const MAPPERS_PULL = {
 let lastOnlineCheck = 0;
 let cachedOnlineStatus = true;
 
-/** Determine if we have internet connection by trying to reach multiple endpoints */
+/** Determine if we have internet connection by trying to resolve the Supabase domain */
 async function isOnline() {
-  // We've found that manual connectivity checks (HTTP HEAD or DNS) can be brittle 
-  // in various network environments. We'll now allow the sync attempt to proceed 
-  // if Supabase is configured, and let the actual request handle any real connectivity issues.
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  return !!supabaseUrl;
+  if (!supabaseUrl) return false;
+  try {
+    const url = new URL(supabaseUrl);
+    await resolveDns(url.hostname);
+    return true;
+  } catch (err) {
+    return false;
+  }
 }
 
 /** 
@@ -495,7 +480,7 @@ router.post('/push', async (req, res) => {
             const mapper = MAPPERS_PUSH[table];
             if (mapper) {
               try {
-                return mapper(data);
+                return { payload: mapper(data), queueId: it.id };
               } catch (e) {
                 console.error(`[Sync] Mapping error for table ${table}:`, e);
                 return null;
@@ -504,15 +489,16 @@ router.post('/push', async (req, res) => {
             
             // Fallback for tables without explicit mapper
             delete data._sync_error;
-            return data;
+            return { payload: data, queueId: it.id };
           }).filter(Boolean);
           
           if (payloads.length === 0) continue;
 
           // UUID Validation Filter
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          const validPayloads = [];
-          for (const payload of payloads) {
+          const validEntries = [];
+          for (const entry of payloads) {
+             const { payload } = entry;
              // usage_logs doesn't require uuid checking if we omit id during insert
              if (table !== 'usage_logs' && !uuidRegex.test(payload.id)) {
                 console.warn(`[Sync] WARNING: Holding back invalid UUID from Push batch (pending repair) - ID: ${payload.id}`);
@@ -520,22 +506,75 @@ router.post('/push', async (req, res) => {
                   db.prepare('UPDATE sync_queue SET _sync_error = ? WHERE record_id = ?').run('Invalid UUID. Awaiting local repair script.', payload.id);
                 } catch(e) {}
              } else {
-                validPayloads.push(payload);
+                validEntries.push(entry);
              }
           }
 
-          if (validPayloads.length === 0) continue;
+          if (validEntries.length === 0) continue;
           
           // Deduplicate by id (except usage_logs which has no client id pushed)
-          let uniquePayloads;
+          let uniqueEntries;
           if (table === 'usage_logs') {
-             uniquePayloads = validPayloads;
+             uniqueEntries = validEntries;
           } else {
-             uniquePayloads = Object.values(validPayloads.reduce((acc, curr) => {
-               acc[curr.id] = curr;
-               return acc;
-             }, {}));
+             // Deduplicate by payload.id, keeping last occurrence
+             const deduped = {};
+             for (const entry of validEntries) {
+               deduped[entry.payload.id] = entry;
+             }
+             uniqueEntries = Object.values(deduped);
           }
+
+          // SPECIAL CASE: Attendance — push per-row to handle UNIQUE(device_enroll_id, timestamp)
+          // gracefully. A batch upsert would drop ALL records on a single conflict.
+          if (table === 'attendance') {
+            // Pre-deduplicate by (device_enroll_id, timestamp) to avoid sending duplicates
+            const seenAttendanceKeys = new Set();
+            const dedupedAttendance = [];
+            for (const entry of uniqueEntries) {
+              const key = `${entry.payload.device_enroll_id}|${entry.payload.timestamp}`;
+              if (!seenAttendanceKeys.has(key)) {
+                seenAttendanceKeys.add(key);
+                dedupedAttendance.push(entry);
+              } else {
+                // Mark duplicate as done so it doesn't block the queue forever
+                console.log(`[Sync] Attendance dedup: skipping duplicate (device=${entry.payload.device_enroll_id}, ts=${entry.payload.timestamp})`);
+                try {
+                  db.prepare('DELETE FROM sync_queue WHERE id = ?').run(entry.queueId);
+                } catch(e) {}
+                successTotal++;
+              }
+            }
+
+            // Push each attendance record individually so one conflict doesn't drop the batch
+            for (const entry of dedupedAttendance) {
+              const { error: attErr } = await supabase
+                .from('attendance')
+                .upsert([entry.payload], { onConflict: 'id' })
+                .select('id');
+              
+              if (attErr) {
+                if (attErr.message.includes('unique constraint') || attErr.message.includes('duplicate key')) {
+                  // Record already exists in cloud — remove from queue
+                  console.log(`[Sync] Attendance already exists in cloud (id=${entry.payload.id}), clearing from queue.`);
+                  try { db.prepare('DELETE FROM sync_queue WHERE id = ?').run(entry.queueId); } catch(e) {}
+                  successTotal++;
+                } else {
+                  console.error(`[Sync] Attendance push failed for id=${entry.payload.id}:`, attErr.message);
+                  try {
+                    db.prepare("UPDATE sync_queue SET _sync_error = ? WHERE id = ?").run(attErr.message, entry.queueId);
+                  } catch(e) {}
+                }
+              } else {
+                try { db.prepare('DELETE FROM sync_queue WHERE id = ?').run(entry.queueId); } catch(e) {}
+                try { db.prepare("UPDATE attendance SET sync_status = 'synced' WHERE id = ?").run(entry.payload.id); } catch(e) {}
+                successTotal++;
+              }
+            }
+            continue; // skip the generic upsert block below
+          }
+
+          const uniquePayloads = uniqueEntries.map(e => e.payload);
 
           // FAILSAFE: Supabase enforces strict Foreign Keys. 
           if (table === 'orders') {
@@ -565,10 +604,9 @@ router.post('/push', async (req, res) => {
              const fallbackItem = {
                id: '00000000-0000-0000-0000-000000000000',
                name: 'Unlinked Fallback Item',
-               reference: 'UNLINKED',
                category: 'General',
                quantity: 0,
-               min_quantity: 0,
+               min_stock: 0,
                unit_price: 0,
                location: 'Main Store'
              };
@@ -576,16 +614,15 @@ router.post('/push', async (req, res) => {
 
              // 2. Also map any missing inventories to this fallback, and upsert them so foreign key doesn't fail
              const dummyInvs = uniquePayloads
-               .filter(it => it.inventory_id && it.inventory_id !== '00000000-0000-0000-0000-000000000000')
+               .filter(it => it.inventory_item_id && it.inventory_item_id !== '00000000-0000-0000-0000-000000000000')
                .map(it => {
-                  const local = db.prepare('SELECT name, category FROM inventory WHERE id = ?').get(it.inventory_id);
+                  const local = db.prepare('SELECT name, category FROM inventory WHERE id = ?').get(it.inventory_item_id);
                   return {
-                    id: it.inventory_id,
+                    id: it.inventory_item_id,
                     name: local?.name || 'Recovered Item',
-                    reference: String(it.inventory_id).substring(0, 8),
                     category: local?.category || 'General',
                     quantity: 0,
-                    min_quantity: 0,
+                    min_stock: 0,
                     unit_price: it.unit_price || 0,
                     supplier: null,
                     location: 'Main Store'
@@ -708,20 +745,22 @@ router.get('/pull', async (req, res) => {
     const tablesToSync = ['inventory', 'categories', 'suppliers', 'orders', 'order_items', 'payments', 'usage_logs', 'trucks', 'notifications', 'employees', 'applicants', 'attendance', 'employee_performance', 'employee_tasks'];
     
     const tableTimeCols = {
-      inventory: 'updated_at',
-      categories: 'created_at',
-      suppliers: 'updated_at',
-      orders: 'updated_at',
-      order_items: null, // No timestamp column, full sync
-      payments: 'created_at',
+      // IMPORTANT: These column names must match the actual Supabase column names.
+      // Supabase uses `sync_updated_at` (not `updated_at`) as the mutation timestamp.
+      inventory: 'sync_updated_at',
+      categories: 'sync_updated_at',
+      suppliers: 'sync_updated_at',
+      orders: 'sync_updated_at',
+      order_items: 'sync_updated_at', // Use sync_updated_at for incremental pull
+      payments: 'sync_updated_at',
       usage_logs: 'timestamp',
-      trucks: 'last_location_update',
-      notifications: 'created_at',
-      employees: 'updated_at',
-      applicants: 'updated_at',
+      trucks: 'sync_updated_at',
+      notifications: 'sync_updated_at',
+      employees: 'sync_updated_at',
+      applicants: 'sync_updated_at',
       attendance: 'timestamp',
-      employee_performance: 'created_at',
-      employee_tasks: 'created_at'
+      employee_performance: 'sync_updated_at',
+      employee_tasks: 'sync_updated_at'
     };
 
     try {
@@ -780,6 +819,11 @@ router.get('/pull', async (req, res) => {
                 continue; 
               }
             }
+          }
+
+          // Ensure pulled items are marked as synced locally
+          if (localColumns.has('sync_status') && !mappedRow.sync_status) {
+            mappedRow.sync_status = 'synced';
           }
 
           const filteredKeys = Object.keys(mappedRow).filter(k => localColumns.has(k));

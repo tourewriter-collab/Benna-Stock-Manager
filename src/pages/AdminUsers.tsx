@@ -224,7 +224,7 @@ const AdminUsers: React.FC = () => {
                   <td className="py-4 px-6 text-gray-600">{user.email}</td>
                   <td className="py-4 px-6">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                      user.role === 'admin' ? 'bg-indigo-100 text-indigo-800' :
+                      user.role === 'admin' ? 'bg-neutral-100 text-neutral-800' :
                       user.role === 'audit_manager' ? 'bg-amber-100 text-amber-800' :
                       'bg-slate-100 text-slate-700'
                     }`}>
@@ -236,7 +236,7 @@ const AdminUsers: React.FC = () => {
                     <div className="flex items-center justify-end space-x-2">
                       <button
                         onClick={() => handleEditPermissions(user)}
-                        className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition flex items-center gap-1"
+                        className="p-1.5 rounded-lg text-neutral-600 hover:bg-neutral-50 transition flex items-center gap-1"
                         title={t('permissions', 'Edit Permissions')}
                       >
                         <Shield className="w-4 h-4" />
@@ -286,11 +286,11 @@ const AdminUsers: React.FC = () => {
           <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl border border-gray-100 flex flex-col max-h-[85vh]">
             <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
-                <Shield className="w-6 h-6 text-indigo-600" />
+                <Shield className="w-6 h-6 text-neutral-600" />
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">{t('user_permissions', 'User Access Permissions')}</h2>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {t('managing_permissions_for', 'Manage modular privileges for')} <span className="font-bold text-indigo-600">{permissionsUser.name}</span> ({permissionsUser.email})
+                    {t('managing_permissions_for', 'Manage modular privileges for')} <span className="font-bold text-neutral-600">{permissionsUser.name}</span> ({permissionsUser.email})
                   </p>
                 </div>
               </div>
@@ -304,10 +304,10 @@ const AdminUsers: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto py-2">
               {permissionsUser.role === 'admin' ? (
-                <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-2xl text-center flex flex-col items-center gap-3">
-                  <Key className="w-8 h-8 text-indigo-600" />
-                  <h3 className="font-bold text-indigo-900">{t('admin_full_access', 'Administrator Status')}</h3>
-                  <p className="text-sm text-indigo-700 max-w-md">
+                <div className="bg-neutral-50 border border-neutral-100 p-5 rounded-2xl text-center flex flex-col items-center gap-3">
+                  <Key className="w-8 h-8 text-neutral-600" />
+                  <h3 className="font-bold text-neutral-900">{t('admin_full_access', 'Administrator Status')}</h3>
+                  <p className="text-sm text-neutral-700 max-w-md">
                     {t('admin_bypass_info', 'This user has the Administrator role. Administrators bypass all permission matrices and have full write/read access to all components, databases, and logs.')}
                   </p>
                 </div>
@@ -356,7 +356,7 @@ const AdminUsers: React.FC = () => {
                                     checked={isDisabled ? true : isChecked}
                                     disabled={isDisabled}
                                     onChange={() => handleTogglePermission(mod.key, act.key)}
-                                    className={`w-4 h-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500 ${
+                                    className={`w-4 h-4 rounded text-neutral-600 border-gray-300 focus:ring-neutral-500 ${
                                       isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                                     }`}
                                   />
@@ -385,7 +385,7 @@ const AdminUsers: React.FC = () => {
                   type="button"
                   onClick={handleSavePermissions}
                   disabled={savingPermissions}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md transition disabled:opacity-50"
+                  className="px-5 py-2 bg-neutral-600 hover:bg-neutral-700 text-white rounded-xl text-sm font-bold shadow-md transition disabled:opacity-50"
                 >
                   {savingPermissions ? t('saving', 'Saving...') : t('save_permissions', 'Save Matrix')}
                 </button>

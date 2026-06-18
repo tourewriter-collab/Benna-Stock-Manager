@@ -180,8 +180,8 @@ const Dashboard: React.FC = () => {
       title: t('total_items'),
       value: stats.totalItems,
       icon: Package,
-      color: 'bg-blue-500',
-      ring: 'ring-blue-400',
+      color: 'bg-gold-500',
+      ring: 'ring-gold-400',
       clickable: true,
       onClick: () => openPanel('articles'),
     },
@@ -251,8 +251,8 @@ const Dashboard: React.FC = () => {
       return (
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <Layers className="w-5 h-5 text-blue-600" />
+            <div className="bg-gold-100 p-2 rounded-lg">
+              <Layers className="w-5 h-5 text-gold-600" />
             </div>
             <div>
               <h3 className="font-semibold text-gray-900">{t('total_items')} — {t('breakdown_by_category')}</h3>
@@ -273,21 +273,21 @@ const Dashboard: React.FC = () => {
                 </thead>
                 <tbody>
                   {categoryStats.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-100 hover:bg-blue-50 transition-colors">
+                    <tr key={i} className="border-b border-gray-100 hover:bg-gold-50 transition-colors">
                       <td className="py-2.5 px-4 flex items-center gap-2">
-                        <Tag className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        <Tag className="w-3.5 h-3.5 text-gold-400 shrink-0" />
                         <span className="text-gray-800">{isFr ? row.category_fr : row.category_en}</span>
                       </td>
                       <td className="py-2.5 px-4 text-right font-medium text-gray-900">{row.item_count}</td>
-                      <td className="py-2.5 px-4 text-right font-bold text-blue-600">{row.total_units.toLocaleString()}</td>
+                      <td className="py-2.5 px-4 text-right font-bold text-gold-600">{row.total_units.toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-blue-50 font-semibold">
+                  <tr className="bg-gold-50 font-semibold">
                     <td className="py-2.5 px-4 text-gray-700 rounded-l-lg">{t('total')}</td>
                     <td className="py-2.5 px-4 text-right text-gray-900">{categoryStats.reduce((s, r) => s + r.item_count, 0)}</td>
-                    <td className="py-2.5 px-4 text-right text-blue-700 rounded-r-lg">{categoryStats.reduce((s, r) => s + r.total_units, 0).toLocaleString()}</td>
+                    <td className="py-2.5 px-4 text-right text-gold-700 rounded-r-lg">{categoryStats.reduce((s, r) => s + r.total_units, 0).toLocaleString()}</td>
                   </tr>
                 </tfoot>
               </table>

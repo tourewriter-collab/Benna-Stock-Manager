@@ -372,7 +372,7 @@ export const IkikeAgent: React.FC = () => {
                   className={[
                     'max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed shadow-md',
                     msg.role === 'user' 
-                      ? 'bg-navy text-white rounded-tr-none border border-blue-500/20' 
+                      ? 'bg-navy text-white rounded-tr-none border border-gold-500/20' 
                       : 'bg-slate-800/90 text-slate-100 rounded-tl-none border border-slate-700/50'
                   ].join(' ')}
                 >

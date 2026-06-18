@@ -405,17 +405,17 @@ const HumanResources: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header section with Glassmorphism */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-900 to-navy p-8 text-white shadow-2xl border border-white/10">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-neutral-900 to-navy p-8 text-white shadow-2xl border border-white/10">
         <div className="absolute top-0 right-0 -mt-10 -mr-10 h-64 w-64 rounded-full bg-white/5 blur-3xl"></div>
-        <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-blue-500/20 blur-3xl"></div>
+        <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-gold-500/20 blur-3xl"></div>
         
         <div className="relative z-10 flex flex-col xl:flex-row items-center justify-between gap-6">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight mb-2 flex items-center gap-3">
-              <Users className="w-8 h-8 text-indigo-400" />
+              <Users className="w-8 h-8 text-neutral-400" />
               {t('hr_hub_title', 'Human Resources Hub')}
             </h1>
-            <p className="text-indigo-200 text-sm max-w-xl leading-relaxed">
+            <p className="text-neutral-200 text-sm max-w-xl leading-relaxed">
               {t('hr_hub_subtitle', 'Manage your workforce, process job applications, and leverage Ikiké AI to autonomously screen and assess candidates against job requirements.')}
             </p>
           </div>
@@ -424,35 +424,35 @@ const HumanResources: React.FC = () => {
           <div className="flex flex-wrap p-1.5 gap-1.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 shadow-inner">
             <button
               onClick={() => setActiveTab('staff')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'staff' ? 'bg-white text-indigo-900 shadow-md transform scale-105' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'staff' ? 'bg-white text-neutral-900 shadow-md transform scale-105' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
             >
               <Briefcase className="w-4 h-4" />
               {t('hr_tab_staff', 'Staff')}
             </button>
             <button
               onClick={() => setActiveTab('applicants')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'applicants' ? 'bg-white text-indigo-900 shadow-md transform scale-105' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'applicants' ? 'bg-white text-neutral-900 shadow-md transform scale-105' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
             >
               <FileText className="w-4 h-4" />
               {t('hr_tab_applicants', 'Applicants')}
             </button>
             <button
               onClick={() => setActiveTab('screening')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'screening' ? 'bg-gradient-to-r from-blue-50 to-indigo-600 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'screening' ? 'bg-gradient-to-r from-gold-50 to-neutral-600 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
             >
               <BrainCircuit className="w-4 h-4" />
               {t('hr_tab_screening', 'AI Screening')}
             </button>
             <button
               onClick={() => setActiveTab('attendance')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'attendance' ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'attendance' ? 'bg-gradient-to-r from-purple-500 to-neutral-600 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
             >
               <Cpu className="w-4 h-4" />
               {t('hr_tab_attendance', 'Attendance')}
             </button>
             <button
               onClick={() => setActiveTab('tasks')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'tasks' ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'tasks' ? 'bg-gradient-to-r from-gold-500 to-teal-500 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
             >
               <ClipboardList className="w-4 h-4" />
               {t('hr_tab_tasks', 'Tasks')}
@@ -474,7 +474,7 @@ const HumanResources: React.FC = () => {
       <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl rounded-2xl min-h-[500px] p-6 relative">
         {loading && activeTab !== 'screening' ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-neutral-600"></div>
           </div>
         ) : (
           <>
@@ -483,15 +483,15 @@ const HumanResources: React.FC = () => {
               <div className="space-y-6">
                 <div className="flex flex-wrap justify-between items-center gap-3">
                   <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <Briefcase className="w-5 h-5 text-indigo-600" />
+                    <Briefcase className="w-5 h-5 text-neutral-600" />
                     {t('hr_active_employees', 'Active Employees')}
-                    <span className="ml-1 text-xs font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">{employees.length}</span>
+                    <span className="ml-1 text-xs font-semibold bg-neutral-100 text-neutral-700 px-2 py-0.5 rounded-full">{employees.length}</span>
                   </h2>
                   <div className="flex items-center gap-2">
                     {/* Download Template */}
                     <button
                       onClick={handleDownloadTemplate}
-                      className="text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100"
+                      className="text-neutral-600 hover:text-neutral-800 border border-neutral-200 hover:border-neutral-400 px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 bg-neutral-50 hover:bg-neutral-100"
                       title={t('hr_download_template', 'Download import template')}
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -521,7 +521,7 @@ const HumanResources: React.FC = () => {
                     {/* Manual Add */}
                     <button 
                       onClick={() => { setShowAddStaff(!showAddStaff); setImportResult(null); }}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
+                      className="bg-neutral-600 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
                     >
                       <UserPlus className="w-4 h-4" />
                       {showAddStaff ? t('hr_cancel', 'Cancel') : t('hr_add_employee', 'Add Employee')}
@@ -560,34 +560,34 @@ const HumanResources: React.FC = () => {
                 )}
 
                 {showAddStaff && (
-                  <form onSubmit={handleAddStaff} className="bg-white p-6 rounded-xl border border-indigo-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <form onSubmit={handleAddStaff} className="bg-white p-6 rounded-xl border border-neutral-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_full_name', 'Full Name')} *</label>
-                      <input type="text" required value={newStaff.name} onChange={e => setNewStaff({...newStaff, name: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Jane Doe" />
+                      <input type="text" required value={newStaff.name} onChange={e => setNewStaff({...newStaff, name: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" placeholder="Jane Doe" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_role', 'Role')} *</label>
-                      <input type="text" required value={newStaff.role} onChange={e => setNewStaff({...newStaff, role: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Accountant" />
+                      <input type="text" required value={newStaff.role} onChange={e => setNewStaff({...newStaff, role: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" placeholder="Accountant" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_department', 'Department')} *</label>
-                      <input type="text" required value={newStaff.department} onChange={e => setNewStaff({...newStaff, department: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Finance" />
+                      <input type="text" required value={newStaff.department} onChange={e => setNewStaff({...newStaff, department: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" placeholder="Finance" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_hire_date', 'Hire Date')} *</label>
-                      <input type="date" required value={newStaff.hire_date} onChange={e => setNewStaff({...newStaff, hire_date: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      <input type="date" required value={newStaff.hire_date} onChange={e => setNewStaff({...newStaff, hire_date: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_email', 'Email')}</label>
-                      <input type="email" value={newStaff.email} onChange={e => setNewStaff({...newStaff, email: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="jane@company.com" />
+                      <input type="email" value={newStaff.email} onChange={e => setNewStaff({...newStaff, email: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" placeholder="jane@company.com" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_phone', 'Phone')}</label>
-                      <input type="tel" value={newStaff.phone} onChange={e => setNewStaff({...newStaff, phone: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="+237 6XX XXX XXX" />
+                      <input type="tel" value={newStaff.phone} onChange={e => setNewStaff({...newStaff, phone: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" placeholder="+237 6XX XXX XXX" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_salary', 'Monthly Salary (FCFA)')}</label>
-                      <input type="number" min="0" value={newStaff.salary} onChange={e => setNewStaff({...newStaff, salary: parseFloat(e.target.value) || 0})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="350000" />
+                      <input type="number" min="0" value={newStaff.salary} onChange={e => setNewStaff({...newStaff, salary: parseFloat(e.target.value) || 0})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" placeholder="350000" />
                     </div>
                     {user?.role === 'admin' && (
                       <div>
@@ -595,7 +595,7 @@ const HumanResources: React.FC = () => {
                         <select 
                           value={newStaff.supervisor_id || ''} 
                           onChange={e => setNewStaff({...newStaff, supervisor_id: e.target.value})} 
-                          className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-white"
+                          className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm bg-white"
                         >
                           <option value="">-- No Supervisor (Admin only) --</option>
                           {users.map(u => (
@@ -605,7 +605,7 @@ const HumanResources: React.FC = () => {
                       </div>
                     )}
                     <div className="md:col-span-2 flex justify-end mt-2">
-                      <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:bg-indigo-700 transition">{t('hr_save_employee', 'Save Employee')}</button>
+                      <button type="submit" className="bg-neutral-600 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:bg-neutral-700 transition">{t('hr_save_employee', 'Save Employee')}</button>
                     </div>
                   </form>
                 )}
@@ -614,11 +614,11 @@ const HumanResources: React.FC = () => {
                   {employees.map(emp => (
                     <div key={emp.id} className="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition p-5 group relative overflow-hidden flex flex-col justify-between min-h-[180px]">
                       <div>
-                        <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
+                        <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-neutral-50 to-neutral-100 rounded-bl-full -z-10 transition-transform group-hover:scale-110"></div>
                         <div className="flex items-start justify-between mb-4">
                           <div>
                             <h3 className="font-bold text-gray-900">{emp.name}</h3>
-                            <p className="text-sm text-indigo-600 font-medium">{emp.role}</p>
+                            <p className="text-sm text-neutral-600 font-medium">{emp.role}</p>
                           </div>
                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${emp.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700'}`}>
                             {t(emp.status)}
@@ -639,12 +639,12 @@ const HumanResources: React.FC = () => {
                       {/* Mapping ID UI */}
                       <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-4">
                         <span className="text-gray-400 text-xs font-semibold flex items-center gap-1">
-                          <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+                          <Cpu className="w-3.5 h-3.5 text-neutral-400" />
                           {t('hr_device_id', 'Device ID')}
                         </span>
                         <div className="flex items-center gap-1.5">
                           {emp.device_enroll_id ? (
-                            <span className="font-bold text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md">{emp.device_enroll_id}</span>
+                            <span className="font-bold text-xs text-neutral-700 bg-neutral-50 px-2.5 py-1 rounded-md">{emp.device_enroll_id}</span>
                           ) : (
                             <span className="text-xs text-gray-400 italic bg-gray-50 px-2.5 py-1 rounded-md">{t('none')}</span>
                           )}
@@ -655,7 +655,7 @@ const HumanResources: React.FC = () => {
                                 handleEnrollEmployee(emp.id, newId);
                               }
                             }}
-                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-md transition"
+                            className="text-xs font-bold text-neutral-600 hover:text-neutral-800 bg-neutral-50 hover:bg-neutral-100 p-1.5 rounded-md transition"
                             title={t('edit')}
                           >
                             {t('edit')}
@@ -666,12 +666,12 @@ const HumanResources: React.FC = () => {
                       {/* Supervisor UI */}
                       <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-2">
                         <span className="text-gray-400 text-xs font-semibold flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5 text-indigo-400" />
+                          <Users className="w-3.5 h-3.5 text-neutral-400" />
                           Supervisor
                         </span>
                         <div className="flex items-center gap-1.5">
                           {emp.supervisor_name ? (
-                            <span className="font-bold text-xs text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md">{emp.supervisor_name}</span>
+                            <span className="font-bold text-xs text-neutral-700 bg-neutral-50 px-2.5 py-1 rounded-md">{emp.supervisor_name}</span>
                           ) : (
                             <span className="text-xs text-gray-400 italic bg-gray-50 px-2.5 py-1 rounded-md">None</span>
                           )}
@@ -681,7 +681,7 @@ const HumanResources: React.FC = () => {
                                 setSupervisorModal({ open: true, employee: emp });
                                 setSupervisorModalValue(emp.supervisor_id ? String(emp.supervisor_id) : '');
                               }}
-                              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-1.5 rounded-md transition"
+                              className="text-xs font-bold text-neutral-600 hover:text-neutral-800 bg-neutral-50 hover:bg-neutral-100 p-1.5 rounded-md transition"
                               title="Assign Supervisor"
                             >
                               {t('edit')}
@@ -725,8 +725,8 @@ const HumanResources: React.FC = () => {
                       <X className="w-5 h-5" />
                     </button>
                     <div className="flex items-center gap-3 mb-5">
-                      <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
-                        <Users className="w-5 h-5 text-indigo-600" />
+                      <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center">
+                        <Users className="w-5 h-5 text-neutral-600" />
                       </div>
                       <div>
                         <h3 className="font-bold text-gray-900 text-sm">Assign Supervisor</h3>
@@ -738,7 +738,7 @@ const HumanResources: React.FC = () => {
                     <select
                       value={supervisorModalValue}
                       onChange={e => setSupervisorModalValue(e.target.value)}
-                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm bg-white mb-5"
+                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 text-sm bg-white mb-5"
                     >
                       <option value="">— No Supervisor (Admin Managed) —</option>
                       {users.map(u => (
@@ -775,7 +775,7 @@ const HumanResources: React.FC = () => {
                             setSupervisorSaving(false);
                           }
                         }}
-                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md transition"
+                        className="bg-neutral-600 hover:bg-neutral-700 disabled:opacity-50 text-white px-5 py-2 rounded-lg text-sm font-semibold shadow-md transition"
                       >
                         {supervisorSaving ? 'Saving...' : 'Save'}
                       </button>
@@ -866,12 +866,12 @@ const HumanResources: React.FC = () => {
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-indigo-600" />
+                    <FileText className="w-5 h-5 text-neutral-600" />
                     {t('hr_job_applicants', 'Job Applicants')}
                   </h2>
                   <button 
                     onClick={() => setShowAddApplicant(!showAddApplicant)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
+                    className="bg-neutral-600 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
                     {showAddApplicant ? t('hr_cancel', 'Cancel') : t('hr_add_applicant', 'Add Applicant')}
@@ -879,29 +879,29 @@ const HumanResources: React.FC = () => {
                 </div>
 
                 {showAddApplicant && (
-                  <form onSubmit={handleAddApplicant} className="bg-white p-6 rounded-xl border border-indigo-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <form onSubmit={handleAddApplicant} className="bg-white p-6 rounded-xl border border-neutral-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_full_name', 'Full Name')}</label>
-                      <input type="text" required value={newApplicant.name} onChange={e => setNewApplicant({...newApplicant, name: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      <input type="text" required value={newApplicant.name} onChange={e => setNewApplicant({...newApplicant, name: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_role_applied', 'Role Applied')}</label>
-                      <input type="text" required value={newApplicant.role_applied} onChange={e => setNewApplicant({...newApplicant, role_applied: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      <input type="text" required value={newApplicant.role_applied} onChange={e => setNewApplicant({...newApplicant, role_applied: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_email', 'Email')}</label>
-                      <input type="email" required value={newApplicant.email} onChange={e => setNewApplicant({...newApplicant, email: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      <input type="email" required value={newApplicant.email} onChange={e => setNewApplicant({...newApplicant, email: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_experience_years', 'Experience (Years)')}</label>
-                      <input type="number" required value={newApplicant.experience_years} onChange={e => setNewApplicant({...newApplicant, experience_years: parseInt(e.target.value)})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
+                      <input type="number" required value={newApplicant.experience_years} onChange={e => setNewApplicant({...newApplicant, experience_years: parseInt(e.target.value)})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm" />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{t('hr_skills_resume', 'Skills / Resume Details')}</label>
-                      <textarea rows={3} value={newApplicant.resume_text} onChange={e => setNewApplicant({...newApplicant, resume_text: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                      <textarea rows={3} value={newApplicant.resume_text} onChange={e => setNewApplicant({...newApplicant, resume_text: e.target.value})} className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm"></textarea>
                     </div>
                     <div className="md:col-span-2 flex justify-end mt-2">
-                      <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:bg-indigo-700 transition">{t('hr_save_applicant', 'Save Applicant')}</button>
+                      <button type="submit" className="bg-neutral-600 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:bg-neutral-700 transition">{t('hr_save_applicant', 'Save Applicant')}</button>
                     </div>
                   </form>
                 )}
@@ -924,13 +924,13 @@ const HumanResources: React.FC = () => {
                             <div className="text-sm text-gray-500">{app.email}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                            <span className="font-medium text-indigo-700 block">{app.role_applied}</span>
+                            <span className="font-medium text-neutral-700 block">{app.role_applied}</span>
                             {app.experience_years} {t('hr_years_exp', 'years exp.')}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
                               ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
-                              ${app.status === 'reviewed' ? 'bg-blue-100 text-blue-800' : ''}
+                              ${app.status === 'reviewed' ? 'bg-gold-100 text-gold-800' : ''}
                               ${app.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' : ''}
                               ${app.status === 'rejected' ? 'bg-red-100 text-red-800' : ''}
                             `}>
@@ -963,34 +963,34 @@ const HumanResources: React.FC = () => {
             {/* ── AI SCREENING TAB ── */}
             {activeTab === 'screening' && (
               <div className="space-y-6">
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6 shadow-sm">
+                <div className="bg-gradient-to-r from-gold-50 to-neutral-50 border border-gold-100 rounded-2xl p-6 shadow-sm">
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="p-3 bg-white rounded-xl shadow-sm text-indigo-600">
+                    <div className="p-3 bg-white rounded-xl shadow-sm text-neutral-600">
                       <BrainCircuit className="w-8 h-8" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-indigo-900">{t('hr_ai_screening_title', 'Ikiké Strategic AI Screening')}</h2>
-                      <p className="text-sm text-indigo-700 mt-1 max-w-3xl">
+                      <h2 className="text-xl font-bold text-neutral-900">{t('hr_ai_screening_title', 'Ikiké Strategic AI Screening')}</h2>
+                      <p className="text-sm text-neutral-700 mt-1 max-w-3xl">
                         {t('hr_ai_screening_subtitle_pre', 'Enter a job description below. Ikiké will autonomously evaluate all')} <span className="font-bold">{t('pending')}</span> {t('hr_ai_screening_subtitle_post', 'applicants against these criteria, assign a clinical fit score, and provide a professional assessment.')}
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-6">
-                    <label className="block text-sm font-bold text-indigo-900 mb-2">{t('hr_job_desc_req', 'Target Job Description & Requirements')}</label>
+                    <label className="block text-sm font-bold text-neutral-900 mb-2">{t('hr_job_desc_req', 'Target Job Description & Requirements')}</label>
                     <textarea 
                       rows={6}
                       value={jobDescription}
                       onChange={e => setJobDescription(e.target.value)}
                       placeholder={t('hr_job_desc_placeholder', 'e.g. Seeking a Senior Supply Chain Manager with 5+ years experience. Must be proficient in logistics software, OHADA accounting standards, and team leadership...')}
-                      className="w-full rounded-xl border-indigo-200 shadow-inner focus:border-indigo-500 focus:ring-indigo-500 text-sm p-4 bg-white"
+                      className="w-full rounded-xl border-neutral-200 shadow-inner focus:border-neutral-500 focus:ring-neutral-500 text-sm p-4 bg-white"
                     ></textarea>
                     
                     <div className="mt-4 flex justify-end">
                       <button 
                         onClick={handleRunScreening}
                         disabled={isScreening || !jobDescription.trim()}
-                        className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center gap-3"
+                        className="bg-neutral-600 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center gap-3"
                       >
                         {isScreening ? (
                           <>
@@ -1018,7 +1018,7 @@ const HumanResources: React.FC = () => {
                         <div className="flex justify-between items-start">
                           <div>
                             <h4 className="font-bold text-gray-900 text-lg">{res.name}</h4>
-                            <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded mt-1 inline-block">{res.role_applied}</span>
+                            <span className="text-sm font-medium text-neutral-600 bg-neutral-50 px-2 py-0.5 rounded mt-1 inline-block">{res.role_applied}</span>
                           </div>
                           <div className="text-right">
                             <div className="text-3xl font-black tracking-tighter" style={{ color: res.ai_score >= 80 ? '#10b981' : res.ai_score >= 50 ? '#eab308' : '#ef4444' }}>
@@ -1029,7 +1029,7 @@ const HumanResources: React.FC = () => {
                         </div>
 
                         <div className="mt-4 bg-gray-50 rounded-lg p-4 text-sm text-gray-700 leading-relaxed border border-gray-100">
-                          <strong className="text-indigo-900 block mb-1 text-xs uppercase tracking-wider">{t('hr_clinical_assessment', 'Ikiké Clinical Assessment:')}</strong>
+                          <strong className="text-neutral-900 block mb-1 text-xs uppercase tracking-wider">{t('hr_clinical_assessment', 'Ikiké Clinical Assessment:')}</strong>
                           {res.ai_assessment}
                         </div>
                       </div>
@@ -1048,7 +1048,7 @@ const HumanResources: React.FC = () => {
                   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-between">
                     <div>
                       <h3 className="font-bold text-gray-800 text-lg mb-1 flex items-center gap-2">
-                        <Cpu className="w-5 h-5 text-indigo-500" />
+                        <Cpu className="w-5 h-5 text-neutral-500" />
                         {t('hr_device_status', 'Terminal Connection')}
                       </h3>
                       <p className="text-xs text-gray-500">Hysoon Facial & Fingerprint Biometric Station</p>
@@ -1092,18 +1092,18 @@ const HumanResources: React.FC = () => {
                   {/* USB Uploader Dropzone */}
                   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm lg:col-span-2">
                     <h3 className="font-bold text-gray-800 text-lg mb-2 flex items-center gap-2">
-                      <Upload className="w-5 h-5 text-indigo-500" />
+                      <Upload className="w-5 h-5 text-neutral-500" />
                       {t('hr_usb_import', 'USB Log Import')}
                     </h3>
                     
-                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 hover:border-indigo-400 rounded-xl p-6 cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition relative overflow-hidden group">
+                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 hover:border-neutral-400 rounded-xl p-6 cursor-pointer bg-slate-50/50 hover:bg-slate-50 transition relative overflow-hidden group">
                       <input 
                         type="file" 
                         accept=".txt,.csv" 
                         onChange={handleFileUpload} 
                         className="hidden" 
                       />
-                      <Upload className="w-8 h-8 text-gray-400 group-hover:text-indigo-600 mb-2 transition transform group-hover:-translate-y-1" />
+                      <Upload className="w-8 h-8 text-gray-400 group-hover:text-neutral-600 mb-2 transition transform group-hover:-translate-y-1" />
                       <span className="text-xs font-semibold text-gray-700 text-center">{t('hr_drag_drop_usb', 'Drag and drop standard attendance log file (.txt, .csv) here or click to browse.')}</span>
                       <span className="text-[10px] text-gray-400 mt-1">Supports Hysoon AGL logs and standard comma-separated TXT/CSV</span>
                     </label>
@@ -1114,13 +1114,13 @@ const HumanResources: React.FC = () => {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-indigo-600" />
+                      <FileText className="w-5 h-5 text-neutral-600" />
                       {t('hr_attendance_records', 'Smart Attendance Log')}
                     </h3>
                     <button
                       onClick={handlePullAttendance}
                       disabled={isSyncing}
-                      className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
+                      className="bg-neutral-600 hover:bg-neutral-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
                     >
                       <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                       {isSyncing ? t('hr_syncing', 'Syncing...') : t('hr_sync_device', 'Sync Device')}
@@ -1146,7 +1146,7 @@ const HumanResources: React.FC = () => {
                               {log.employee_name ? (
                                 <div>
                                   <div className="font-semibold text-gray-900">{log.employee_name}</div>
-                                  <div className="text-xs text-indigo-600 font-medium">{log.employee_role} • {log.employee_department}</div>
+                                  <div className="text-xs text-neutral-600 font-medium">{log.employee_role} • {log.employee_department}</div>
                                 </div>
                               ) : (
                                 <span className="text-gray-400 italic text-sm">Unmapped Employee</span>
@@ -1160,9 +1160,9 @@ const HumanResources: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold capitalize
-                                ${log.verification_method === 'face' ? 'bg-indigo-100 text-indigo-800' : ''}
+                                ${log.verification_method === 'face' ? 'bg-neutral-100 text-neutral-800' : ''}
                                 ${log.verification_method === 'fingerprint' ? 'bg-purple-100 text-purple-800' : ''}
-                                ${log.verification_method === 'card' ? 'bg-blue-100 text-blue-800' : ''}
+                                ${log.verification_method === 'card' ? 'bg-gold-100 text-gold-800' : ''}
                                 ${log.verification_method === 'password' ? 'bg-yellow-100 text-yellow-800' : ''}
                                 ${log.verification_method === 'manual' ? 'bg-orange-100 text-orange-800' : ''}
                                 ${log.verification_method === 'unknown' ? 'bg-gray-100 text-gray-800' : ''}
@@ -1182,7 +1182,7 @@ const HumanResources: React.FC = () => {
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold
                                 ${log.source === 'online_push' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : ''}
-                                ${log.source === 'usb_import' ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : ''}
+                                ${log.source === 'usb_import' ? 'bg-neutral-50 text-neutral-700 border border-neutral-100' : ''}
                                 ${log.source === 'manual_entry' ? 'bg-slate-100 text-slate-700' : ''}
                               `}>
                                 {t(log.source)}
@@ -1205,12 +1205,12 @@ const HumanResources: React.FC = () => {
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                    <ClipboardList className="w-5 h-5 text-indigo-600" />
+                    <ClipboardList className="w-5 h-5 text-neutral-600" />
                     {t('hr_task_assignment', 'Employee Task Assignment')}
                   </h2>
                   <button
                     onClick={() => setShowAddTask(!showAddTask)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
+                    className="bg-neutral-600 hover:bg-neutral-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
                     {showAddTask ? t('hr_cancel', 'Cancel') : t('hr_assign_task', 'Assign New Task')}
@@ -1218,7 +1218,7 @@ const HumanResources: React.FC = () => {
                 </div>
 
                 {showAddTask && (
-                  <form onSubmit={handleAddTask} className="bg-white p-6 rounded-xl border border-indigo-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <form onSubmit={handleAddTask} className="bg-white p-6 rounded-xl border border-neutral-100 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
                         {t('hr_employee', 'Select Employee')} *
@@ -1227,7 +1227,7 @@ const HumanResources: React.FC = () => {
                         required
                         value={newTask.employee_id}
                         onChange={e => setNewTask({ ...newTask, employee_id: e.target.value })}
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-white"
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm bg-white"
                       >
                         <option value="">-- {t('hr_select_employee', 'Select Employee')} --</option>
                         {employees.map(emp => (
@@ -1248,7 +1248,7 @@ const HumanResources: React.FC = () => {
                         value={newTask.title}
                         onChange={e => setNewTask({ ...newTask, title: e.target.value })}
                         placeholder={t('hr_task_title_placeholder', 'e.g. Complete inventory audit')}
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm"
                       />
                     </div>
 
@@ -1260,7 +1260,7 @@ const HumanResources: React.FC = () => {
                         type="date"
                         value={newTask.due_date}
                         onChange={e => setNewTask({ ...newTask, due_date: e.target.value })}
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm"
                       />
                     </div>
 
@@ -1273,12 +1273,12 @@ const HumanResources: React.FC = () => {
                         value={newTask.description}
                         onChange={e => setNewTask({ ...newTask, description: e.target.value })}
                         placeholder={t('hr_task_description_placeholder', 'Detail the instructions, tools needed, and desired outcome...')}
-                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-neutral-500 focus:ring-neutral-500 sm:text-sm"
                       />
                     </div>
 
                     <div className="md:col-span-2 flex justify-end mt-2">
-                      <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:bg-indigo-700 transition">
+                      <button type="submit" className="bg-neutral-600 text-white px-6 py-2 rounded-lg font-medium shadow-md hover:bg-neutral-700 transition">
                         {t('hr_submit_task', 'Assign Task')}
                       </button>
                     </div>
@@ -1308,12 +1308,12 @@ const HumanResources: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="font-semibold text-gray-900">{task.employee_name}</div>
-                            <div className="text-xs text-indigo-600 font-medium">{task.employee_email}</div>
+                            <div className="text-xs text-neutral-600 font-medium">{task.employee_email}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize
                               ${task.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : ''}
-                              ${task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : ''}
+                              ${task.status === 'in_progress' ? 'bg-gold-100 text-gold-800' : ''}
                               ${task.status === 'pending' ? 'bg-amber-100 text-amber-800' : ''}
                             `}>
                               {t(task.status)}
@@ -1409,7 +1409,7 @@ const HumanResources: React.FC = () => {
 
                         <div>
                           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                            Attendance Score (0–100) <span className="text-[10px] text-indigo-650 font-bold">(Auto-calculated)</span>
+                            Attendance Score (0–100) <span className="text-[10px] text-neutral-650 font-bold">(Auto-calculated)</span>
                           </label>
                           <input 
                             type="number" 
@@ -1443,14 +1443,14 @@ const HumanResources: React.FC = () => {
                               type="button"
                               onClick={handleTranslateCommentary}
                               disabled={bossCommentaryLoading || !newPerf.boss_commentary.trim()}
-                              className="self-start px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition disabled:opacity-50 whitespace-nowrap flex items-center gap-1.5"
+                              className="self-start px-3 py-2 bg-neutral-600 hover:bg-neutral-700 text-white text-xs font-bold rounded-lg transition disabled:opacity-50 whitespace-nowrap flex items-center gap-1.5"
                             >
                               {bossCommentaryLoading ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> : <BrainCircuit className="w-3 h-3" />}
                               AI Score
                             </button>
                           </div>
                           {newPerf.boss_review_score > 0 && (
-                            <p className="text-xs font-bold text-indigo-700 mt-1.5">
+                            <p className="text-xs font-bold text-neutral-700 mt-1.5">
                               ✓ Manager Score translated: <span className="text-lg">{newPerf.boss_review_score}</span>/100
                             </p>
                           )}
@@ -1484,7 +1484,7 @@ const HumanResources: React.FC = () => {
                             <tr key={rec.id} className="hover:bg-amber-50/40 transition">
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="font-semibold text-gray-900">{rec.employee_name}</div>
-                                <div className="text-xs text-indigo-600 font-medium">{rec.employee_role}</div>
+                                <div className="text-xs text-neutral-600 font-medium">{rec.employee_role}</div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-700">{rec.month}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-800">{rec.task_score}</td>
@@ -1500,7 +1500,7 @@ const HumanResources: React.FC = () => {
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <button
                                   onClick={() => setSelectedPerfEmployee(rec.employee_id)}
-                                  className="text-indigo-600 hover:text-indigo-800 text-xs font-bold flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition"
+                                  className="text-neutral-600 hover:text-neutral-800 text-xs font-bold flex items-center gap-1 bg-neutral-50 hover:bg-neutral-100 px-3 py-1.5 rounded-lg transition"
                                 >
                                   View Full
                                 </button>

@@ -36,7 +36,7 @@ const RadialGauge: React.FC<{ score: number }> = ({ score }) => {
   return (
     <div className="relative flex items-center justify-center w-48 h-48">
       {/* Glossy radial gradient background */}
-      <div className="absolute inset-4 rounded-full bg-gradient-to-tr from-slate-900/50 to-indigo-950/20 backdrop-blur-md border border-white/5 shadow-2xl flex items-center justify-center"></div>
+      <div className="absolute inset-4 rounded-full bg-gradient-to-tr from-slate-900/50 to-neutral-950/20 backdrop-blur-md border border-white/5 shadow-2xl flex items-center justify-center"></div>
       
       <svg className="w-full h-full transform -rotate-90 relative z-10">
         <circle
@@ -51,7 +51,7 @@ const RadialGauge: React.FC<{ score: number }> = ({ score }) => {
           cx="96"
           cy="96"
           r={radius}
-          className="stroke-indigo-500 transition-all duration-1000 ease-out"
+          className="stroke-neutral-500 transition-all duration-1000 ease-out"
           strokeWidth={strokeWidth}
           fill="transparent"
           strokeDasharray={circumference}
@@ -218,7 +218,7 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-neutral-600"></div>
         <p className="text-sm font-semibold text-slate-500">Loading performance record...</p>
       </div>
     );
@@ -250,7 +250,7 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-neutral-500"
             >
               {records.map(r => (
                 <option key={r.id} value={r.month}>{r.month}</option>
@@ -271,13 +271,13 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main score / Gauge block */}
-          <div className="bg-gradient-to-br from-indigo-900 to-indigo-950 dark:from-slate-900 dark:to-slate-950 p-6 rounded-3xl text-white shadow-xl flex flex-col items-center justify-between border border-white/5 relative overflow-hidden min-h-[360px]">
+          <div className="bg-gradient-to-br from-neutral-900 to-neutral-950 dark:from-slate-900 dark:to-slate-950 p-6 rounded-3xl text-white shadow-xl flex flex-col items-center justify-between border border-white/5 relative overflow-hidden min-h-[360px]">
             {/* Ambient background blur circles */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl"></div>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-neutral-500/10 rounded-full blur-3xl"></div>
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl"></div>
 
             <div className="text-center relative z-10 w-full">
-              <span className="text-xs uppercase tracking-widest font-extrabold text-indigo-300/80">Composite Evaluation</span>
+              <span className="text-xs uppercase tracking-widest font-extrabold text-neutral-300/80">Composite Evaluation</span>
               <h3 className="text-lg font-bold text-white/90 mt-0.5">{selectedMonth}</h3>
             </div>
 
@@ -287,7 +287,7 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
 
             <button
               onClick={() => setIsChatOpen(true)}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] transition-all duration-200 text-white rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 border border-indigo-400/20 relative z-10"
+              className="w-full py-3 bg-neutral-600 hover:bg-neutral-500 active:scale-[0.98] transition-all duration-200 text-white rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-neutral-600/30 border border-neutral-400/20 relative z-10"
             >
               <Cpu className="w-4 h-4" />
               {t('talk_to_ai_improve', 'Talk to AI on How to Improve')}
@@ -316,7 +316,7 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
             {/* Boss review score card */}
             <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl text-blue-600 dark:text-blue-400">
+                <div className="p-3 bg-gold-50 dark:bg-gold-950/30 rounded-xl text-gold-600 dark:text-gold-400">
                   <User className="w-5 h-5" />
                 </div>
                 <div>
@@ -390,7 +390,7 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
             {/* Overtime balance score card */}
             <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 rounded-xl text-indigo-600 dark:text-indigo-400">
+                <div className="p-3 bg-neutral-50 dark:bg-neutral-950/30 rounded-xl text-neutral-600 dark:text-neutral-400">
                   <Clock className="w-5 h-5" />
                 </div>
                 <div>
@@ -414,7 +414,7 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
             {/* Chat header */}
             <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-850">
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-indigo-600 flex items-center justify-center text-white">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-neutral-500 to-neutral-600 flex items-center justify-center text-white">
                   <Cpu className="w-5 h-5" />
                 </div>
                 <div>
@@ -437,7 +437,7 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
             <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-slate-50/50 dark:bg-slate-950/20">
               {chatHistory.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center gap-3 p-8">
-                  <MessageSquare className="w-8 h-8 text-indigo-400" />
+                  <MessageSquare className="w-8 h-8 text-neutral-400" />
                   <div>
                     <h5 className="font-bold text-slate-700 dark:text-slate-300">Start a Coaching Conversation</h5>
                     <p className="text-xs text-slate-400 mt-1 max-w-xs">Ask IKIKÉ for recommendations on how to improve your scores based on your performance history.</p>
@@ -449,7 +449,7 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
                     <div
                       className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
                         msg.role === 'user'
-                          ? 'bg-indigo-600 text-white rounded-tr-none'
+                          ? 'bg-neutral-600 text-white rounded-tr-none'
                           : 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-tl-none border border-slate-150 dark:border-slate-850'
                       }`}
                     >
@@ -469,12 +469,12 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="Ask how to improve specific metrics..."
                 disabled={sendingChat}
-                className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white"
+                className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500 text-slate-800 dark:text-white"
               />
               <button
                 type="submit"
                 disabled={sendingChat || !chatInput.trim()}
-                className="p-3 bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all text-white rounded-xl shadow-md shadow-indigo-600/20 disabled:opacity-50 disabled:scale-100"
+                className="p-3 bg-neutral-600 hover:bg-neutral-500 active:scale-95 transition-all text-white rounded-xl shadow-md shadow-neutral-600/20 disabled:opacity-50 disabled:scale-100"
               >
                 <Send className="w-4 h-4" />
               </button>

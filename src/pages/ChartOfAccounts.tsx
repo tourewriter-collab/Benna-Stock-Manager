@@ -154,7 +154,7 @@ const ChartOfAccounts: React.FC = () => {
           {canEdit && (
             <button
               onClick={() => handleOpenModal()}
-              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors shadow-sm no-print"
+              className="flex items-center gap-2 bg-[#0a0c10] text-white px-4 py-2 rounded-lg hover:bg-[#1a1a1a] transition-colors shadow-sm no-print"
             >
               <Plus className="w-5 h-5" />
               {t('add_account', 'Add Account')}
@@ -189,7 +189,7 @@ const ChartOfAccounts: React.FC = () => {
                         <span className="font-bold text-gray-700">{formatPrice(account.balance)}</span>
                         {canEdit && (
                           <div className="flex space-x-2">
-                            <button onClick={() => handleOpenModal(account)} className="text-blue-500 hover:text-blue-700 p-1">
+                            <button onClick={() => handleOpenModal(account)} className="text-gold-500 hover:text-gold-700 p-1">
                               <Edit size={16} />
                             </button>
                             <button onClick={() => handleDelete(account.id)} className="text-red-500 hover:text-red-700 p-1">

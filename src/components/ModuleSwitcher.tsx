@@ -21,7 +21,7 @@ const ModuleSwitcher: React.FC = () => {
   } : isAccounting ? {
     id: 'accounting',
     name: t('accounting_module', 'Accounting & Finance'),
-    icon: <Calculator size={18} className="text-blue-400" />
+    icon: <Calculator size={18} className="text-gold-400" />
   } : {
     id: 'stock',
     name: t('stock_module', 'Operations & Stock'),
@@ -68,7 +68,7 @@ const ModuleSwitcher: React.FC = () => {
           
           <button
             onClick={() => switchModule('stock')}
-            className={`w-full text-left px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 transition ${(!isAccounting && !isHr) ? 'bg-blue-50/50' : ''}`}
+            className={`w-full text-left px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 transition ${(!isAccounting && !isHr) ? 'bg-gold-50/50' : ''}`}
           >
             <div className={`p-1.5 rounded-md ${(!isAccounting && !isHr) ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500'}`}>
               <Package size={16} />
@@ -81,20 +81,20 @@ const ModuleSwitcher: React.FC = () => {
           
           <button
             onClick={() => switchModule('accounting')}
-            className={`w-full text-left px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 transition ${isAccounting ? 'bg-blue-50/50' : ''}`}
+            className={`w-full text-left px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 transition ${isAccounting ? 'bg-gold-50/50' : ''}`}
           >
-            <div className={`p-1.5 rounded-md ${isAccounting ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+            <div className={`p-1.5 rounded-md ${isAccounting ? 'bg-gold-100 text-gold-600' : 'bg-gray-100 text-gray-500'}`}>
               <Calculator size={16} />
             </div>
             <span className={`text-sm flex-1 ${isAccounting ? 'font-semibold text-navy' : 'text-gray-700'}`}>
               {t('accounting_module', 'Accounting & Finance')}
             </span>
-            {isAccounting && <Check size={16} className="text-blue-500" />}
+            {isAccounting && <Check size={16} className="text-gold-500" />}
           </button>
 
           <button
             onClick={() => switchModule('hr')}
-            className={`w-full text-left px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 transition ${isHr ? 'bg-blue-50/50' : ''}`}
+            className={`w-full text-left px-4 py-2.5 flex items-center space-x-3 hover:bg-gray-50 transition ${isHr ? 'bg-gold-50/50' : ''}`}
           >
             <div className={`p-1.5 rounded-md ${isHr ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}`}>
               <Users size={16} />

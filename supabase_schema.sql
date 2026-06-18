@@ -1,17 +1,53 @@
--- ============================================================
--- Benna Business Manager – Full Supabase Schema
--- Version 3.0  |  2026-06-08
--- Run this in Supabase → SQL Editor
--- ============================================================
+-- =============================================================================
+-- Benna Business Manager — Definitive Supabase Schema v6.0
+-- 2026-06-08  |  Paste this ENTIRE script into Supabase SQL Editor → Run
+--
+-- KEY DESIGN PRINCIPLE:
+--   All UUID-style primary keys are stored as TEXT (same as SQLite).
+--   This guarantees zero type-casting errors during sync.
+--   users.id stays BIGINT (mirrors SQLite INTEGER AUTOINCREMENT).
+-- =============================================================================
 
--- Enable required extensions
+-- ---------------------------------------------------------------------------
+-- STEP 0 — DROP EVERYTHING CLEANLY (order respects FK dependencies)
+-- ---------------------------------------------------------------------------
+DROP TABLE IF EXISTS cryptographic_ledger   CASCADE;
+DROP TABLE IF EXISTS employee_performance    CASCADE;
+DROP TABLE IF EXISTS employee_tasks          CASCADE;
+DROP TABLE IF EXISTS attendance              CASCADE;
+DROP TABLE IF EXISTS applicants              CASCADE;
+DROP TABLE IF EXISTS employees              CASCADE;
+DROP TABLE IF EXISTS notifications           CASCADE;
+DROP TABLE IF EXISTS granite_deliveries      CASCADE;
+DROP TABLE IF EXISTS transactions            CASCADE;
+DROP TABLE IF EXISTS invoices                CASCADE;
+DROP TABLE IF EXISTS payments                CASCADE;
+DROP TABLE IF EXISTS order_items             CASCADE;
+DROP TABLE IF EXISTS orders                  CASCADE;
+DROP TABLE IF EXISTS accounts                CASCADE;
+DROP TABLE IF EXISTS usage_logs              CASCADE;
+DROP TABLE IF EXISTS audit_logs              CASCADE;
+DROP TABLE IF EXISTS trucks                  CASCADE;
+DROP TABLE IF EXISTS inventory               CASCADE;
+DROP TABLE IF EXISTS suppliers               CASCADE;
+DROP TABLE IF EXISTS categories              CASCADE;
+DROP TABLE IF EXISTS user_permissions        CASCADE;
+DROP TABLE IF EXISTS ai_insights             CASCADE;
+DROP TABLE IF EXISTS settings                CASCADE;
+DROP TABLE IF EXISTS app_config              CASCADE;
+DROP TABLE IF EXISTS users                   CASCADE;
+
+-- ---------------------------------------------------------------------------
+-- STEP 1 — EXTENSIONS
+-- ---------------------------------------------------------------------------
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- ============================================================
--- HELPER FUNCTION: auto-update sync_updated_at
--- (must be created BEFORE any trigger references it)
--- ============================================================
+-- ---------------------------------------------------------------------------
+-- STEP 2 — HELPER FUNCTIONS (must exist before any trigger references them)
+-- ---------------------------------------------------------------------------
+
+-- Auto-bumps sync_updated_at on every UPDATE
 CREATE OR REPLACE FUNCTION update_sync_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -20,650 +56,658 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- ============================================================
--- DROP EXISTING TABLES (safe cascade order – reverse FK deps)
--- Uncomment below for a completely fresh schema.
--- ============================================================
--- DROP TABLE IF EXISTS employee_performance  CASCADE;
--- DROP TABLE IF EXISTS employee_tasks        CASCADE;
--- DROP TABLE IF EXISTS attendance            CASCADE;
--- DROP TABLE IF EXISTS applicants            CASCADE;
--- DROP TABLE IF EXISTS employees             CASCADE;
--- DROP TABLE IF EXISTS ai_insights           CASCADE;
--- DROP TABLE IF EXISTS notifications         CASCADE;
--- DROP TABLE IF EXISTS granite_deliveries    CASCADE;
--- DROP TABLE IF EXISTS transactions          CASCADE;
--- DROP TABLE IF EXISTS invoices              CASCADE;
--- DROP TABLE IF EXISTS payments              CASCADE;
--- DROP TABLE IF EXISTS order_items           CASCADE;
--- DROP TABLE IF EXISTS orders                CASCADE;
--- DROP TABLE IF EXISTS audit_logs            CASCADE;
--- DROP TABLE IF EXISTS usage_logs            CASCADE;
--- DROP TABLE IF EXISTS inventory             CASCADE;
--- DROP TABLE IF EXISTS trucks                CASCADE;
--- DROP TABLE IF EXISTS suppliers             CASCADE;
--- DROP TABLE IF EXISTS categories            CASCADE;
--- DROP TABLE IF EXISTS accounts              CASCADE;
--- DROP TABLE IF EXISTS settings              CASCADE;
--- DROP TABLE IF EXISTS app_config            CASCADE;
--- DROP TABLE IF EXISTS users                 CASCADE;
+-- Cryptographic hash-chain ledger (blockchain-style)
+-- block_hash = SHA-256( SHA-256(payload) || previous_block_hash )
+CREATE OR REPLACE FUNCTION audit_to_ledger()
+RETURNS TRIGGER AS $$
+DECLARE
+    prev_hash  TEXT;
+    rec_json   JSONB;
+    rec_hash   TEXT;
+    bl_hash    TEXT;
+    rec_id_val TEXT;
+BEGIN
+    rec_json := CASE WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD) ELSE to_jsonb(NEW) END;
 
--- ============================================================
--- 1. USERS
--- ============================================================
-CREATE TABLE IF NOT EXISTS users (
-    id                  BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    email               TEXT UNIQUE NOT NULL,
-    password            TEXT NOT NULL,
-    name                TEXT NOT NULL DEFAULT '',
-    role                TEXT NOT NULL DEFAULT 'user'
-                            CHECK (role IN ('admin', 'audit_manager', 'user')),
-    created_at          TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status         TEXT DEFAULT 'synced',
-    sync_updated_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    is_archived         BOOLEAN DEFAULT FALSE,
-    _sync_error         TEXT
+    -- Extract primary key generically (id or key)
+    BEGIN
+        rec_id_val := CASE WHEN TG_OP = 'DELETE' THEN (OLD.id)::TEXT ELSE (NEW.id)::TEXT END;
+    EXCEPTION WHEN OTHERS THEN
+        BEGIN
+            rec_id_val := CASE WHEN TG_OP = 'DELETE' THEN (OLD.key)::TEXT ELSE (NEW.key)::TEXT END;
+        EXCEPTION WHEN OTHERS THEN
+            rec_id_val := 'unknown';
+        END;
+    END;
+
+    -- Previous block hash (genesis if ledger is empty)
+    SELECT COALESCE(
+        (SELECT block_hash FROM cryptographic_ledger ORDER BY sequence_number DESC LIMIT 1),
+        '0000000000000000000000000000000000000000000000000000000000000000'
+    ) INTO prev_hash;
+
+    rec_hash := encode(digest(rec_json::TEXT, 'sha256'), 'hex');
+    bl_hash  := encode(digest(rec_hash || prev_hash, 'sha256'), 'hex');
+
+    INSERT INTO cryptographic_ledger
+        (table_name, record_id, action, payload, record_hash, previous_hash, block_hash)
+    VALUES
+        (TG_TABLE_NAME, rec_id_val, TG_OP, rec_json, rec_hash, prev_hash, bl_hash);
+
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ---------------------------------------------------------------------------
+-- STEP 3 — CRYPTOGRAPHIC LEDGER TABLE
+-- ---------------------------------------------------------------------------
+CREATE TABLE cryptographic_ledger (
+    sequence_number BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    table_name      TEXT   NOT NULL,
+    record_id       TEXT   NOT NULL,
+    action          TEXT   NOT NULL,   -- INSERT | UPDATE | DELETE
+    payload         JSONB  NOT NULL,   -- full row snapshot at time of change
+    record_hash     TEXT   NOT NULL,   -- SHA-256(payload)
+    previous_hash   TEXT   NOT NULL,   -- block_hash of the previous block
+    block_hash      TEXT   NOT NULL,   -- SHA-256(record_hash || previous_hash)
+    timestamp       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX idx_ledger_seq       ON cryptographic_ledger(sequence_number DESC);
+CREATE INDEX idx_ledger_table     ON cryptographic_ledger(table_name, record_id);
+CREATE INDEX idx_ledger_timestamp ON cryptographic_ledger(timestamp DESC);
+ALTER TABLE cryptographic_ledger DISABLE ROW LEVEL SECURITY;
 
-CREATE TRIGGER trg_users_sync
-    BEFORE UPDATE ON users
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
-
--- ============================================================
--- 2. CATEGORIES
--- ============================================================
-CREATE TABLE IF NOT EXISTS categories (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name_en         TEXT NOT NULL,
-    name_fr         TEXT NOT NULL,
+-- =============================================================================
+-- TABLE 1: USERS
+-- SQLite: INTEGER AUTOINCREMENT → Supabase: BIGINT GENERATED
+-- =============================================================================
+CREATE TABLE users (
+    id              BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    email           TEXT   UNIQUE NOT NULL,
+    password        TEXT   NOT NULL,
+    name            TEXT   NOT NULL DEFAULT '',
+    role            TEXT   NOT NULL DEFAULT 'user'
+                        CHECK (role IN ('admin', 'audit_manager', 'user')),
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status     TEXT DEFAULT 'synced',
+    sync_status     TEXT   DEFAULT 'synced',
     sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived     BOOLEAN DEFAULT FALSE,
     _sync_error     TEXT
 );
+CREATE TRIGGER trg_users_sync
+    BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_users_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON users FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE users DISABLE ROW LEVEL SECURITY;
 
+-- =============================================================================
+-- TABLE 2: USER PERMISSIONS
+-- SQLite: INTEGER AUTOINCREMENT id
+-- =============================================================================
+CREATE TABLE user_permissions (
+    id      BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    module  TEXT   NOT NULL,
+    action  TEXT   NOT NULL,
+    allowed BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE (user_id, module, action)
+);
+CREATE INDEX idx_user_permissions_user_id ON user_permissions(user_id);
+CREATE TRIGGER trg_user_permissions_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON user_permissions FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE user_permissions DISABLE ROW LEVEL SECURITY;
+
+-- =============================================================================
+-- TABLE 3: CATEGORIES
+-- SQLite: TEXT id (UUID stored as text)
+-- =============================================================================
+CREATE TABLE categories (
+    id              TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    name_en         TEXT   NOT NULL,
+    name_fr         TEXT   NOT NULL,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    sync_status     TEXT   DEFAULT 'synced',
+    sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    is_archived     BOOLEAN DEFAULT FALSE,
+    _sync_error     TEXT
+);
 CREATE TRIGGER trg_categories_sync
-    BEFORE UPDATE ON categories
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON categories FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_categories_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON categories FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE categories DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 3. SUPPLIERS
--- ============================================================
-CREATE TABLE IF NOT EXISTS suppliers (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name            TEXT NOT NULL,
+-- =============================================================================
+-- TABLE 4: SUPPLIERS
+-- =============================================================================
+CREATE TABLE suppliers (
+    id              TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    name            TEXT   NOT NULL,
     contact         TEXT,
     phone           TEXT,
     email           TEXT,
     address         TEXT,
-    status          TEXT DEFAULT 'active',
+    status          TEXT   DEFAULT 'active',
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status     TEXT DEFAULT 'synced',
+    sync_status     TEXT   DEFAULT 'synced',
     sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived     BOOLEAN DEFAULT FALSE,
     _sync_error     TEXT
 );
-
 CREATE TRIGGER trg_suppliers_sync
-    BEFORE UPDATE ON suppliers
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON suppliers FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_suppliers_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON suppliers FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE suppliers DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 4. INVENTORY
--- ============================================================
-CREATE TABLE IF NOT EXISTS inventory (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name            TEXT NOT NULL,
-    category        TEXT NOT NULL DEFAULT 'General',
-    category_id     UUID REFERENCES categories(id) ON DELETE SET NULL,
-    quantity        INT NOT NULL DEFAULT 0,
-    unit_price      NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
+-- =============================================================================
+-- TABLE 5: INVENTORY
+-- SQLite column is `price`; we accept both names via a sync alias comment.
+-- Supabase column is `unit_price` — the sync engine maps price → unit_price.
+-- =============================================================================
+CREATE TABLE inventory (
+    id              TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    name            TEXT   NOT NULL,
+    category        TEXT   NOT NULL DEFAULT 'General',
+    category_id     TEXT   REFERENCES categories(id) ON DELETE SET NULL,
+    quantity        INT    NOT NULL DEFAULT 0,
+    unit_price      NUMERIC(15,2) NOT NULL DEFAULT 0.00,  -- SQLite: `price`
     supplier        TEXT,
-    location        TEXT NOT NULL DEFAULT 'Main Store',
-    min_stock       INT DEFAULT 10,
-    max_stock       INT DEFAULT 100,
+    location        TEXT   NOT NULL DEFAULT 'Main Store',
+    min_stock       INT    DEFAULT 10,
+    max_stock       INT    DEFAULT 100,
     last_updated    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status     TEXT DEFAULT 'synced',
+    sync_status     TEXT   DEFAULT 'synced',
     sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived     BOOLEAN DEFAULT FALSE,
     _sync_error     TEXT
 );
-
-CREATE INDEX IF NOT EXISTS idx_inventory_category_id ON inventory(category_id);
-
+CREATE INDEX idx_inventory_category_id ON inventory(category_id);
 CREATE TRIGGER trg_inventory_sync
-    BEFORE UPDATE ON inventory
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON inventory FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_inventory_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON inventory FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE inventory DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 5. TRUCKS
--- ============================================================
-CREATE TABLE IF NOT EXISTS trucks (
-    id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    plate_number            TEXT UNIQUE NOT NULL,
+-- =============================================================================
+-- TABLE 6: TRUCKS
+-- =============================================================================
+CREATE TABLE trucks (
+    id                      TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    plate_number            TEXT   UNIQUE NOT NULL,
     model                   TEXT,
-    capacity                NUMERIC(10, 2),
-    status                  TEXT DEFAULT 'active'
+    capacity                NUMERIC(10,2),
+    status                  TEXT   DEFAULT 'active'
                                 CHECK (status IN ('active', 'maintenance', 'inactive')),
-    latitude                NUMERIC(10, 7),
-    longitude               NUMERIC(10, 7),
-    -- Fixed: was TEXT, now proper TIMESTAMPTZ
-    last_location_update    TIMESTAMP WITH TIME ZONE,
-    sync_status             TEXT DEFAULT 'synced',
+    latitude                NUMERIC(10,7),
+    longitude               NUMERIC(10,7),
+    last_location_update    TIMESTAMP WITH TIME ZONE,  -- SQLite: TEXT, corrected here
+    sync_status             TEXT   DEFAULT 'synced',
     sync_updated_at         TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived             BOOLEAN DEFAULT FALSE,
     _sync_error             TEXT
 );
-
 CREATE TRIGGER trg_trucks_sync
-    BEFORE UPDATE ON trucks
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON trucks FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_trucks_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON trucks FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE trucks DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 6. AUDIT LOGS
--- ============================================================
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+-- =============================================================================
+-- TABLE 7: AUDIT LOGS  (application-level, separate from cryptographic_ledger)
+-- =============================================================================
+CREATE TABLE audit_logs (
+    id              TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
     user_id         BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    action          TEXT NOT NULL,
-    table_name      TEXT NOT NULL,
-    record_id       TEXT NOT NULL,
+    action          TEXT   NOT NULL,
+    table_name      TEXT   NOT NULL,
+    record_id       TEXT   NOT NULL,
     old_values      TEXT,
     new_values      TEXT,
     ip_address      TEXT,
     timestamp       TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status     TEXT DEFAULT 'synced',
+    sync_status     TEXT   DEFAULT 'synced',
     sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived     BOOLEAN DEFAULT FALSE,
     _sync_error     TEXT
 );
-
+CREATE INDEX idx_audit_logs_user_id ON audit_logs(user_id);
 CREATE TRIGGER trg_audit_logs_sync
-    BEFORE UPDATE ON audit_logs
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON audit_logs FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+ALTER TABLE audit_logs DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 7. USAGE LOGS
--- ============================================================
-CREATE TABLE IF NOT EXISTS usage_logs (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    inventory_item_id   UUID REFERENCES inventory(id) ON DELETE CASCADE,
-    item_name           TEXT NOT NULL,
-    quantity_changed    INT NOT NULL,
-    previous_quantity   INT NOT NULL,
-    new_quantity        INT NOT NULL,
+-- =============================================================================
+-- TABLE 8: USAGE LOGS
+-- =============================================================================
+CREATE TABLE usage_logs (
+    id                  TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    inventory_item_id   TEXT   REFERENCES inventory(id) ON DELETE CASCADE,
+    item_name           TEXT   NOT NULL,
+    quantity_changed    INT    NOT NULL,
+    previous_quantity   INT    NOT NULL,
+    new_quantity        INT    NOT NULL,
     user_id             BIGINT REFERENCES users(id) ON DELETE SET NULL,
     authorized_by_name  TEXT,
     authorized_by_title TEXT,
-    truck_id            UUID REFERENCES trucks(id) ON DELETE SET NULL,
-    transaction_type    TEXT DEFAULT 'OUT',
+    truck_id            TEXT   REFERENCES trucks(id) ON DELETE SET NULL,
+    transaction_type    TEXT   DEFAULT 'OUT',
     timestamp           TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status         TEXT DEFAULT 'synced',
+    sync_status         TEXT   DEFAULT 'synced',
     sync_updated_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived         BOOLEAN DEFAULT FALSE,
     _sync_error         TEXT
 );
-
-CREATE INDEX IF NOT EXISTS idx_usage_logs_inventory_item_id ON usage_logs(inventory_item_id);
-
+CREATE INDEX idx_usage_logs_inventory_item_id ON usage_logs(inventory_item_id);
+CREATE INDEX idx_usage_logs_user_id           ON usage_logs(user_id);
 CREATE TRIGGER trg_usage_logs_sync
-    BEFORE UPDATE ON usage_logs
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON usage_logs FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_usage_logs_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON usage_logs FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE usage_logs DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 8. ORDERS
--- ============================================================
-CREATE TABLE IF NOT EXISTS orders (
-    id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    supplier_id             UUID REFERENCES suppliers(id) ON DELETE RESTRICT,
+-- =============================================================================
+-- TABLE 9: ORDERS
+-- =============================================================================
+CREATE TABLE orders (
+    id                      TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    supplier_id             TEXT   REFERENCES suppliers(id) ON DELETE RESTRICT,
     order_date              TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     expected_date           DATE,
-    total_amount            NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
-    paid_amount             NUMERIC(15, 2) DEFAULT 0.00,
-    status                  TEXT DEFAULT 'pending'
+    total_amount            NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+    paid_amount             NUMERIC(15,2) DEFAULT 0.00,
+    status                  TEXT   DEFAULT 'pending'
                                 CHECK (status IN ('pending', 'partial', 'paid', 'cancelled')),
-    delivery_status         TEXT DEFAULT 'pending',
+    delivery_status         TEXT   DEFAULT 'pending',
     actual_delivery_date    DATE,
     notes                   TEXT,
     created_by              TEXT,
     created_at              TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status             TEXT DEFAULT 'synced',
+    sync_status             TEXT   DEFAULT 'synced',
     sync_updated_at         TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived             BOOLEAN DEFAULT FALSE,
     _sync_error             TEXT
 );
-
 CREATE TRIGGER trg_orders_sync
-    BEFORE UPDATE ON orders
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_orders_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON orders FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE orders DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 9. ORDER ITEMS
--- ============================================================
-CREATE TABLE IF NOT EXISTS order_items (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id            UUID REFERENCES orders(id) ON DELETE CASCADE,
-    inventory_item_id   UUID REFERENCES inventory(id) ON DELETE SET NULL,
+-- =============================================================================
+-- TABLE 10: ORDER ITEMS
+-- =============================================================================
+CREATE TABLE order_items (
+    id                  TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    order_id            TEXT   REFERENCES orders(id) ON DELETE CASCADE,
+    inventory_item_id   TEXT   REFERENCES inventory(id) ON DELETE SET NULL,
     description         TEXT,
-    quantity            INT NOT NULL CHECK (quantity > 0),
-    delivered_quantity  INT DEFAULT 0,
-    unit_price          NUMERIC(15, 2) NOT NULL CHECK (unit_price >= 0),
-    total               NUMERIC(15, 2) NOT NULL,
-    sync_status         TEXT DEFAULT 'synced',
+    quantity            INT    NOT NULL CHECK (quantity > 0),
+    delivered_quantity  INT    DEFAULT 0,
+    unit_price          NUMERIC(15,2) NOT NULL CHECK (unit_price >= 0),
+    total               NUMERIC(15,2) NOT NULL,
+    sync_status         TEXT   DEFAULT 'synced',
     sync_updated_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived         BOOLEAN DEFAULT FALSE,
     _sync_error         TEXT
 );
-
-CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
-
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 CREATE TRIGGER trg_order_items_sync
-    BEFORE UPDATE ON order_items
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON order_items FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_order_items_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON order_items FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE order_items DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 10. PAYMENTS
--- ============================================================
-CREATE TABLE IF NOT EXISTS payments (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id        UUID REFERENCES orders(id) ON DELETE CASCADE,
-    amount          NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
+-- =============================================================================
+-- TABLE 11: PAYMENTS
+-- =============================================================================
+CREATE TABLE payments (
+    id              TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    order_id        TEXT   REFERENCES orders(id) ON DELETE CASCADE,
+    amount          NUMERIC(15,2) NOT NULL CHECK (amount > 0),
     payment_date    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    method          TEXT DEFAULT 'cash'
+    method          TEXT   DEFAULT 'cash'
                         CHECK (method IN ('cash', 'bank', 'check', 'credit', 'other')),
     reference       TEXT,
     notes           TEXT,
     created_by      TEXT,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status     TEXT DEFAULT 'synced',
+    sync_status     TEXT   DEFAULT 'synced',
     sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived     BOOLEAN DEFAULT FALSE,
     _sync_error     TEXT
 );
-
-CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
-
+CREATE INDEX idx_payments_order_id ON payments(order_id);
 CREATE TRIGGER trg_payments_sync
-    BEFORE UPDATE ON payments
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON payments FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_payments_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON payments FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE payments DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 11. ACCOUNTS (Chart of Accounts)
--- ============================================================
-CREATE TABLE IF NOT EXISTS accounts (
-    id              TEXT PRIMARY KEY, -- e.g. '1010' or UUID-style
-    name            TEXT NOT NULL,
-    type            TEXT NOT NULL
+-- =============================================================================
+-- TABLE 12: ACCOUNTS (Chart of Accounts)
+-- =============================================================================
+CREATE TABLE accounts (
+    id              TEXT   PRIMARY KEY,   -- manually set IDs like '1010', '2000', etc.
+    name            TEXT   NOT NULL,
+    type            TEXT   NOT NULL
                         CHECK (type IN ('asset', 'liability', 'equity', 'revenue', 'expense')),
-    balance         NUMERIC(15, 2) DEFAULT 0.00,
-    currency        TEXT DEFAULT 'XAF',
+    balance         NUMERIC(15,2) DEFAULT 0.00,
+    currency        TEXT   DEFAULT 'XAF',
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status     TEXT DEFAULT 'synced',
+    sync_status     TEXT   DEFAULT 'synced',
     sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived     BOOLEAN DEFAULT FALSE,
     _sync_error     TEXT
 );
-
 CREATE TRIGGER trg_accounts_sync
-    BEFORE UPDATE ON accounts
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON accounts FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_accounts_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON accounts FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE accounts DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 12. INVOICES
--- ============================================================
-CREATE TABLE IF NOT EXISTS invoices (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    client_id       TEXT NOT NULL,
-    order_id        UUID REFERENCES orders(id) ON DELETE SET NULL,
+-- =============================================================================
+-- TABLE 13: INVOICES
+-- =============================================================================
+CREATE TABLE invoices (
+    id              TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    client_id       TEXT   NOT NULL,
+    order_id        TEXT   REFERENCES orders(id) ON DELETE SET NULL,
     invoice_date    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     due_date        TIMESTAMP WITH TIME ZONE,
-    total_amount    NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
-    paid_amount     NUMERIC(15, 2) DEFAULT 0.00,
-    status          TEXT DEFAULT 'draft'
+    total_amount    NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+    paid_amount     NUMERIC(15,2) DEFAULT 0.00,
+    status          TEXT   DEFAULT 'draft'
                         CHECK (status IN ('draft', 'sent', 'paid', 'overdue', 'cancelled')),
     notes           TEXT,
     created_by      TEXT,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status     TEXT DEFAULT 'synced',
+    sync_status     TEXT   DEFAULT 'synced',
     sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived     BOOLEAN DEFAULT FALSE,
     _sync_error     TEXT
 );
-
-CREATE INDEX IF NOT EXISTS idx_invoices_order_id ON invoices(order_id);
-
+CREATE INDEX idx_invoices_order_id ON invoices(order_id);
 CREATE TRIGGER trg_invoices_sync
-    BEFORE UPDATE ON invoices
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON invoices FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_invoices_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON invoices FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE invoices DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 13. TRANSACTIONS (Ledger)
--- ============================================================
-CREATE TABLE IF NOT EXISTS transactions (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    account_id          TEXT REFERENCES accounts(id) ON DELETE RESTRICT,
-    invoice_id          UUID REFERENCES invoices(id) ON DELETE SET NULL,
-    amount              NUMERIC(15, 2) NOT NULL,
-    type                TEXT NOT NULL CHECK (type IN ('credit', 'debit')),
+-- =============================================================================
+-- TABLE 14: TRANSACTIONS (Double-entry accounting)
+-- =============================================================================
+CREATE TABLE transactions (
+    id                  TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    account_id          TEXT   REFERENCES accounts(id) ON DELETE RESTRICT,
+    invoice_id          TEXT   REFERENCES invoices(id) ON DELETE SET NULL,
+    amount              NUMERIC(15,2) NOT NULL,
+    type                TEXT   NOT NULL CHECK (type IN ('credit', 'debit')),
     transaction_date    TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     description         TEXT,
     reference           TEXT,
     created_by          TEXT,
     created_at          TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status         TEXT DEFAULT 'synced',
+    sync_status         TEXT   DEFAULT 'synced',
     sync_updated_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived         BOOLEAN DEFAULT FALSE,
     _sync_error         TEXT
 );
-
-CREATE INDEX IF NOT EXISTS idx_transactions_account_id ON transactions(account_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_invoice_id ON transactions(invoice_id);
-
+CREATE INDEX idx_transactions_account_id ON transactions(account_id);
+CREATE INDEX idx_transactions_invoice_id ON transactions(invoice_id);
 CREATE TRIGGER trg_transactions_sync
-    BEFORE UPDATE ON transactions
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON transactions FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_transactions_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON transactions FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE transactions DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 14. GRANITE DELIVERIES
--- ============================================================
-CREATE TABLE IF NOT EXISTS granite_deliveries (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    date            DATE NOT NULL DEFAULT CURRENT_DATE,
-    truck_id        UUID REFERENCES trucks(id) ON DELETE RESTRICT,
-    driver_name     TEXT NOT NULL,
-    granite_type    TEXT NOT NULL,
-    empty_weight    NUMERIC(10, 2),
-    loaded_weight   NUMERIC(10, 2),
-    net_weight      NUMERIC(10, 2),
-    volume_m3       NUMERIC(10, 2),
-    quantity        NUMERIC(10, 2) NOT NULL,
-    unit_price      NUMERIC(15, 2) NOT NULL,
-    total_amount    NUMERIC(15, 2) NOT NULL,
+-- =============================================================================
+-- TABLE 15: GRANITE DELIVERIES
+-- =============================================================================
+CREATE TABLE granite_deliveries (
+    id              TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    date            DATE   NOT NULL DEFAULT CURRENT_DATE,
+    truck_id        TEXT   REFERENCES trucks(id) ON DELETE RESTRICT,
+    driver_name     TEXT   NOT NULL,
+    granite_type    TEXT   NOT NULL,
+    empty_weight    NUMERIC(10,2),
+    loaded_weight   NUMERIC(10,2),
+    net_weight      NUMERIC(10,2),
+    volume_m3       NUMERIC(10,2),
+    quantity        NUMERIC(10,2) NOT NULL,
+    unit_price      NUMERIC(15,2) NOT NULL,
+    total_amount    NUMERIC(15,2) NOT NULL,
     client_name     TEXT,
-    status          TEXT DEFAULT 'delivered'
+    status          TEXT   DEFAULT 'delivered'
                         CHECK (status IN ('pending', 'delivered', 'cancelled')),
-    sync_status     TEXT DEFAULT 'synced',
+    sync_status     TEXT   DEFAULT 'synced',
     sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived     BOOLEAN DEFAULT FALSE,
     _sync_error     TEXT
 );
-
-CREATE INDEX IF NOT EXISTS idx_granite_deliveries_truck_id ON granite_deliveries(truck_id);
-
+CREATE INDEX idx_granite_deliveries_truck_id ON granite_deliveries(truck_id);
 CREATE TRIGGER trg_granite_deliveries_sync
-    BEFORE UPDATE ON granite_deliveries
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON granite_deliveries FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_granite_deliveries_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON granite_deliveries FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE granite_deliveries DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 15. NOTIFICATIONS
--- ============================================================
-CREATE TABLE IF NOT EXISTS notifications (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    message         TEXT NOT NULL,
-    type            TEXT NOT NULL,
+-- =============================================================================
+-- TABLE 16: NOTIFICATIONS
+-- =============================================================================
+CREATE TABLE notifications (
+    id              TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    message         TEXT   NOT NULL,
+    type            TEXT   NOT NULL,
     is_read         BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status     TEXT DEFAULT 'synced',
+    sync_status     TEXT   DEFAULT 'synced',
     sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived     BOOLEAN DEFAULT FALSE,
     _sync_error     TEXT
 );
-
 CREATE TRIGGER trg_notifications_sync
-    BEFORE UPDATE ON notifications
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON notifications FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+ALTER TABLE notifications DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 16. EMPLOYEES
--- ============================================================
-CREATE TABLE IF NOT EXISTS employees (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name                TEXT NOT NULL,
+-- =============================================================================
+-- TABLE 17: EMPLOYEES
+-- =============================================================================
+CREATE TABLE employees (
+    id                  TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    name                TEXT   NOT NULL,
     email               TEXT,
     phone               TEXT,
-    role                TEXT NOT NULL DEFAULT 'Staff',
-    department          TEXT NOT NULL DEFAULT 'General',
-    salary              NUMERIC(15, 2) NOT NULL DEFAULT 0.00,
-    hire_date           DATE NOT NULL DEFAULT CURRENT_DATE,
-    status              TEXT DEFAULT 'active'
+    role                TEXT   NOT NULL DEFAULT 'Staff',
+    department          TEXT   NOT NULL DEFAULT 'General',
+    salary              NUMERIC(15,2) NOT NULL DEFAULT 0.00,
+    hire_date           DATE   NOT NULL DEFAULT CURRENT_DATE,
+    status              TEXT   DEFAULT 'active'
                             CHECK (status IN ('active', 'inactive', 'on_leave')),
     performance_notes   TEXT,
     resume_text         TEXT,
-    device_enroll_id    TEXT UNIQUE,
+    device_enroll_id    TEXT   UNIQUE,
     supervisor_id       BIGINT REFERENCES users(id) ON DELETE SET NULL,
     created_at          TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status         TEXT DEFAULT 'synced',
+    sync_status         TEXT   DEFAULT 'synced',
     sync_updated_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived         BOOLEAN DEFAULT FALSE,
     _sync_error         TEXT
 );
-
 CREATE TRIGGER trg_employees_sync
-    BEFORE UPDATE ON employees
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON employees FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_employees_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON employees FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE employees DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 17. APPLICANTS
--- ============================================================
-CREATE TABLE IF NOT EXISTS applicants (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name                TEXT NOT NULL,
-    email               TEXT NOT NULL,
+-- =============================================================================
+-- TABLE 18: APPLICANTS
+-- =============================================================================
+CREATE TABLE applicants (
+    id                  TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    name                TEXT   NOT NULL,
+    email               TEXT   NOT NULL,
     phone               TEXT,
-    role_applied        TEXT NOT NULL,
-    experience_years    INT NOT NULL DEFAULT 0,
+    role_applied        TEXT   NOT NULL,
+    experience_years    INT    NOT NULL DEFAULT 0,
     skills              TEXT,
     resume_text         TEXT,
-    ai_score            NUMERIC(5, 2) DEFAULT 0.00,
+    ai_score            NUMERIC(5,2) DEFAULT 0.00,
     ai_assessment       TEXT,
-    status              TEXT DEFAULT 'pending'
+    status              TEXT   DEFAULT 'pending'
                             CHECK (status IN ('pending', 'reviewed', 'interviewed', 'accepted', 'rejected')),
     applied_date        TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status         TEXT DEFAULT 'synced',
+    sync_status         TEXT   DEFAULT 'synced',
     sync_updated_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived         BOOLEAN DEFAULT FALSE,
     _sync_error         TEXT
 );
-
 CREATE TRIGGER trg_applicants_sync
-    BEFORE UPDATE ON applicants
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON applicants FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_applicants_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON applicants FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE applicants DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 18. ATTENDANCE
---     Stores logs pushed from the ZKTeco / ADMS device
--- ============================================================
-CREATE TABLE IF NOT EXISTS attendance (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    employee_id         UUID REFERENCES employees(id) ON DELETE SET NULL,
-    device_enroll_id    TEXT NOT NULL,
+-- =============================================================================
+-- TABLE 19: ATTENDANCE
+-- employee_id is TEXT to match employees.id TEXT — no type mismatch.
+-- =============================================================================
+CREATE TABLE attendance (
+    id                  TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    employee_id         TEXT   REFERENCES employees(id) ON DELETE SET NULL,  -- TEXT ← employees.id TEXT ✓
+    device_enroll_id    TEXT   NOT NULL,
     timestamp           TIMESTAMP WITH TIME ZONE NOT NULL,
-    verification_method TEXT DEFAULT 'unknown'
+    verification_method TEXT   DEFAULT 'unknown'
                             CHECK (verification_method IN
                                 ('face', 'fingerprint', 'card', 'password', 'manual', 'unknown')),
-    direction           TEXT DEFAULT 'unknown'
+    direction           TEXT   DEFAULT 'unknown'
                             CHECK (direction IN ('in', 'out', 'break_in', 'break_out', 'unknown')),
-    source              TEXT DEFAULT 'online_push'
+    source              TEXT   DEFAULT 'online_push'
                             CHECK (source IN ('online_push', 'usb_import', 'manual_entry')),
-    device_sn           TEXT,       -- serial number from the physical device
-    sync_status         TEXT DEFAULT 'pending',
+    device_sn           TEXT,
+    sync_status         TEXT   DEFAULT 'pending',
     sync_updated_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived         BOOLEAN DEFAULT FALSE,
     _sync_error         TEXT,
-    -- Prevent duplicate punches from the same device at the same millisecond
     UNIQUE (device_enroll_id, timestamp)
 );
-
-CREATE INDEX IF NOT EXISTS idx_attendance_employee_id ON attendance(employee_id);
-CREATE INDEX IF NOT EXISTS idx_attendance_timestamp    ON attendance(timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_attendance_device_sn    ON attendance(device_sn);
-
+CREATE INDEX idx_attendance_employee_id ON attendance(employee_id);
+CREATE INDEX idx_attendance_timestamp    ON attendance(timestamp DESC);
+CREATE INDEX idx_attendance_device_sn    ON attendance(device_sn);
 CREATE TRIGGER trg_attendance_sync
-    BEFORE UPDATE ON attendance
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON attendance FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_attendance_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON attendance FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE attendance DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 19. EMPLOYEE TASKS
--- ============================================================
-CREATE TABLE IF NOT EXISTS employee_tasks (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    employee_id     UUID REFERENCES employees(id) ON DELETE CASCADE,
-    title           TEXT NOT NULL,
+-- =============================================================================
+-- TABLE 20: EMPLOYEE TASKS
+-- =============================================================================
+CREATE TABLE employee_tasks (
+    id              TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    employee_id     TEXT   REFERENCES employees(id) ON DELETE CASCADE,
+    title           TEXT   NOT NULL,
     description     TEXT,
-    status          TEXT NOT NULL DEFAULT 'pending'
+    status          TEXT   NOT NULL DEFAULT 'pending'
                         CHECK (status IN ('pending', 'in_progress', 'completed')),
     due_date        DATE,
     assigned_by     BIGINT REFERENCES users(id) ON DELETE SET NULL,
     created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status     TEXT DEFAULT 'synced',
+    sync_status     TEXT   DEFAULT 'synced',
     sync_updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived     BOOLEAN DEFAULT FALSE,
     _sync_error     TEXT
 );
-
-CREATE INDEX IF NOT EXISTS idx_employee_tasks_employee_id ON employee_tasks(employee_id);
-
+CREATE INDEX idx_employee_tasks_employee_id ON employee_tasks(employee_id);
 CREATE TRIGGER trg_employee_tasks_sync
-    BEFORE UPDATE ON employee_tasks
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON employee_tasks FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_employee_tasks_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON employee_tasks FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE employee_tasks DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 20. EMPLOYEE PERFORMANCE
--- ============================================================
-CREATE TABLE IF NOT EXISTS employee_performance (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    employee_id         UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-    month               TEXT NOT NULL,                  -- format: 'YYYY-MM'
-    task_score          INT NOT NULL DEFAULT 0,
-    boss_review_score   INT NOT NULL DEFAULT 0,
+-- =============================================================================
+-- TABLE 21: EMPLOYEE PERFORMANCE
+-- composite_score is always computed — cannot be manually overridden.
+-- =============================================================================
+CREATE TABLE employee_performance (
+    id                  TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    employee_id         TEXT   NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    month               TEXT   NOT NULL,                   -- 'YYYY-MM'
+    task_score          INT    NOT NULL DEFAULT 0,
+    boss_review_score   INT    NOT NULL DEFAULT 0,
     boss_commentary     TEXT,
-    attendance_score    INT NOT NULL DEFAULT 0,
-    peer_feedback_score INT NOT NULL DEFAULT 0,
-    skill_dev_score     INT NOT NULL DEFAULT 0,
-    overtime_score      INT NOT NULL DEFAULT 0,
-    composite_score     INT GENERATED ALWAYS AS (
+    attendance_score    INT    NOT NULL DEFAULT 0,
+    peer_feedback_score INT    NOT NULL DEFAULT 0,
+    skill_dev_score     INT    NOT NULL DEFAULT 0,
+    overtime_score      INT    NOT NULL DEFAULT 0,
+    composite_score     INT    GENERATED ALWAYS AS (
         (task_score + boss_review_score + attendance_score +
          peer_feedback_score + skill_dev_score + overtime_score) / 6
     ) STORED,
     created_at          TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    sync_status         TEXT DEFAULT 'synced',
+    sync_status         TEXT   DEFAULT 'synced',
     sync_updated_at     TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     is_archived         BOOLEAN DEFAULT FALSE,
     _sync_error         TEXT,
     UNIQUE (employee_id, month)
 );
-
-CREATE INDEX IF NOT EXISTS idx_employee_performance_employee_id ON employee_performance(employee_id);
-CREATE INDEX IF NOT EXISTS idx_employee_performance_month       ON employee_performance(month);
-
+CREATE INDEX idx_employee_performance_employee_id ON employee_performance(employee_id);
+CREATE INDEX idx_employee_performance_month       ON employee_performance(month);
 CREATE TRIGGER trg_employee_performance_sync
-    BEFORE UPDATE ON employee_performance
-    FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+    BEFORE UPDATE ON employee_performance FOR EACH ROW EXECUTE FUNCTION update_sync_timestamp();
+CREATE TRIGGER trg_employee_performance_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON employee_performance FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE employee_performance DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 21. AI INSIGHTS (Ikiké agent conversation log)
--- ============================================================
-CREATE TABLE IF NOT EXISTS ai_insights (
-    id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    role        TEXT NOT NULL CHECK (role IN ('user', 'agent')),
-    content     TEXT NOT NULL,
-    metadata    TEXT,
-    timestamp   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+-- =============================================================================
+-- TABLE 22: AI INSIGHTS (Ikiké conversation log)
+-- =============================================================================
+CREATE TABLE ai_insights (
+    id        TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
+    role      TEXT   NOT NULL CHECK (role IN ('user', 'agent')),
+    content   TEXT   NOT NULL,
+    metadata  TEXT,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE ai_insights DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 22. SETTINGS  (key-value app settings)
--- ============================================================
-CREATE TABLE IF NOT EXISTS settings (
+-- =============================================================================
+-- TABLE 23: SETTINGS
+-- =============================================================================
+CREATE TABLE settings (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+CREATE TRIGGER trg_settings_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON settings FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE settings DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- 23. APP CONFIG  (key-value system config)
--- ============================================================
-CREATE TABLE IF NOT EXISTS app_config (
+-- =============================================================================
+-- TABLE 24: APP CONFIG
+-- =============================================================================
+CREATE TABLE app_config (
     key        TEXT PRIMARY KEY,
     value      TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TRIGGER trg_app_config_ledger
+    AFTER INSERT OR UPDATE OR DELETE ON app_config FOR EACH ROW EXECUTE FUNCTION audit_to_ledger();
+ALTER TABLE app_config DISABLE ROW LEVEL SECURITY;
 
--- ============================================================
--- MIGRATION HELPERS
--- Run these ALTER statements if your DB already exists and
--- you need to apply the column type fix for trucks.
--- ============================================================
-DO $$
-BEGIN
-    -- Fix trucks.last_location_update: TEXT → TIMESTAMPTZ
-    IF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_name = 'trucks'
-          AND column_name = 'last_location_update'
-          AND data_type = 'text'
-    ) THEN
-        ALTER TABLE trucks
-            ALTER COLUMN last_location_update
-            TYPE TIMESTAMP WITH TIME ZONE
-            USING CASE
-                WHEN last_location_update IS NULL OR last_location_update = '' THEN NULL
-                ELSE last_location_update::TIMESTAMP WITH TIME ZONE
-            END;
-        RAISE NOTICE 'Migrated trucks.last_location_update from TEXT to TIMESTAMPTZ';
-    END IF;
+-- =============================================================================
+-- SEED DATA
+-- =============================================================================
+INSERT INTO settings (key, value) VALUES
+    ('high_balance_threshold', '100000'),
+    ('show_total_stock_value',  'true'),
+    ('company_logo',            ''),
+    ('active_agent_model',      'gemini'),
+    ('default_map_lat',         '9.509167'),
+    ('default_map_lng',         '-13.712222'),
+    ('ikike_cron_frequency',    '15'),
+    ('clear_insights_interval', 'never'),
+    ('global_ai_access',        'false')
+ON CONFLICT (key) DO NOTHING;
 
-    -- Add device_sn to attendance if missing
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'attendance' AND column_name = 'device_sn'
-    ) THEN
-        ALTER TABLE attendance ADD COLUMN device_sn TEXT;
-        RAISE NOTICE 'Added attendance.device_sn';
-    END IF;
-
-    -- Add boss_commentary to employee_performance if missing
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'employee_performance' AND column_name = 'boss_commentary'
-    ) THEN
-        ALTER TABLE employee_performance ADD COLUMN boss_commentary TEXT;
-        RAISE NOTICE 'Added employee_performance.boss_commentary';
-    END IF;
-
-END $$;
-
--- ============================================================
--- DISABLE ROW LEVEL SECURITY (use Supabase service_role key)
--- ============================================================
-ALTER TABLE users                 DISABLE ROW LEVEL SECURITY;
-ALTER TABLE categories            DISABLE ROW LEVEL SECURITY;
-ALTER TABLE suppliers             DISABLE ROW LEVEL SECURITY;
-ALTER TABLE inventory             DISABLE ROW LEVEL SECURITY;
-ALTER TABLE trucks                DISABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_logs            DISABLE ROW LEVEL SECURITY;
-ALTER TABLE usage_logs            DISABLE ROW LEVEL SECURITY;
-ALTER TABLE orders                DISABLE ROW LEVEL SECURITY;
-ALTER TABLE order_items           DISABLE ROW LEVEL SECURITY;
-ALTER TABLE payments              DISABLE ROW LEVEL SECURITY;
-ALTER TABLE accounts              DISABLE ROW LEVEL SECURITY;
-ALTER TABLE invoices              DISABLE ROW LEVEL SECURITY;
-ALTER TABLE transactions          DISABLE ROW LEVEL SECURITY;
-ALTER TABLE granite_deliveries    DISABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications         DISABLE ROW LEVEL SECURITY;
-ALTER TABLE employees             DISABLE ROW LEVEL SECURITY;
-ALTER TABLE applicants            DISABLE ROW LEVEL SECURITY;
-ALTER TABLE attendance            DISABLE ROW LEVEL SECURITY;
-ALTER TABLE employee_tasks        DISABLE ROW LEVEL SECURITY;
-ALTER TABLE employee_performance  DISABLE ROW LEVEL SECURITY;
-ALTER TABLE ai_insights           DISABLE ROW LEVEL SECURITY;
-ALTER TABLE settings              DISABLE ROW LEVEL SECURITY;
-ALTER TABLE app_config            DISABLE ROW LEVEL SECURITY;
-
--- ============================================================
--- SEED DEFAULT APP CONFIG (safe: DO NOTHING on conflict)
--- ============================================================
 INSERT INTO app_config (key, value) VALUES
     ('attendance_device_ip',   '192.168.0.100'),
     ('attendance_device_port', '5005'),
@@ -674,6 +718,9 @@ INSERT INTO app_config (key, value) VALUES
     ('company_name',           'Benna Projects')
 ON CONFLICT (key) DO NOTHING;
 
--- ============================================================
--- DONE
--- ============================================================
+-- =============================================================================
+-- VERIFY LEDGER IS WORKING
+-- Run this after the script to confirm the hash chain started:
+--   SELECT sequence_number, table_name, action, block_hash, timestamp
+--   FROM cryptographic_ledger ORDER BY sequence_number DESC LIMIT 20;
+-- =============================================================================

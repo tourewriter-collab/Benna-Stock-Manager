@@ -460,7 +460,7 @@ const Inventory: React.FC = () => {
                           <div className="flex space-x-2">
                             <button
                               onClick={() => setHistoryItemId(item.id)}
-                              className="text-blue-600 hover:text-blue-800"
+                              className="text-gold-600 hover:text-gold-800"
                               title={t('view_history')}
                             >
                               <History className="w-4 h-4" />
@@ -470,7 +470,7 @@ const Inventory: React.FC = () => {
                                 <button
                                   onClick={() => setUsageItem(item)}
                                   disabled={frozen || item.quantity <= 0}
-                                  className="text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+                                  className="text-neutral-600 hover:text-neutral-800 disabled:opacity-50"
                                   title={t('record_usage')}
                                 >
                                   <MinusCircle className="w-4 h-4" />
@@ -819,7 +819,7 @@ const HistoryModal: React.FC<{ itemId: string; onClose: () => void }> = ({ itemI
                       log.action === 'created'
                         ? 'bg-green-100 text-green-800'
                         : log.action === 'updated'
-                        ? 'bg-blue-100 text-blue-800'
+                        ? 'bg-gold-100 text-gold-800'
                         : 'bg-red-100 text-red-800'
                     }`}
                   >
@@ -944,7 +944,7 @@ const UsageRecordModal: React.FC<{
             <button
               type="submit"
               disabled={loading || usageAmount > item.quantity || usageAmount <= 0}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+              className="px-4 py-2 bg-neutral-600 text-white rounded-md hover:bg-neutral-700 disabled:opacity-50"
             >
               {t('confirm_usage')}
             </button>

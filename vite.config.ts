@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
     base: './',
     server: {
       port: 8080,
+      strictPort: true,
     },
     build: {
       outDir: 'dist',

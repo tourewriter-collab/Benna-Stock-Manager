@@ -57,10 +57,13 @@ router.get('/', authenticateToken, (req, res) => {
     const { limit = 50, offset = 0, search = '', category_id, archived } = req.query;
     
     let sql = `
-      SELECT i.*, c.name_en, c.name_fr, s.name as supplier_name
+      SELECT i.*, c.name_en, c.name_fr,
+        -- supplier column may hold a UUID (id) OR a name string depending on creation path
+        COALESCE(s_by_id.name, s_by_name.name, i.supplier) as supplier_name
       FROM inventory i
       LEFT JOIN categories c ON i.category_id = c.id
-      LEFT JOIN suppliers s ON i.supplier = s.id
+      LEFT JOIN suppliers s_by_id  ON i.supplier = s_by_id.id
+      LEFT JOIN suppliers s_by_name ON i.supplier = s_by_name.name AND s_by_id.id IS NULL
       WHERE 1=1
     `;
     const params = [];
@@ -70,7 +73,7 @@ router.get('/', authenticateToken, (req, res) => {
     params.push(isArchived);
 
     if (search) {
-      sql += ` AND (i.name LIKE ? OR i.location LIKE ? OR s.name LIKE ? OR c.name_en LIKE ? OR c.name_fr LIKE ?)`;
+      sql += ` AND (i.name LIKE ? OR i.location LIKE ? OR COALESCE(s_by_id.name, s_by_name.name, i.supplier) LIKE ? OR c.name_en LIKE ? OR c.name_fr LIKE ?)`;
       const searchParam = `%${search}%`;
       params.push(searchParam, searchParam, searchParam, searchParam, searchParam);
     }
@@ -86,10 +89,10 @@ router.get('/', authenticateToken, (req, res) => {
     const items = db.prepare(sql).all(...params);
     
     // Also get total count for pagination metadata
-    let countSql = `SELECT COUNT(*) as count FROM inventory i LEFT JOIN suppliers s ON i.supplier = s.id LEFT JOIN categories c ON i.category_id = c.id WHERE 1=1`;
+    let countSql = `SELECT COUNT(*) as count FROM inventory i LEFT JOIN suppliers s_by_id ON i.supplier = s_by_id.id LEFT JOIN suppliers s_by_name ON i.supplier = s_by_name.name AND s_by_id.id IS NULL LEFT JOIN categories c ON i.category_id = c.id WHERE 1=1`;
     const countParams = [];
     if (search) {
-      countSql += ` AND (i.name LIKE ? OR i.location LIKE ? OR s.name LIKE ? OR c.name_en LIKE ? OR c.name_fr LIKE ?)`;
+      countSql += ` AND (i.name LIKE ? OR i.location LIKE ? OR COALESCE(s_by_id.name, s_by_name.name, i.supplier) LIKE ? OR c.name_en LIKE ? OR c.name_fr LIKE ?)`;
       countParams.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
     }
     if (category_id) {
