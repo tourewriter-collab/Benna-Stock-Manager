@@ -138,20 +138,20 @@ export default function SupplierManager() {
       {/* ── Performance Section ── */}
       {!showArchived && stats.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-xl font-bold text-[#0a0c10] flex items-center gap-2">
-            <BarChart3 className="w-6 h-6 text-gold-600" />
+          <h2 className="text-xl font-bold text-[#001f3f] flex items-center gap-2">
+            <BarChart3 className="w-6 h-6 text-blue-600" />
             {t('supplier_performance_analytics')}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stats.slice(0, 3).map(stat => (
-              <div key={stat.id} className="bg-gradient-to-br from-white to-gold-50 p-5 rounded-xl shadow-sm border border-gold-100">
-                <div className="font-bold text-lg text-gold-900 mb-3 truncate">{stat.name}</div>
+              <div key={stat.id} className="bg-gradient-to-br from-white to-blue-50 p-5 rounded-xl shadow-sm border border-blue-100">
+                <div className="font-bold text-lg text-blue-900 mb-3 truncate">{stat.name}</div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-gold-600 uppercase font-black tracking-widest mb-1 flex items-center gap-1">
+                    <span className="text-[10px] text-blue-600 uppercase font-black tracking-widest mb-1 flex items-center gap-1">
                       <Clock size={10} /> {t('lead_time')}
                     </span>
-                    <span className="text-xl font-black text-gold-950">
+                    <span className="text-xl font-black text-blue-950">
                       {stat.avg_lead_time ? `${stat.avg_lead_time.toFixed(1)} Days` : 'N/A'}
                     </span>
                   </div>
@@ -163,9 +163,9 @@ export default function SupplierManager() {
                       {stat.on_time_rate ? `${Math.round(stat.on_time_rate)}%` : 'N/A'}
                     </span>
                   </div>
-                  <div className="col-span-2 mt-2 pt-2 border-t border-gold-100 flex justify-between items-center">
-                    <span className="text-xs text-gold-600 font-bold">{t('total_volume')}</span>
-                    <span className="text-sm font-black text-gold-900">{formatPrice(stat.total_spent)}</span>
+                  <div className="col-span-2 mt-2 pt-2 border-t border-blue-100 flex justify-between items-center">
+                    <span className="text-xs text-blue-600 font-bold">{t('total_volume')}</span>
+                    <span className="text-sm font-black text-blue-900">{formatPrice(stat.total_spent)}</span>
                   </div>
                 </div>
               </div>
@@ -177,7 +177,7 @@ export default function SupplierManager() {
       {/* ── Management Section ── */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-[#0a0c10]">{t('suppliers')}</h2>
+          <h2 className="text-2xl font-bold text-[#001f3f]">{t('suppliers')}</h2>
           <div className="flex gap-2">
             <button
               onClick={() => setShowArchived(!showArchived)}
@@ -189,7 +189,7 @@ export default function SupplierManager() {
             {!showArchived && canEdit && (
               <button
                 onClick={() => setShowModal(true)}
-                className="flex items-center gap-2 bg-[#0a0c10] text-white px-4 py-2 rounded-lg text-sm"
+                className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg text-sm"
               >
                 <Plus size={18} />
                 {t('add_supplier')}
@@ -202,12 +202,12 @@ export default function SupplierManager() {
           {suppliers.map((supplier) => (
             <div key={supplier.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-4">
-                <h3 className="font-bold text-[#0a0c10] text-lg">{supplier.name}</h3>
+                <h3 className="font-bold text-[#001f3f] text-lg">{supplier.name}</h3>
                 {canEdit && (
                   <div className="flex gap-1">
                     {!showArchived ? (
                       <>
-                        <button onClick={() => handleEdit(supplier)} className="p-1.5 text-gold-600 hover:bg-gold-50 rounded"><Edit2 size={16} /></button>
+                        <button onClick={() => handleEdit(supplier)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><Edit2 size={16} /></button>
                         <button onClick={() => handleDelete(supplier.id)} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded"><Archive size={16} /></button>
                       </>
                     ) : (
@@ -254,7 +254,7 @@ export default function SupplierManager() {
                 <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} rows={2} className="w-full border rounded-lg px-3 py-2" />
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 bg-[#0a0c10] text-white py-2 rounded-lg font-bold">{t('save')}</button>
+                <button type="submit" className="flex-1 bg-[#001f3f] text-white py-2 rounded-lg font-bold">{t('save')}</button>
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 py-2 rounded-lg">{t('cancel')}</button>
               </div>
             </form>

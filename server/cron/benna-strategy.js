@@ -20,7 +20,7 @@ function gatherStrategicContext() {
       recentTrips
     };
   } catch (err) {
-    console.error('[Ikiké Strategy] Context gather failed:', err.message);
+    console.error('[Benna Strategy] Context gather failed:', err.message);
     return null;
   }
 }
@@ -95,7 +95,7 @@ Do NOT say "Based on the data" or "Here is the alert". Start directly with the s
       return data.choices[0].message.content.trim();
     }
   } catch (err) {
-    console.error('[Ikiké Strategy] AI call failed. Falling back to rule-based alerts:', err.message);
+    console.error('[Benna Strategy] AI call failed. Falling back to rule-based alerts:', err.message);
     return fallbackAlert;
   }
 }
@@ -124,7 +124,7 @@ export async function checkAndRunStrategy() {
   try {
     // 1. Fetch current strategic frequency setting
     let minutesFreq = 15;
-    const setting = db.prepare('SELECT value FROM settings WHERE key = ?').get('ikike_cron_frequency');
+    const setting = db.prepare('SELECT value FROM settings WHERE key = ?').get('benna_cron_frequency');
     if (setting && setting.value) {
       const parsed = parseInt(setting.value);
       if (!isNaN(parsed) && parsed > 0) {
@@ -136,7 +136,7 @@ export async function checkAndRunStrategy() {
     const elapsedMinutes = (currentTime - lastRunTime) / (60 * 1000);
 
     if (elapsedMinutes >= minutesFreq || lastRunTime === 0) {
-      console.log(`[Ikiké Strategy] Running strategic assessment. Frequency is ${minutesFreq} minutes.`);
+      console.log(`[Benna Strategy] Running strategic assessment. Frequency is ${minutesFreq} minutes.`);
       
       const context = gatherStrategicContext();
       if (!context) return;
@@ -162,19 +162,19 @@ export async function checkAndRunStrategy() {
       } catch (e) {}
 
       lastRunTime = currentTime;
-      console.log('[Ikiké Strategy] Formulated strategic alert successfully:', advice);
+      console.log('[Benna Strategy] Formulated strategic alert successfully:', advice);
     }
   } catch (err) {
-    console.error('[Ikiké Strategy] Cron job run failed:', err.message);
+    console.error('[Benna Strategy] Cron job run failed:', err.message);
   }
 }
 
-export function startIkikeStrategyCron() {
+export function startBennaStrategyCron() {
   if (checkIntervalId) {
     clearInterval(checkIntervalId);
   }
 
-  console.log('[Ikiké Strategy] Initializing dynamic strategic advisor cron...');
+  console.log('[Benna Strategy] Initializing dynamic strategic advisor cron...');
   
   // Check settings and run strategic assessment if time has elapsed (runs check every 1 minute)
   checkIntervalId = setInterval(() => {
@@ -187,10 +187,10 @@ export function startIkikeStrategyCron() {
   });
 }
 
-export function stopIkikeStrategyCron() {
+export function stopBennaStrategyCron() {
   if (checkIntervalId) {
     clearInterval(checkIntervalId);
     checkIntervalId = null;
-    console.log('[Ikiké Strategy] Strategic advisor cron stopped.');
+    console.log('[Benna Strategy] Strategic advisor cron stopped.');
   }
 }

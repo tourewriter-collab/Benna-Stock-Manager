@@ -1,7 +1,7 @@
 {
-  "name": "ikike-business-manager",
+  "name": "benna-business-manager",
   "version": "2.1.6",
-  "description": "Ikiké Business Manager - Full-stack project management system",
+  "description": "Benna Projects Manager - Full-stack project management system",
   "main": "electron/main.cjs",
   "type": "module",
   "author": "Ikikecollective",
@@ -73,8 +73,8 @@
     "vite": "^5.0.11"
   },
   "build": {
-    "appId": "com.ikikecollective.business-manager",
-    "productName": "Ikiké Business Manager",
+    "appId": "com.tourewriter.benna-stock-manager",
+    "productName": "Benna Projects Manager",
     "publish": {
       "provider": "github",
       "owner": "tourewriter-collab",
@@ -113,7 +113,7 @@
         }
       ],
       "icon": "build/icon.png",
-      "artifactName": "Ikike-Business-Manager-Setup-${version}.${ext}"
+      "artifactName": "Benna-Projects-Manager-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -122,12 +122,12 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Ikiké Business Manager"
+      "shortcutName": "Benna Projects Manager"
     },
     "mac": {
       "target": "dmg",
       "icon": "build/icon.png",
-      "artifactName": "Ikike-Business-Manager-${version}.${ext}",
+      "artifactName": "Benna-Projects-Manager-${version}.${ext}",
       "identity": null,
       "category": "public.app-category.business",
       "hardenedRuntime": false,

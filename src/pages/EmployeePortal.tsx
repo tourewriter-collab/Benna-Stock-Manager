@@ -66,17 +66,17 @@ const EmployeePortal: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Premium Glassmorphic Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0a0c10] to-[#1a1a1a] p-8 text-white shadow-2xl border border-white/10">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#001f3f] to-[#003366] p-8 text-white shadow-2xl border border-white/10">
         <div className="absolute top-0 right-0 -mt-10 -mr-10 h-64 w-64 rounded-full bg-white/5 blur-3xl"></div>
-        <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-gold-500/20 blur-3xl"></div>
+        <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-blue-500/20 blur-3xl"></div>
 
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight mb-2 flex items-center gap-3">
-              <ClipboardList className="w-8 h-8 text-gold-400" />
+              <ClipboardList className="w-8 h-8 text-blue-400" />
               {t('my_assigned_tasks', 'My Assigned Tasks')}
             </h1>
-            <p className="text-gold-200 text-sm max-w-xl">
+            <p className="text-blue-200 text-sm max-w-xl">
               {t('portal_welcome', 'Welcome, {{name}}. View and track the operations and project tasks assigned to you here.').replace('{{name}}', user?.name || '')}
             </p>
           </div>
@@ -94,15 +94,15 @@ const EmployeePortal: React.FC = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white/80 backdrop-blur-md border border-gray-100 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
           <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('total_tasks', 'Total Tasks')}</span>
-          <span className="text-3xl font-black text-[#0a0c10] mt-2">{stats.total}</span>
+          <span className="text-3xl font-black text-[#001f3f] mt-2">{stats.total}</span>
         </div>
         <div className="bg-amber-50/50 backdrop-blur-md border border-amber-100 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
           <span className="text-xs font-bold text-amber-600 uppercase tracking-wider">{t('pending_tasks', 'Pending')}</span>
           <span className="text-3xl font-black text-amber-700 mt-2">{stats.pending}</span>
         </div>
-        <div className="bg-gold-50/50 backdrop-blur-md border border-gold-100 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-bold text-gold-600 uppercase tracking-wider">{t('in_progress_tasks', 'In Progress')}</span>
-          <span className="text-3xl font-black text-gold-700 mt-2">{stats.inProgress}</span>
+        <div className="bg-blue-50/50 backdrop-blur-md border border-blue-100 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
+          <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">{t('in_progress_tasks', 'In Progress')}</span>
+          <span className="text-3xl font-black text-blue-700 mt-2">{stats.inProgress}</span>
         </div>
         <div className="bg-emerald-50/50 backdrop-blur-md border border-emerald-100 p-5 rounded-2xl shadow-sm flex flex-col justify-between">
           <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">{t('completed_tasks', 'Completed')}</span>
@@ -114,7 +114,7 @@ const EmployeePortal: React.FC = () => {
       <div className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-xl rounded-2xl p-6 min-h-[400px]">
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0a0c10]"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#001f3f]"></div>
           </div>
         ) : tasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-400">
@@ -131,7 +131,7 @@ const EmployeePortal: React.FC = () => {
                   task.status === 'completed'
                     ? 'border-emerald-100 bg-emerald-50/10'
                     : task.status === 'in_progress'
-                    ? 'border-gold-100'
+                    ? 'border-blue-100'
                     : 'border-gray-100'
                 }`}
               >
@@ -141,7 +141,7 @@ const EmployeePortal: React.FC = () => {
                     task.status === 'completed'
                       ? 'bg-emerald-500'
                       : task.status === 'in_progress'
-                      ? 'bg-gold-500'
+                      ? 'bg-blue-500'
                       : 'bg-amber-400'
                   }`}
                 />
@@ -156,7 +156,7 @@ const EmployeePortal: React.FC = () => {
                         task.status === 'completed'
                           ? 'bg-emerald-100 text-emerald-800'
                           : task.status === 'in_progress'
-                          ? 'bg-gold-100 text-gold-800'
+                          ? 'bg-blue-100 text-blue-800'
                           : 'bg-amber-100 text-amber-800'
                       }`}
                     >
@@ -188,13 +188,13 @@ const EmployeePortal: React.FC = () => {
                 {/* Status action buttons */}
                 <div className="flex items-center gap-2 self-stretch md:self-auto border-t md:border-t-0 pt-3 md:pt-0 mt-2 md:mt-0 pl-3 md:pl-0">
                   {updatingId === task.id ? (
-                    <div className="w-6 h-6 border-2 border-gray-300 border-t-gold-600 rounded-full animate-spin" />
+                    <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
                   ) : (
                     <>
                       {task.status !== 'completed' && task.status !== 'in_progress' && (
                         <button
                           onClick={() => handleUpdateStatus(task.id, 'in_progress')}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-gold-50 text-gold-700 hover:bg-gold-100 border border-gold-100 transition duration-200"
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-100 transition duration-200"
                         >
                           <Circle className="w-3.5 h-3.5" />
                           {t('start_task', 'Start')}

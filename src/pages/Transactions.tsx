@@ -138,7 +138,7 @@ const Transactions: React.FC = () => {
           {canEdit && (
             <button
               onClick={handleOpenModal}
-              className="flex items-center gap-2 bg-[#0a0c10] text-white px-4 py-2 rounded-lg hover:bg-[#1a1a1a] transition-colors shadow-sm no-print"
+              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors shadow-sm no-print"
             >
               <Plus className="w-5 h-5" />
               {t('record_transaction', 'Record Transaction')}

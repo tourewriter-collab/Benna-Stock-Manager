@@ -116,7 +116,7 @@ export default function CategoryManager() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-[#0a0c10]">{t('categories')}</h2>
+        <h2 className="text-2xl font-bold text-[#001f3f]">{t('categories')}</h2>
         <div className="flex gap-2">
           <button
             onClick={() => setShowArchived(!showArchived)}
@@ -128,7 +128,7 @@ export default function CategoryManager() {
           {!showArchived && isAdmin && (
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 bg-[#0a0c10] text-white px-4 py-2 rounded-lg text-sm"
+              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg text-sm"
             >
               <Plus size={18} />
               {t('add_category')}
@@ -141,14 +141,14 @@ export default function CategoryManager() {
         {categories.map((cat) => (
           <div key={cat.id} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex justify-between items-center">
             <div>
-              <div className="font-bold text-[#0a0c10]">{i18n.language === 'fr' ? cat.name_fr : cat.name_en}</div>
+              <div className="font-bold text-[#001f3f]">{i18n.language === 'fr' ? cat.name_fr : cat.name_en}</div>
               <div className="text-xs text-gray-400">{i18n.language === 'fr' ? cat.name_en : cat.name_fr}</div>
             </div>
             {isAdmin && (
               <div className="flex gap-2">
                 {!showArchived ? (
                   <>
-                    <button onClick={() => handleEdit(cat)} className="text-gold-600 hover:bg-gold-50 p-1 rounded"><Edit2 size={16} /></button>
+                    <button onClick={() => handleEdit(cat)} className="text-blue-600 hover:bg-blue-50 p-1 rounded"><Edit2 size={16} /></button>
                     <button onClick={() => handleDelete(cat.id)} className="text-orange-600 hover:bg-orange-50 p-1 rounded"><Archive size={16} /></button>
                   </>
                 ) : (
@@ -177,7 +177,7 @@ export default function CategoryManager() {
                 <input required value={formData.name_fr} onChange={e => setFormData({...formData, name_fr: e.target.value})} className="w-full border rounded-lg px-3 py-2" />
               </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" className="flex-1 bg-[#0a0c10] text-white py-2 rounded-lg font-bold">Save</button>
+                <button type="submit" className="flex-1 bg-[#001f3f] text-white py-2 rounded-lg font-bold">Save</button>
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 py-2 rounded-lg">Cancel</button>
               </div>
             </form>

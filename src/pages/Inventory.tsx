@@ -460,7 +460,7 @@ const Inventory: React.FC = () => {
                           <div className="flex space-x-2">
                             <button
                               onClick={() => setHistoryItemId(item.id)}
-                              className="text-gold-600 hover:text-gold-800"
+                              className="text-blue-600 hover:text-blue-800"
                               title={t('view_history')}
                             >
                               <History className="w-4 h-4" />
@@ -819,7 +819,7 @@ const HistoryModal: React.FC<{ itemId: string; onClose: () => void }> = ({ itemI
                       log.action === 'created'
                         ? 'bg-green-100 text-green-800'
                         : log.action === 'updated'
-                        ? 'bg-gold-100 text-gold-800'
+                        ? 'bg-blue-100 text-blue-800'
                         : 'bg-red-100 text-red-800'
                     }`}
                   >

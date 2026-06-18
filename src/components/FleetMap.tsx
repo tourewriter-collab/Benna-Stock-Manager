@@ -158,7 +158,7 @@ export const FleetMap: React.FC = () => {
                     key={truck.id}
                     onClick={() => focusTruckOnMap(truck)}
                     className={`w-full text-left p-3 rounded-xl border mb-2 transition flex flex-col gap-1 hover:border-navy/30 hover:bg-slate-50/80 ${
-                      selectedTruck?.id === truck.id ? 'border-navy bg-gold-50/20' : 'border-slate-100'
+                      selectedTruck?.id === truck.id ? 'border-navy bg-blue-50/20' : 'border-slate-100'
                     }`}
                   >
                     <div className="flex items-center justify-between">

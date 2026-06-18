@@ -48,7 +48,7 @@ import notificationsRoutes from './routes/notifications.js';
 import hrRoutes from './routes/hr.js';
 import iclockRoutes from './routes/iclock.js';
 import { startGpsSimulator } from './cron/gps-simulator.js';
-import { startIkikeStrategyCron } from './cron/ikike-strategy.js';
+import { startBennaStrategyCron } from './cron/benna-strategy.js';
 import db, { runPostStartupMaintenance } from './database.js';
 
 const app = express();
@@ -192,7 +192,7 @@ const server = app.listen(PORT, () => {
     }
     try {
       startGpsSimulator();
-      startIkikeStrategyCron();
+      startBennaStrategyCron();
       console.log('[Server] Real-time background crons started.');
     } catch (e) {
       console.error('[Server] Failed to start background crons:', e.message);

@@ -27,14 +27,14 @@ interface Message {
   };
 }
 
-export const IkikeAgent: React.FC = () => {
+export const BennaAgent: React.FC = () => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
       role: 'agent',
-      content: t('ikike_chat_welcome', 'I am IKIKÉ, your elite strategic advisor. I can analyze inventory, fleet data, granite trips, and ledger transactions. You can also upload scanned receipts or documents for automated data entry and verification.'),
+      content: t('benna_chat_welcome', 'I am IKIKÉ, your elite strategic advisor. I can analyze inventory, fleet data, granite trips, and ledger transactions. You can also upload scanned receipts or documents for automated data entry and verification.'),
       action: undefined
     }
   ]);
@@ -70,7 +70,7 @@ export const IkikeAgent: React.FC = () => {
     if (files.length === 0) return;
 
     if (attachedFiles.length + files.length > 9) {
-      alert(t('ikike_upload_limit', 'You can upload up to 9 files at once.'));
+      alert(t('benna_upload_limit', 'You can upload up to 9 files at once.'));
       // Only keep the number of files that fit
       files.splice(9 - attachedFiles.length);
     }
@@ -116,7 +116,7 @@ export const IkikeAgent: React.FC = () => {
             ...actionObj,
             status: 'pending' as const
           },
-          cleanText: cleanText || t('ikike_propose_title', 'Action Proposed by Ikiké')
+          cleanText: cleanText || t('benna_propose_title', 'Action Proposed by Benna')
         };
       } catch (e) {
         console.error('Failed to parse action JSON:', e);
@@ -238,7 +238,7 @@ export const IkikeAgent: React.FC = () => {
           {
             id: crypto.randomUUID(),
             role: 'agent',
-            content: `${t('ikike_sync_success', 'Success: Memory synced and saved to database.')}`
+            content: `${t('benna_sync_success', 'Success: Memory synced and saved to database.')}`
           }
         ]);
       }
@@ -319,7 +319,7 @@ export const IkikeAgent: React.FC = () => {
       {/* ── Floating Pulse Button ── */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        title={t('ikike_chat_title')}
+        title={t('benna_chat_title')}
         className={[
           'fixed bottom-20 right-6 z-50',
           'flex items-center justify-center w-14 h-14 rounded-full',
@@ -372,7 +372,7 @@ export const IkikeAgent: React.FC = () => {
                   className={[
                     'max-w-[85%] rounded-2xl p-3 text-sm leading-relaxed shadow-md',
                     msg.role === 'user' 
-                      ? 'bg-navy text-white rounded-tr-none border border-gold-500/20' 
+                      ? 'bg-navy text-white rounded-tr-none border border-blue-500/20' 
                       : 'bg-slate-800/90 text-slate-100 rounded-tl-none border border-slate-700/50'
                   ].join(' ')}
                 >
@@ -414,7 +414,7 @@ export const IkikeAgent: React.FC = () => {
                     <div className="mt-3 p-3 bg-slate-900 border border-amber-500/30 rounded-xl space-y-2">
                       <div className="flex items-center space-x-1.5 text-xs text-amber-400 font-bold uppercase tracking-wider">
                         <Sparkles size={13} />
-                        <span>{t('ikike_propose_title')}</span>
+                        <span>{t('benna_propose_title')}</span>
                       </div>
                       <p className="text-xs text-slate-300 italic">{msg.action.summary}</p>
                       
@@ -439,14 +439,14 @@ export const IkikeAgent: React.FC = () => {
                           onClick={() => handleRejectAction(msg.id)}
                           className="px-2.5 py-1 text-[11px] font-bold text-slate-400 hover:text-white bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-md transition"
                         >
-                          {t('ikike_reject', 'Reject')}
+                          {t('benna_reject', 'Reject')}
                         </button>
                         <button
                           onClick={() => handleCommitAction(msg.id)}
                           className="flex items-center space-x-1 px-3 py-1 text-[11px] font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 rounded-md transition shadow-md"
                         >
                           <Check size={12} />
-                          <span>{t('ikike_approve', 'Approve & Commit')}</span>
+                          <span>{t('benna_approve', 'Approve & Commit')}</span>
                         </button>
                       </div>
                     </div>
@@ -472,7 +472,7 @@ export const IkikeAgent: React.FC = () => {
             {isLoading && (
               <div className="flex items-center space-x-2 text-slate-400 text-xs pl-2 bg-slate-850/50 py-2 rounded-xl">
                 <Loader2 size={14} className="animate-spin text-amber-500" />
-                <span className="animate-pulse">Ikiké is formulating a strategic response...</span>
+                <span className="animate-pulse">Benna is formulating a strategic response...</span>
               </div>
             )}
             
@@ -518,7 +518,7 @@ export const IkikeAgent: React.FC = () => {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                title={t('ikike_upload_docs')}
+                title={t('benna_upload_docs')}
                 className="p-2 text-slate-400 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl transition"
               >
                 <Paperclip size={18} />
@@ -538,7 +538,7 @@ export const IkikeAgent: React.FC = () => {
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder={t('ikike_chat_placeholder', 'Ask Ikiké to manage tasks...')}
+                placeholder={t('benna_chat_placeholder', 'Ask Benna to manage tasks...')}
                 className="flex-1 bg-slate-900 border border-slate-800 focus:border-amber-500/50 focus:outline-none rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500"
               />
 

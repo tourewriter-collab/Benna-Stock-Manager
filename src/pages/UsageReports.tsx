@@ -220,10 +220,10 @@ export default function UsageReports() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-[#0a0c10]">{t('usage_reports')}</h1>
+          <h1 className="text-3xl font-bold text-[#001f3f]">{t('usage_reports')}</h1>
           <p className="text-gray-600 mt-1">{t('track_part_usage_over_time')}</p>
         </div>
-        <TrendingDown className="w-12 h-12 text-[#0a0c10]" />
+        <TrendingDown className="w-12 h-12 text-[#001f3f]" />
       </div>
 
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -290,7 +290,7 @@ export default function UsageReports() {
                 setPreset('custom'); 
                 setFilters({ ...filters, start_date: e.target.value }); 
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
             />
           </div>
 
@@ -306,7 +306,7 @@ export default function UsageReports() {
                 setPreset('custom'); 
                 setFilters({ ...filters, end_date: e.target.value }); 
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
             />
           </div>
 
@@ -317,7 +317,7 @@ export default function UsageReports() {
             <select
               value={filters.category_id}
               onChange={(e) => setFilters({ ...filters, category_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
             >
               <option value="">{t('all_categories')}</option>
               {categories.map((category) => (
@@ -336,7 +336,7 @@ export default function UsageReports() {
       {/* Usage Summary Section */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
         <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-[#0a0c10]">{t('usage_summary')}</h2>
+          <h2 className="text-xl font-bold text-[#001f3f]">{t('usage_summary')}</h2>
           <span className="text-xs text-gray-500">{filters.start_date} {t('to')} {filters.end_date}</span>
         </div>
         
@@ -361,7 +361,7 @@ export default function UsageReports() {
                   </th>
                   <th className="px-6 py-4 text-green-600">{t('stock_received') || 'Received (+)'}</th>
                   <th className="px-6 py-4 text-red-600">{t('quantity_changed') || 'Used (-)'}</th>
-                  <th className="px-6 py-4 font-bold text-gold-900">{t('current_stock') || 'Current Live Stock'}</th>
+                  <th className="px-6 py-4 font-bold text-blue-900">{t('current_stock') || 'Current Live Stock'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
@@ -383,7 +383,7 @@ export default function UsageReports() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600 text-center bg-red-50/20">-{item.usage}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex flex-col items-center gap-1">
-                          <span className={`px-3 py-1 rounded-full text-sm font-bold shadow-sm ${currentStock > 0 ? 'bg-gold-100 text-gold-800' : 'bg-red-100 text-red-800'}`}>
+                          <span className={`px-3 py-1 rounded-full text-sm font-bold shadow-sm ${currentStock > 0 ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-800'}`}>
                             {currentStock}
                           </span>
                           <span className="text-[10px] text-gray-400 uppercase font-medium">

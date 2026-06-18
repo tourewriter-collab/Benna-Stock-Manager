@@ -162,7 +162,7 @@ export default function Categories() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-[#0a0c10]">{t('categories')}</h1>
+        <h1 className="text-3xl font-bold text-[#001f3f]">{t('categories')}</h1>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowArchived(!showArchived)}
@@ -174,7 +174,7 @@ export default function Categories() {
           {!showArchived && (
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 bg-[#0a0c10] text-white px-4 py-2 rounded-lg hover:bg-[#1a1a1a] transition-colors"
+              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors"
             >
               <Plus className="w-5 h-5" />
               {t('add_category')}
@@ -220,7 +220,7 @@ export default function Categories() {
                         </button>
                         <button
                           onClick={() => handleEdit(category)}
-                          className="text-gold-600 hover:text-gold-800"
+                          className="text-blue-600 hover:text-blue-800"
                           title={t('edit')}
                         >
                           <Edit2 className="w-4 h-4" />
@@ -268,7 +268,7 @@ export default function Categories() {
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-2xl font-bold text-[#0a0c10] mb-4">
+            <h2 className="text-2xl font-bold text-[#001f3f] mb-4">
               {editingCategory ? t('edit_category') : t('add_category')}
             </h2>
 
@@ -282,7 +282,7 @@ export default function Categories() {
                   required
                   value={formData.name_en}
                   onChange={(e) => setFormData({ ...formData, name_en: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
                 />
               </div>
 
@@ -295,14 +295,14 @@ export default function Categories() {
                   required
                   value={formData.name_fr}
                   onChange={(e) => setFormData({ ...formData, name_fr: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
                 />
               </div>
 
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 bg-[#0a0c10] text-white py-2 rounded-lg hover:bg-[#1a1a1a] transition-colors"
+                  className="flex-1 bg-[#001f3f] text-white py-2 rounded-lg hover:bg-[#003366] transition-colors"
                 >
                   {editingCategory ? t('update') : t('create')}
                 </button>

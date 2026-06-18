@@ -97,7 +97,7 @@ export default function Orders() {
       case 'partial':
         return 'bg-yellow-100 text-yellow-800';
       case 'pending':
-        return 'bg-gold-100 text-gold-800';
+        return 'bg-blue-100 text-blue-800';
       case 'cancelled':
         return 'bg-red-100 text-red-800';
       default:
@@ -124,7 +124,7 @@ export default function Orders() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-[#0a0c10]">{t('orders')}</h1>
+        <h1 className="text-3xl font-bold text-[#001f3f]">{t('orders')}</h1>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
              <span className="text-sm font-medium text-gray-600">
@@ -146,7 +146,7 @@ export default function Orders() {
           {canEdit && (
             <button
               onClick={handleCreateOrder}
-              className="flex items-center gap-2 bg-[#0a0c10] text-white px-4 py-2 rounded-lg hover:bg-[#1a1a1a] transition-colors"
+              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors"
             >
               <Plus className="w-5 h-5" />
               {t('create_order')}
@@ -169,7 +169,7 @@ export default function Orders() {
             <select
               value={filters.supplier_id}
               onChange={(e) => setFilters({ ...filters, supplier_id: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
             >
               <option value="">{t('all_suppliers')}</option>
               {suppliers.map((supplier) => (
@@ -187,7 +187,7 @@ export default function Orders() {
             <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
             >
               <option value="">{t('all_statuses')}</option>
               <option value="pending">{t('pending')}</option>
@@ -205,7 +205,7 @@ export default function Orders() {
               type="date"
               value={filters.start_date}
               onChange={(e) => setFilters({ ...filters, start_date: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
             />
           </div>
 
@@ -217,7 +217,7 @@ export default function Orders() {
               type="date"
               value={filters.end_date}
               onChange={(e) => setFilters({ ...filters, end_date: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0a0c10] focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#001f3f] focus:border-transparent"
             />
           </div>
 
@@ -227,7 +227,7 @@ export default function Orders() {
                 type="checkbox"
                 checked={filters.unpaid}
                 onChange={(e) => setFilters({ ...filters, unpaid: e.target.checked })}
-                className="w-4 h-4 text-[#0a0c10] rounded focus:ring-[#0a0c10]"
+                className="w-4 h-4 text-[#001f3f] rounded focus:ring-[#001f3f]"
               />
               <span className="text-sm font-medium text-gray-700">{t('unpaid_only')}</span>
             </label>
@@ -296,7 +296,7 @@ export default function Orders() {
                 <td className="px-3 py-4 whitespace-nowrap text-sm">
                   <button
                     onClick={() => handleViewOrder(order.id)}
-                    className="text-[#0a0c10] hover:text-[#1a1a1a] flex items-center gap-1"
+                    className="text-[#001f3f] hover:text-[#003366] flex items-center gap-1"
                   >
                     <Eye className="w-4 h-4" />
                     {t('view')}

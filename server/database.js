@@ -484,7 +484,7 @@ const seedSettings = [
   { key: 'deepseek_api_key', value: 'sk-87f10ecb478848afbc85468bde6027e1' },
   { key: 'default_map_lat', value: '9.509167' },
   { key: 'default_map_lng', value: '-13.712222' },
-  { key: 'ikike_cron_frequency', value: '15' },
+  { key: 'benna_cron_frequency', value: '15' },
   { key: 'clear_insights_interval', value: 'never' },
   { key: 'db_created_at', value: new Date().toISOString() }
 ];

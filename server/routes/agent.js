@@ -20,7 +20,7 @@ function parseActionBlockBackend(text) {
           ...actionObj,
           status: 'pending'
         },
-        cleanText: cleanText || 'Action Proposed by Ikiké'
+        cleanText: cleanText || 'Action Proposed by Benna'
       };
     } catch (e) {
       console.error('Failed to parse action JSON in backend:', e);
@@ -31,9 +31,9 @@ function parseActionBlockBackend(text) {
 
 // Paths to reflection files in all integrated environments
 const reflectionPaths = [
-  'C:\\Users\\Mosaid\\.gemini\\antigravity\\scratch\\ikike-collective\\identity\\reflection.json',
-  'C:\\Users\\Mosaid\\.gemini\\antigravity\\scratch\\ikike-collective\\ikike-core\\identity\\reflection.json',
-  'C:\\Users\\Mosaid\\.gemini\\antigravity\\scratch\\ikike-collective\\ikike-engine\\identity\\reflection.json'
+  'C:\\Users\\Mosaid\\.gemini\\antigravity\\scratch\\benna-collective\\identity\\reflection.json',
+  'C:\\Users\\Mosaid\\.gemini\\antigravity\\scratch\\benna-collective\\benna-core\\identity\\reflection.json',
+  'C:\\Users\\Mosaid\\.gemini\\antigravity\\scratch\\benna-collective\\benna-engine\\identity\\reflection.json'
 ];
 
 // Helper to read strategic reflection from the active path
@@ -44,7 +44,7 @@ function getReflection() {
         const content = fs.readFileSync(p, 'utf8');
         return JSON.parse(content);
       } catch (e) {
-        console.error('[Ikiké] Failed to read reflection at', p, e.message);
+        console.error('[Benna] Failed to read reflection at', p, e.message);
       }
     }
   }
@@ -62,9 +62,9 @@ function updateReflection(updatedData) {
       }
       fs.writeFileSync(p, JSON.stringify(updatedData, null, 2), 'utf8');
       success = true;
-      console.log('[Ikiké] Updated reflection file at', p);
+      console.log('[Benna] Updated reflection file at', p);
     } catch (e) {
-      console.error('[Ikiké] Failed to write reflection at', p, e.message);
+      console.error('[Benna] Failed to write reflection at', p, e.message);
     }
   }
   return success;
@@ -101,19 +101,19 @@ function fileMemory(source, category, text, accessUrl = '') {
           last_sync: new Date().toISOString()
         },
         {
-          name: "Ikiké Collective Platform",
+          name: "Benna Collective Platform",
           type: "Strategic Web Platform & Hub",
           data_scope: "DAO Governance, Strategic Vault, Investment portfolio, Waitlist applications, UI self-editing code",
-          location: "Local storage (`ikike_memory_v2`), server-side local JSON files",
+          location: "Local storage (`benna_memory_v2`), server-side local JSON files",
           status: "active",
           online_access_endpoint: "http://localhost:8080/api/identity",
           last_sync: new Date().toISOString()
         },
         {
-          name: "Ikiké Core & Engine",
+          name: "Benna Core & Engine",
           type: "Autonomous Agent Core & Execution Bridge",
           data_scope: "System prompt overrides, Chameleon-mode code manipulation, DeepSeek API proxy",
-          location: "c:/Users/Mosaid/.gemini/antigravity/scratch/ikike-collective",
+          location: "c:/Users/Mosaid/.gemini/antigravity/scratch/benna-collective",
           status: "active",
           online_access_endpoint: "http://localhost:8080/api/chat",
           last_sync: new Date().toISOString()
@@ -160,8 +160,8 @@ function fileMemory(source, category, text, accessUrl = '') {
   updateReflection(reflection);
 }
 
-// Ikiké's default identity — adapted from the Ikiké Collective engine
-const IKIKE_SYSTEM_PROMPT = `You are IKIKÉ, an elite strategic advisor built by the Ikiké Collective SARL.
+// Benna's default identity — adapted from the Benna Collective engine
+const BENNA_SYSTEM_PROMPT = `You are IKIKÉ, an elite strategic advisor built by the Benna Collective SARL.
 You are embedded inside Benna Projects Manager — a business management application for a construction/mining company in Guinea.
 
 CORE IDENTITY:
@@ -235,7 +235,7 @@ LIVE SYSTEM STATE:
 - Inventory Sample: ${topItems.map(i => `${i.name} [id:${i.id}] (qty:${i.quantity}, ${i.price} GNF, ${i.category})`).join(' | ') || 'None'}
 `;
   } catch (e) {
-    console.error('[Ikiké] Context gathering failed:', e.message);
+    console.error('[Benna] Context gathering failed:', e.message);
     return '\nLIVE SYSTEM STATE: Unable to fetch.\n';
   }
 }
@@ -277,7 +277,7 @@ async function callGemini(geminiKey, fullSystem, history, message, files, image)
     });
   }
 
-  console.log('[Ikiké] Processing message with Gemini...');
+  console.log('[Benna] Processing message with Gemini...');
   const result = await model.generateContent(parts);
   const response = await result.response;
   return response.text();
@@ -309,7 +309,7 @@ async function callDeepSeek(deepseekKey, fullSystem, history, message, files) {
   }
   messages.push({ role: 'user', content: modifiedMessage });
 
-  console.log('[Ikiké] Processing message with DeepSeek...');
+  console.log('[Benna] Processing message with DeepSeek...');
   const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
     headers: {
@@ -368,7 +368,7 @@ router.post('/chat', authenticateToken, async (req, res) => {
 
     if (hasBinaryFile && activeModel === 'deepseek') {
       if (geminiKey) {
-        console.log('[Ikiké] Binary files or images detected. Falling back to Gemini for multimodal vision/doc processing.');
+        console.log('[Benna] Binary files or images detected. Falling back to Gemini for multimodal vision/doc processing.');
         activeModel = 'gemini';
       }
     }
@@ -387,14 +387,14 @@ router.post('/chat', authenticateToken, async (req, res) => {
     const reflection = getReflection();
     
     // Combine base system prompt (with domain tables & action protocols) with strategic reflection override
-    let fullSystem = IKIKE_SYSTEM_PROMPT;
+    let fullSystem = BENNA_SYSTEM_PROMPT;
     if (reflection?.core_prompt_override) {
-      fullSystem = `${IKIKE_SYSTEM_PROMPT}\n\nHIGH-PRIORITY STRATEGIC DIRECTIVE OVERRIDE:\n${reflection.core_prompt_override}\n`;
+      fullSystem = `${BENNA_SYSTEM_PROMPT}\n\nHIGH-PRIORITY STRATEGIC DIRECTIVE OVERRIDE:\n${reflection.core_prompt_override}\n`;
     }
     
     let reflectionContext = '';
     if (reflection && reflection.memories) {
-      reflectionContext = `\nIKIKEé'S DYNAMIC STRATEGIC MEMORIES & ARCHIVED INTEGRATIONS:\n${JSON.stringify(reflection.memories, null, 2)}\n`;
+      reflectionContext = `\nBENNAé'S DYNAMIC STRATEGIC MEMORIES & ARCHIVED INTEGRATIONS:\n${JSON.stringify(reflection.memories, null, 2)}\n`;
     }
 
     const context = gatherContext() + reflectionContext;
@@ -411,15 +411,15 @@ router.post('/chat', authenticateToken, async (req, res) => {
         reply = await callGemini(geminiKey, fullSystem, history, message, files, image);
         success = true;
       } catch (err) {
-        console.error('[Ikiké] Gemini failed, attempting automatic fallback to DeepSeek...', err.message);
+        console.error('[Benna] Gemini failed, attempting automatic fallback to DeepSeek...', err.message);
         errors.push(`Gemini: ${err.message}`);
         if (deepseekKey && !hasBinaryFile) {
           try {
             reply = await callDeepSeek(deepseekKey, fullSystem, history, message, files);
             success = true;
-            console.log('[Ikiké] Automatic fallback to DeepSeek succeeded.');
+            console.log('[Benna] Automatic fallback to DeepSeek succeeded.');
           } catch (dsErr) {
-            console.error('[Ikiké] DeepSeek fallback also failed:', dsErr.message);
+            console.error('[Benna] DeepSeek fallback also failed:', dsErr.message);
             errors.push(`DeepSeek Fallback: ${dsErr.message}`);
           }
         }
@@ -430,15 +430,15 @@ router.post('/chat', authenticateToken, async (req, res) => {
         reply = await callDeepSeek(deepseekKey, fullSystem, history, message, files);
         success = true;
       } catch (err) {
-        console.error('[Ikiké] DeepSeek failed, attempting automatic fallback to Gemini...', err.message);
+        console.error('[Benna] DeepSeek failed, attempting automatic fallback to Gemini...', err.message);
         errors.push(`DeepSeek: ${err.message}`);
         if (geminiKey) {
           try {
             reply = await callGemini(geminiKey, fullSystem, history, message, files, image);
             success = true;
-            console.log('[Ikiké] Automatic fallback to Gemini succeeded.');
+            console.log('[Benna] Automatic fallback to Gemini succeeded.');
           } catch (gemErr) {
-            console.error('[Ikiké] Gemini fallback also failed:', gemErr.message);
+            console.error('[Benna] Gemini fallback also failed:', gemErr.message);
             errors.push(`Gemini Fallback: ${gemErr.message}`);
           }
         }
@@ -446,7 +446,7 @@ router.post('/chat', authenticateToken, async (req, res) => {
     }
 
     if (!success) {
-      console.error('[Ikiké] All available strategic neural engines failed:', errors);
+      console.error('[Benna] All available strategic neural engines failed:', errors);
       return res.json({ 
         reply: "I apologize, but both the Gemini and DeepSeek strategic neural engines are currently experiencing high demand. Please verify your internet connection, confirm your API keys in the settings tab, or try again in a few moments." 
       });
@@ -463,7 +463,7 @@ router.post('/chat', authenticateToken, async (req, res) => {
 
     return res.json({ reply, id: agentMsgId });
   } catch (error) {
-    console.error('[Ikiké] General chat error:', error);
+    console.error('[Benna] General chat error:', error);
     res.status(500).json({ error: error.message || 'Internal strategic error' });
   }
 });
@@ -477,9 +477,9 @@ router.post('/sync-memory', authenticateToken, async (req, res) => {
 
   try {
     fileMemory(source, category, text, accessUrl);
-    res.json({ success: true, message: 'Memory successfully filed in Ikiké strategic reflection files.' });
+    res.json({ success: true, message: 'Memory successfully filed in Benna strategic reflection files.' });
   } catch (error) {
-    console.error('[Ikiké] Sync memory error:', error);
+    console.error('[Benna] Sync memory error:', error);
     res.status(500).json({ error: error.message || 'Failed to file memory' });
   }
 });
@@ -577,7 +577,7 @@ router.post('/execute', authenticateToken, async (req, res) => {
         return res.status(400).json({ error: `Unknown action type: ${actionType}` });
     }
 
-    // Log this successful transaction/management event into Ikiké's reflection memories automatically!
+    // Log this successful transaction/management event into Benna's reflection memories automatically!
     let memoryDesc = '';
     let memoryCategory = '';
     let accessLink = '';
@@ -620,7 +620,7 @@ router.post('/execute', authenticateToken, async (req, res) => {
       try {
         fileMemory('Benna Projects Manager', memoryCategory, memoryDesc, accessLink);
       } catch (err) {
-        console.error('[Ikiké] Failed to auto-file memory:', err);
+        console.error('[Benna] Failed to auto-file memory:', err);
       }
     }
 
@@ -635,13 +635,13 @@ router.post('/execute', authenticateToken, async (req, res) => {
           }
         }
       } catch (e) {
-        console.error('[Ikiké] Failed to update action status:', e);
+        console.error('[Benna] Failed to update action status:', e);
       }
     }
 
     res.json({ success: true, result });
   } catch (error) {
-    console.error('[Ikiké] Execute error:', error);
+    console.error('[Benna] Execute error:', error);
     res.status(500).json({ error: error.message || 'Failed to execute action' });
   }
 });
@@ -663,7 +663,7 @@ router.post('/reject-action', authenticateToken, async (req, res) => {
     }
     res.json({ success: true });
   } catch (error) {
-    console.error('[Ikiké] Reject action error:', error);
+    console.error('[Benna] Reject action error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -687,7 +687,7 @@ router.get('/history', authenticateToken, async (req, res) => {
     });
     res.json(formatted);
   } catch (error) {
-    console.error('[Ikiké] Get history error:', error);
+    console.error('[Benna] Get history error:', error);
     res.status(500).json({ error: 'Failed to fetch agent history' });
   }
 });
@@ -712,7 +712,7 @@ router.post('/clear', authenticateToken, async (req, res) => {
     }
     res.json({ success: true, deletedCount });
   } catch (error) {
-    console.error('[Ikiké] Clear history error:', error);
+    console.error('[Benna] Clear history error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -802,7 +802,7 @@ router.post('/performance-chat', authenticateToken, async (req, res) => {
       try {
         memoryData = JSON.parse(fs.readFileSync(memoryFile, 'utf8'));
       } catch (e) {
-        console.error('[Ikiké] Failed to parse memory file:', e);
+        console.error('[Benna] Failed to parse memory file:', e);
       }
     }
 
@@ -858,7 +858,7 @@ ${performanceContext}
 
     res.json({ reply: replyText, history: memoryData.history });
   } catch (error) {
-    console.error('[Ikiké] Performance chat error:', error);
+    console.error('[Benna] Performance chat error:', error);
     res.status(500).json({ error: error.message || 'Failed to process performance conversation' });
   }
 });
@@ -892,7 +892,7 @@ router.get('/performance-chat/history', authenticateToken, (req, res) => {
     }
     res.json([]);
   } catch (error) {
-    console.error('[Ikiké] Get performance history error:', error);
+    console.error('[Benna] Get performance history error:', error);
     res.status(500).json({ error: 'Failed to fetch performance history' });
   }
 });

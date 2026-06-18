@@ -45,7 +45,7 @@ const Settings: React.FC = () => {
     deepseek_api_key: '',
     default_map_lat: '9.509167',
     default_map_lng: '-13.712222',
-    ikike_cron_frequency: '15',
+    benna_cron_frequency: '15',
     ohada_compliance: 'false',
     print_language: 'both'
   });
@@ -113,7 +113,7 @@ const Settings: React.FC = () => {
         deepseek_api_key: data.deepseek_api_key || '',
         default_map_lat: data.default_map_lat || '9.509167',
         default_map_lng: data.default_map_lng || '-13.712222',
-        ikike_cron_frequency: data.ikike_cron_frequency || '15',
+        benna_cron_frequency: data.benna_cron_frequency || '15',
         ohada_compliance: data.ohada_compliance !== undefined ? String(data.ohada_compliance) : 'false',
         print_language: data.print_language || 'both'
       });
@@ -251,11 +251,11 @@ const Settings: React.FC = () => {
       onClick={() => handleTabChange(id)}
       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold transition-all ${
         activeTab === id 
-        ? 'bg-gold-100 text-gold-900 shadow-sm border border-gold-200' 
+        ? 'bg-blue-100 text-blue-900 shadow-sm border border-blue-200' 
         : 'text-gray-500 hover:bg-gray-100'
       }`}
     >
-      <Icon size={18} className={activeTab === id ? 'text-gold-700' : 'text-gray-400'} />
+      <Icon size={18} className={activeTab === id ? 'text-blue-700' : 'text-gray-400'} />
       {label}
     </button>
   );
@@ -264,7 +264,7 @@ const Settings: React.FC = () => {
     <div className="flex flex-col md:flex-row gap-8">
       {/* ── Sidebar ── */}
       <aside className="w-full md:w-64 space-y-2 flex-shrink-0">
-        <h1 className="text-2xl font-bold text-[#0a0c10] mb-6 px-4">{t('settings')}</h1>
+        <h1 className="text-2xl font-bold text-[#001f3f] mb-6 px-4">{t('settings')}</h1>
         <TabButton id="general" label={t('general')} icon={SettingsIcon} />
         <TabButton id="suppliers" label={t('suppliers')} icon={Truck} />
         <TabButton id="categories" label={t('categories')} icon={Tags} />
@@ -290,7 +290,7 @@ const Settings: React.FC = () => {
         {activeTab === 'general' && (
           <div className="max-w-2xl space-y-8">
             <section className="space-y-6">
-              <h2 className="text-xl font-bold text-[#0a0c10]">{t('application_settings')}</h2>
+              <h2 className="text-xl font-bold text-[#001f3f]">{t('application_settings')}</h2>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{t('company_logo')}</label>
@@ -308,7 +308,7 @@ const Settings: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{t('high_balance_threshold')} (GNF)</label>
-                <input type="number" value={settings.high_balance_threshold} onChange={e => setSettings({ ...settings, high_balance_threshold: e.target.value })} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none" />
+                <input type="number" value={settings.high_balance_threshold} onChange={e => setSettings({ ...settings, high_balance_threshold: e.target.value })} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none" />
                 <p className="mt-1 text-xs text-gray-400">{t('high_balance_desc')}</p>
               </div>
 
@@ -320,7 +320,7 @@ const Settings: React.FC = () => {
                 <button
                   onClick={() => setSettings({ ...settings, show_total_stock_value: settings.show_total_stock_value === 'true' ? 'false' : 'true' })}
                   className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    settings.show_total_stock_value === 'true' ? 'bg-gold-600' : 'bg-gray-200'
+                    settings.show_total_stock_value === 'true' ? 'bg-blue-600' : 'bg-gray-200'
                   }`}
                 >
                   <span
@@ -339,7 +339,7 @@ const Settings: React.FC = () => {
                 <button
                   onClick={() => setSettings({ ...settings, ohada_compliance: settings.ohada_compliance === 'true' ? 'false' : 'true' })}
                   className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    settings.ohada_compliance === 'true' ? 'bg-gold-600' : 'bg-gray-200'
+                    settings.ohada_compliance === 'true' ? 'bg-blue-600' : 'bg-gray-200'
                   }`}
                 >
                   <span
@@ -351,12 +351,12 @@ const Settings: React.FC = () => {
               </div>
 
               {settings.ohada_compliance === 'true' && (
-                <div className="p-4 border border-gold-100 rounded-xl bg-gold-50/30 space-y-3">
+                <div className="p-4 border border-blue-100 rounded-xl bg-blue-50/30 space-y-3">
                   <div className="flex items-start gap-3">
-                    <Activity className="w-5 h-5 text-gold-600 flex-shrink-0 mt-0.5" />
+                    <Activity className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-xs font-bold text-gold-900 uppercase tracking-wide">SYSCOHADA Plan Comptable</h4>
-                      <p className="text-[11px] text-gold-700 mt-1 leading-relaxed">
+                      <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wide">SYSCOHADA Plan Comptable</h4>
+                      <p className="text-[11px] text-blue-700 mt-1 leading-relaxed">
                         Generate the standardized Plan Comptable SYSCOHADA (Classes 1 to 7) for immediate integration into General Ledger, Invoices, and Inventory management.
                       </p>
                     </div>
@@ -373,7 +373,7 @@ const Settings: React.FC = () => {
                         alert(err.message || 'Error seeding accounts');
                       }
                     }}
-                    className="w-full py-2 bg-gold-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-gold-700 transition"
+                    className="w-full py-2 bg-blue-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-blue-700 transition"
                   >
                     {t('seed_ohada_btn')}
                   </button>
@@ -386,7 +386,7 @@ const Settings: React.FC = () => {
                 <select
                   value={settings.print_language}
                   onChange={e => setSettings({ ...settings, print_language: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="both">{t('print_language_both')}</option>
                   <option value="en">{t('print_language_en')}</option>
@@ -397,7 +397,7 @@ const Settings: React.FC = () => {
                 <div className="flex items-start gap-3 mb-2">
                   <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0" />
                   <div className="space-y-1">
-                    <label className="block text-sm font-bold text-orange-900">{t('ikike_ai_configuration')}</label>
+                    <label className="block text-sm font-bold text-orange-900">{t('benna_ai_configuration')}</label>
                     <p className="text-xs text-orange-800 leading-relaxed">AI services are currently experiencing high demand. Please try again later.</p>
                   </div>
                 </div>
@@ -455,32 +455,32 @@ const Settings: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-gold-50 border border-gold-200 p-5 rounded-xl space-y-4">
+              <div className="bg-blue-50 border border-blue-200 p-5 rounded-xl space-y-4">
                 <div className="flex items-start gap-3 mb-2">
-                  <AlertCircle className="w-5 h-5 text-gold-600 flex-shrink-0" />
+                  <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
                   <div className="space-y-1">
-                    <label className="block text-sm font-bold text-gold-900">{t('fleet_ai_tracking')}</label>
-                    <p className="text-xs text-gold-800 leading-relaxed">{t('fleet_ai_tracking_desc')}</p>
+                    <label className="block text-sm font-bold text-blue-900">{t('fleet_ai_tracking')}</label>
+                    <p className="text-xs text-blue-800 leading-relaxed">{t('fleet_ai_tracking_desc')}</p>
                   </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-gold-900 mb-1">{t('default_map_lat')}</label>
-                    <input type="text" value={settings.default_map_lat} onChange={e => setSettings({ ...settings, default_map_lat: e.target.value })} className="w-full px-4 py-2 border border-gold-200 rounded-lg bg-white text-sm" placeholder="9.509167" />
+                    <label className="block text-xs font-bold text-blue-900 mb-1">{t('default_map_lat')}</label>
+                    <input type="text" value={settings.default_map_lat} onChange={e => setSettings({ ...settings, default_map_lat: e.target.value })} className="w-full px-4 py-2 border border-blue-200 rounded-lg bg-white text-sm" placeholder="9.509167" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gold-900 mb-1">{t('default_map_lng')}</label>
-                    <input type="text" value={settings.default_map_lng} onChange={e => setSettings({ ...settings, default_map_lng: e.target.value })} className="w-full px-4 py-2 border border-gold-200 rounded-lg bg-white text-sm" placeholder="-13.712222" />
+                    <label className="block text-xs font-bold text-blue-900 mb-1">{t('default_map_lng')}</label>
+                    <input type="text" value={settings.default_map_lng} onChange={e => setSettings({ ...settings, default_map_lng: e.target.value })} className="w-full px-4 py-2 border border-blue-200 rounded-lg bg-white text-sm" placeholder="-13.712222" />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gold-900 mb-1">{t('ikike_cron_frequency')}</label>
+                  <label className="block text-xs font-bold text-blue-900 mb-1">{t('benna_cron_frequency')}</label>
                   <select 
-                    value={settings.ikike_cron_frequency} 
-                    onChange={e => setSettings({ ...settings, ikike_cron_frequency: e.target.value })}
-                    className="w-full px-4 py-2 border border-gold-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-500"
+                    value={settings.benna_cron_frequency} 
+                    onChange={e => setSettings({ ...settings, benna_cron_frequency: e.target.value })}
+                    className="w-full px-4 py-2 border border-blue-200 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="15">Every 15 Minutes</option>
                     <option value="30">Every 30 Minutes</option>
@@ -514,7 +514,7 @@ const Settings: React.FC = () => {
                         }
                       }}
                       disabled={diagLoading}
-                      className="px-4 py-2 bg-gold-50 text-gold-700 rounded-xl text-xs font-black uppercase border border-gold-100 hover:bg-gold-100 transition-colors flex items-center gap-2"
+                      className="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl text-xs font-black uppercase border border-blue-100 hover:bg-blue-100 transition-colors flex items-center gap-2"
                     >
                       <RefreshCw className={`w-3 h-3 ${diagLoading ? 'animate-spin' : ''}`} />
                       Check for Updates
@@ -532,7 +532,7 @@ const Settings: React.FC = () => {
  
         {activeTab === 'security' && (
           <div className="max-w-md space-y-6">
-            <h2 className="text-xl font-bold text-[#0a0c10]">{t('change_password', 'Change Password')}</h2>
+            <h2 className="text-xl font-bold text-[#001f3f]">{t('change_password', 'Change Password')}</h2>
             <p className="text-xs text-gray-500">{t('change_password_desc', 'Update your password below to secure your account.')}</p>
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div>
@@ -542,7 +542,7 @@ const Settings: React.FC = () => {
                   required
                   value={passwordForm.currentPassword}
                   onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none"
+                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 />
               </div>
               <div>
@@ -552,7 +552,7 @@ const Settings: React.FC = () => {
                   required
                   value={passwordForm.newPassword}
                   onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none"
+                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 />
               </div>
               <div>
@@ -562,7 +562,7 @@ const Settings: React.FC = () => {
                   required
                   value={passwordForm.confirmPassword}
                   onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-gold-500 focus:border-transparent outline-none"
+                  className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                 />
               </div>
               {passwordError && (
@@ -590,7 +590,7 @@ const Settings: React.FC = () => {
 
         {activeTab === 'diagnostics' && isAdmin && (
           <div className="space-y-6">
-            <h2 className="text-xl font-bold text-[#0a0c10]">{t('performance')}</h2>
+            <h2 className="text-xl font-bold text-[#001f3f]">{t('performance')}</h2>
             
             {diagLoading ? (
               <div className="animate-pulse space-y-4">
@@ -616,7 +616,7 @@ const Settings: React.FC = () => {
                 <button
                   onClick={handleRepairInventory}
                   disabled={isRepairing}
-                  className="flex items-center justify-center gap-2 px-4 py-2 bg-gold-600 text-white rounded-md hover:bg-gold-700 disabled:opacity-50 transition-colors"
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
                   <RefreshCw className={`w-4 h-4 ${isRepairing ? 'animate-spin' : ''}`} />
                   {isRepairing ? t('settings.diagnostics.repairing') : t('settings.diagnostics.repair_inventory')}
@@ -679,11 +679,11 @@ const Settings: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">{t('start_date')}</label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-gold-500" />
+                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">{t('end_date')}</label>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-gold-500" />
+                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-4 py-2 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="flex gap-3 pt-6">
                 <button onClick={handleExport} className="flex-1 bg-navy text-white py-3 rounded-xl font-bold shadow-lg shadow-navy/20">{t('download')}</button>

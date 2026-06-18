@@ -619,7 +619,7 @@ Output format (MUST be raw JSON, no markdown wrapper or extra words):
       const topStaff = updatedCandidates.find(c => c.ai_score >= 80);
       if (topStaff) {
         const notifId = crypto.randomUUID();
-        const msgText = `Ikiké Profile Screening complete for Job: "${jobDescription.substring(0, 30)}...". Top match: ${topStaff.name} with strategic fit score of ${topStaff.ai_score}%.`;
+        const msgText = `Benna Profile Screening complete for Job: "${jobDescription.substring(0, 30)}...". Top match: ${topStaff.name} with strategic fit score of ${topStaff.ai_score}%.`;
         db.prepare("INSERT INTO notifications (id, message, type, created_at, is_read, sync_status) VALUES (?, ?, 'strategy', CURRENT_TIMESTAMP, 0, 'pending')")
           .run(notifId, msgText);
       }
@@ -1344,7 +1344,7 @@ router.post('/performance', authenticateToken, (req, res) => {
     const emp = db.prepare('SELECT name FROM employees WHERE id = ?').get(employee_id);
     const empName = emp ? emp.name : 'Employee';
     const notifId = crypto.randomUUID();
-    const notifMsg = `Performance review compiled for ${empName} (${month}). Composite score: ${composite_score}%. Click to discuss recommendations with Ikiké.`;
+    const notifMsg = `Performance review compiled for ${empName} (${month}). Composite score: ${composite_score}%. Click to discuss recommendations with Benna.`;
     
     db.prepare(`
       INSERT INTO notifications (id, message, type, is_read, sync_status)

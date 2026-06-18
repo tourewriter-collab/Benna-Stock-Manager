@@ -506,7 +506,7 @@ export default function TruckGranite() {
           {canEdit && activeTab === 'fleet' && (
             <button
               onClick={() => handleOpenTruckModal()}
-              className="flex items-center gap-2 bg-[#0a0c10] text-white px-4 py-2 rounded-lg hover:bg-[#1a1a1a] transition-colors shadow-sm"
+              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors shadow-sm"
             >
               <Plus className="w-5 h-5" />
               {t('add_truck')}
@@ -515,7 +515,7 @@ export default function TruckGranite() {
           {canEdit && activeTab === 'trips' && (
             <button
               onClick={() => handleOpenTripModal()}
-              className="flex items-center gap-2 bg-[#0a0c10] text-white px-4 py-2 rounded-lg hover:bg-[#1a1a1a] transition-colors shadow-sm"
+              className="flex items-center gap-2 bg-[#001f3f] text-white px-4 py-2 rounded-lg hover:bg-[#003366] transition-colors shadow-sm"
             >
               <Plus className="w-5 h-5" />
               {t('add_delivery')}
@@ -624,7 +624,7 @@ export default function TruckGranite() {
                   <div className="p-6">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center space-x-3">
-                        <div className="bg-gold-50 p-2.5 rounded-lg text-gold-600">
+                        <div className="bg-blue-50 p-2.5 rounded-lg text-blue-600">
                           <Truck className="w-6 h-6" />
                         </div>
                         <div>
@@ -664,7 +664,7 @@ export default function TruckGranite() {
                       <div className="flex space-x-3">
                         <button
                           onClick={() => handleOpenTruckModal(truck)}
-                          className="text-gold-600 hover:text-gold-800"
+                          className="text-blue-600 hover:text-blue-800"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
@@ -707,7 +707,7 @@ export default function TruckGranite() {
             </div>
             <div>
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('unit_price_m3') || 'Prix Unitaire (m³)'} (Avg)</span>
-              <p className="text-2xl font-black text-gold-600 mt-1">{formatPrice(overall.avgPricePerM3)}</p>
+              <p className="text-2xl font-black text-blue-600 mt-1">{formatPrice(overall.avgPricePerM3)}</p>
             </div>
           </div>
  
@@ -775,7 +775,7 @@ export default function TruckGranite() {
                             <>
                               <button
                                 onClick={() => handleOpenTripModal(trip)}
-                                className="text-gold-600 hover:text-gold-800"
+                                className="text-blue-600 hover:text-blue-800"
                               >
                                 <Edit className="w-4.5 h-4.5" />
                               </button>
@@ -825,12 +825,12 @@ export default function TruckGranite() {
                       <Truck className="w-7 h-7" />
                       <div>
                         <h2 className="text-xl font-bold">{selectedTruck.plate_number}</h2>
-                        <p className="text-xs text-gold-200">{selectedTruck.model || 'No model specified'}</p>
+                        <p className="text-xs text-blue-200">{selectedTruck.model || 'No model specified'}</p>
                       </div>
                     </div>
                     <button 
                       onClick={() => setSelectedTruck(null)} 
-                      className="text-white hover:text-gold-100 rounded-full p-1"
+                      className="text-white hover:text-blue-100 rounded-full p-1"
                     >
                       <X className="w-6 h-6" />
                     </button>
@@ -856,7 +856,7 @@ export default function TruckGranite() {
                       </div>
                       <div className="bg-white p-4 rounded-lg border shadow-sm">
                         <span className="text-[10px] font-bold text-gray-400 uppercase">{t('net_income')}</span>
-                        <p className="text-lg font-black text-gold-600 mt-1">
+                        <p className="text-lg font-black text-blue-600 mt-1">
                           {formatPrice(
                             calculateTruckMetrics(selectedTruck).totalRevenue - 
                             truckExpenses.reduce((acc, exp) => acc + exp.total_cost, 0)

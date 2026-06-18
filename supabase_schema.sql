@@ -659,7 +659,7 @@ CREATE TRIGGER trg_employee_performance_ledger
 ALTER TABLE employee_performance DISABLE ROW LEVEL SECURITY;
 
 -- =============================================================================
--- TABLE 22: AI INSIGHTS (Ikiké conversation log)
+-- TABLE 22: AI INSIGHTS (Benna conversation log)
 -- =============================================================================
 CREATE TABLE ai_insights (
     id        TEXT   PRIMARY KEY DEFAULT (gen_random_uuid()::TEXT),
@@ -703,7 +703,7 @@ INSERT INTO settings (key, value) VALUES
     ('active_agent_model',      'gemini'),
     ('default_map_lat',         '9.509167'),
     ('default_map_lng',         '-13.712222'),
-    ('ikike_cron_frequency',    '15'),
+    ('benna_cron_frequency',    '15'),
     ('clear_insights_interval', 'never'),
     ('global_ai_access',        'false')
 ON CONFLICT (key) DO NOTHING;

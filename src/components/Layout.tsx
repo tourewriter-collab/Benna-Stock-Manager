@@ -8,7 +8,7 @@ import { Cloud, CloudOff, RefreshCw, AlertCircle, Package, Layers, CreditCard, C
 import { fetchApi } from '../lib/api';
 import UpdaterOverlay from './UpdaterOverlay';
 import ModuleSwitcher from './ModuleSwitcher';
-import { IkikeAgent } from './IkikeAgent';
+import { BennaAgent } from './BennaAgent';
 import { usePermissions } from '../contexts/PermissionsContext';
 
 const Layout: React.FC = () => {
@@ -103,8 +103,8 @@ const Layout: React.FC = () => {
   // ── Sync pill configuration by status ──
   const syncPillConfig: Record<string, { bg: string; ring: string; icon: React.ReactNode; label: string }> = {
     synced:  { bg: 'bg-emerald-500', ring: 'ring-emerald-300', icon: <CheckCircle2 size={15} />, label: t('synced') },
-    syncing: { bg: 'bg-gold-500',    ring: 'ring-gold-300',    icon: <RefreshCw size={15} className="animate-spin" />, label: t('syncing') },
-    pending: { bg: 'bg-gold-500',    ring: 'ring-gold-300',    icon: <Cloud size={15} />,        label: `${pendingCount} ${t('pending')}` },
+    syncing: { bg: 'bg-blue-500',    ring: 'ring-blue-300',    icon: <RefreshCw size={15} className="animate-spin" />, label: t('syncing') },
+    pending: { bg: 'bg-blue-500',    ring: 'ring-blue-300',    icon: <Cloud size={15} />,        label: `${pendingCount} ${t('pending')}` },
     error:   { bg: 'bg-red-500',     ring: 'ring-red-300',     icon: <AlertCircle size={15} />,  label: t('sync_error') },
     offline: { bg: 'bg-gray-400',    ring: 'ring-gray-200',    icon: <CloudOff size={15} />,     label: t('offline') },
   };
@@ -212,14 +212,14 @@ const Layout: React.FC = () => {
                     {/* Popover Header */}
                     <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-gold-600 animate-pulse" />
+                        <Sparkles className="w-4 h-4 text-blue-600 animate-pulse" />
                         <span className="font-extrabold text-slate-800 text-sm">{t('strategic_ai_alerts')}</span>
                       </div>
                       <div className="flex gap-2">
                         {notifications.filter(n => !n.is_read).length > 0 && (
                           <button
                             onClick={markAllAsRead}
-                            className="text-[10px] text-gold-600 font-bold hover:underline"
+                            className="text-[10px] text-blue-600 font-bold hover:underline"
                           >
                             {t('read_all')}
                           </button>
@@ -250,11 +250,11 @@ const Layout: React.FC = () => {
                             <div
                               key={notif.id}
                               className={`p-4 flex gap-3 transition hover:bg-slate-50/50 relative group ${
-                                !notif.is_read ? 'bg-gold-50/10' : ''
+                                !notif.is_read ? 'bg-blue-50/10' : ''
                               }`}
                             >
                               <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                isStrategy ? 'bg-gold-50 text-gold-600 border border-gold-100 shadow-sm' : 'bg-slate-100 text-slate-500'
+                                isStrategy ? 'bg-blue-50 text-blue-600 border border-blue-100 shadow-sm' : 'bg-slate-100 text-slate-500'
                               }`}>
                                 {isStrategy ? <Sparkles className="w-4 h-4" /> : <Info className="w-4 h-4" />}
                               </div>
@@ -262,9 +262,9 @@ const Layout: React.FC = () => {
                               <div className="flex-1 space-y-1 pr-4">
                                 <div className="flex items-center justify-between">
                                   <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                                    isStrategy ? 'text-gold-600' : 'text-slate-400'
+                                    isStrategy ? 'text-blue-600' : 'text-slate-400'
                                   }`}>
-                                    {isStrategy ? t('ikike_strategy') : t('system')}
+                                    {isStrategy ? t('benna_strategy') : t('system')}
                                   </span>
                                   <span className="text-[9px] text-slate-400 font-mono">
                                     {new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -306,7 +306,7 @@ const Layout: React.FC = () => {
               </div>
 
               <div className="hidden sm:flex flex-col items-end border-l border-white/20 pl-4 min-w-[80px]">
-                <span className="text-[10px] font-bold text-gold-200 uppercase tracking-tighter leading-none mb-0.5">{user?.role}</span>
+                <span className="text-[10px] font-bold text-blue-200 uppercase tracking-tighter leading-none mb-0.5">{user?.role}</span>
                 <span className="text-xs lg:text-sm font-medium truncate max-w-[80px] lg:max-w-[150px]">{user?.name}</span>
               </div>
               
@@ -340,7 +340,7 @@ const Layout: React.FC = () => {
       <footer className="bg-white border-t border-gray-200 mt-auto">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <p className="text-center text-sm text-gray-600">
-            © {new Date().getFullYear()} Ikiké Collective SARL. All rights reserved. Version {pkg.version}
+            © {new Date().getFullYear()} Benna Collective SARL. All rights reserved. Version {pkg.version}
           </p>
         </div>
       </footer>
@@ -355,7 +355,7 @@ const Layout: React.FC = () => {
           'bg-white text-navy shadow-lg border border-gray-200',
           'text-xs font-bold tracking-wider',
           'transition-all duration-300 ease-in-out',
-          'hover:scale-110 hover:shadow-xl hover:border-navy hover:text-gold-600',
+          'hover:scale-110 hover:shadow-xl hover:border-navy hover:text-blue-600',
           'active:scale-95 shadow-[0_4px_14px_0_rgba(0,0,0,0.1)]'
         ].join(' ')}
       >
@@ -402,8 +402,8 @@ const Layout: React.FC = () => {
       {/* ── Updater Overlay ── */}
       <UpdaterOverlay />
 
-      {/* ── Ikiké AI Agent Floating Chat ── */}
-      <IkikeAgent />
+      {/* ── Benna AI Agent Floating Chat ── */}
+      <BennaAgent />
     </div>
   );
 };

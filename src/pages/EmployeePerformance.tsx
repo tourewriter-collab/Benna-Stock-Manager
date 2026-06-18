@@ -316,7 +316,7 @@ const EmployeePerformance: React.FC<EmployeePerformanceProps> = ({ overrideEmplo
             {/* Boss review score card */}
             <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-gold-50 dark:bg-gold-950/30 rounded-xl text-gold-600 dark:text-gold-400">
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl text-blue-600 dark:text-blue-400">
                   <User className="w-5 h-5" />
                 </div>
                 <div>

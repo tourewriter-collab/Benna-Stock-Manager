@@ -407,7 +407,7 @@ const HumanResources: React.FC = () => {
       {/* Header section with Glassmorphism */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-neutral-900 to-navy p-8 text-white shadow-2xl border border-white/10">
         <div className="absolute top-0 right-0 -mt-10 -mr-10 h-64 w-64 rounded-full bg-white/5 blur-3xl"></div>
-        <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-gold-500/20 blur-3xl"></div>
+        <div className="absolute bottom-0 left-10 h-40 w-40 rounded-full bg-blue-500/20 blur-3xl"></div>
         
         <div className="relative z-10 flex flex-col xl:flex-row items-center justify-between gap-6">
           <div>
@@ -416,7 +416,7 @@ const HumanResources: React.FC = () => {
               {t('hr_hub_title', 'Human Resources Hub')}
             </h1>
             <p className="text-neutral-200 text-sm max-w-xl leading-relaxed">
-              {t('hr_hub_subtitle', 'Manage your workforce, process job applications, and leverage Ikiké AI to autonomously screen and assess candidates against job requirements.')}
+              {t('hr_hub_subtitle', 'Manage your workforce, process job applications, and leverage Benna AI to autonomously screen and assess candidates against job requirements.')}
             </p>
           </div>
           
@@ -438,7 +438,7 @@ const HumanResources: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('screening')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'screening' ? 'bg-gradient-to-r from-gold-50 to-neutral-600 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'screening' ? 'bg-gradient-to-r from-blue-50 to-neutral-600 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
             >
               <BrainCircuit className="w-4 h-4" />
               {t('hr_tab_screening', 'AI Screening')}
@@ -452,7 +452,7 @@ const HumanResources: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('tasks')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'tasks' ? 'bg-gradient-to-r from-gold-500 to-teal-500 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-300 ${activeTab === 'tasks' ? 'bg-gradient-to-r from-blue-500 to-teal-500 text-white shadow-md transform scale-105 border border-white/20' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
             >
               <ClipboardList className="w-4 h-4" />
               {t('hr_tab_tasks', 'Tasks')}
@@ -930,7 +930,7 @@ const HumanResources: React.FC = () => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize
                               ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : ''}
-                              ${app.status === 'reviewed' ? 'bg-gold-100 text-gold-800' : ''}
+                              ${app.status === 'reviewed' ? 'bg-blue-100 text-blue-800' : ''}
                               ${app.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' : ''}
                               ${app.status === 'rejected' ? 'bg-red-100 text-red-800' : ''}
                             `}>
@@ -963,15 +963,15 @@ const HumanResources: React.FC = () => {
             {/* ── AI SCREENING TAB ── */}
             {activeTab === 'screening' && (
               <div className="space-y-6">
-                <div className="bg-gradient-to-r from-gold-50 to-neutral-50 border border-gold-100 rounded-2xl p-6 shadow-sm">
+                <div className="bg-gradient-to-r from-blue-50 to-neutral-50 border border-blue-100 rounded-2xl p-6 shadow-sm">
                   <div className="flex items-start gap-4 mb-4">
                     <div className="p-3 bg-white rounded-xl shadow-sm text-neutral-600">
                       <BrainCircuit className="w-8 h-8" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-neutral-900">{t('hr_ai_screening_title', 'Ikiké Strategic AI Screening')}</h2>
+                      <h2 className="text-xl font-bold text-neutral-900">{t('hr_ai_screening_title', 'Benna Strategic AI Screening')}</h2>
                       <p className="text-sm text-neutral-700 mt-1 max-w-3xl">
-                        {t('hr_ai_screening_subtitle_pre', 'Enter a job description below. Ikiké will autonomously evaluate all')} <span className="font-bold">{t('pending')}</span> {t('hr_ai_screening_subtitle_post', 'applicants against these criteria, assign a clinical fit score, and provide a professional assessment.')}
+                        {t('hr_ai_screening_subtitle_pre', 'Enter a job description below. Benna will autonomously evaluate all')} <span className="font-bold">{t('pending')}</span> {t('hr_ai_screening_subtitle_post', 'applicants against these criteria, assign a clinical fit score, and provide a professional assessment.')}
                       </p>
                     </div>
                   </div>
@@ -995,7 +995,7 @@ const HumanResources: React.FC = () => {
                         {isScreening ? (
                           <>
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            {t('hr_analyzing_profiles', 'Ikiké is Analyzing Profiles...')}
+                            {t('hr_analyzing_profiles', 'Benna is Analyzing Profiles...')}
                           </>
                         ) : (
                           <>
@@ -1029,7 +1029,7 @@ const HumanResources: React.FC = () => {
                         </div>
 
                         <div className="mt-4 bg-gray-50 rounded-lg p-4 text-sm text-gray-700 leading-relaxed border border-gray-100">
-                          <strong className="text-neutral-900 block mb-1 text-xs uppercase tracking-wider">{t('hr_clinical_assessment', 'Ikiké Clinical Assessment:')}</strong>
+                          <strong className="text-neutral-900 block mb-1 text-xs uppercase tracking-wider">{t('hr_clinical_assessment', 'Benna Clinical Assessment:')}</strong>
                           {res.ai_assessment}
                         </div>
                       </div>
@@ -1162,7 +1162,7 @@ const HumanResources: React.FC = () => {
                               <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold capitalize
                                 ${log.verification_method === 'face' ? 'bg-neutral-100 text-neutral-800' : ''}
                                 ${log.verification_method === 'fingerprint' ? 'bg-purple-100 text-purple-800' : ''}
-                                ${log.verification_method === 'card' ? 'bg-gold-100 text-gold-800' : ''}
+                                ${log.verification_method === 'card' ? 'bg-blue-100 text-blue-800' : ''}
                                 ${log.verification_method === 'password' ? 'bg-yellow-100 text-yellow-800' : ''}
                                 ${log.verification_method === 'manual' ? 'bg-orange-100 text-orange-800' : ''}
                                 ${log.verification_method === 'unknown' ? 'bg-gray-100 text-gray-800' : ''}
@@ -1313,7 +1313,7 @@ const HumanResources: React.FC = () => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize
                               ${task.status === 'completed' ? 'bg-emerald-100 text-emerald-800' : ''}
-                              ${task.status === 'in_progress' ? 'bg-gold-100 text-gold-800' : ''}
+                              ${task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : ''}
                               ${task.status === 'pending' ? 'bg-amber-100 text-amber-800' : ''}
                             `}>
                               {t(task.status)}
