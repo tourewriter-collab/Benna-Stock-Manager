@@ -1,6 +1,6 @@
 {
   "name": "ikike-business-manager",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "description": "Ikiké Business Manager - Full-stack project management system",
   "main": "electron/main.cjs",
   "type": "module",
