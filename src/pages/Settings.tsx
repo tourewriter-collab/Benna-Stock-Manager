@@ -40,6 +40,7 @@ const Settings: React.FC = () => {
     high_balance_threshold: '100000',
     show_total_stock_value: 'true',
     company_logo: '',
+    enable_ai_features: 'true',
     gemini_api_key: '',
     active_agent_model: 'gemini',
     deepseek_api_key: '',
@@ -108,6 +109,7 @@ const Settings: React.FC = () => {
         high_balance_threshold: data.high_balance_threshold || '100000', 
         show_total_stock_value: data.show_total_stock_value !== undefined ? String(data.show_total_stock_value) : 'true',
         company_logo: data.company_logo || '', 
+        enable_ai_features: data.enable_ai_features || 'true',
         gemini_api_key: data.gemini_api_key || '',
         active_agent_model: data.active_agent_model || 'gemini',
         deepseek_api_key: data.deepseek_api_key || '',
@@ -402,6 +404,25 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
                 
+                <div className="flex items-center justify-between mb-4 pb-4 border-b border-orange-100">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900">Enable AI Features</label>
+                    <p className="text-xs text-gray-500">Turn on or off the Benna Agent and automated strategic insights.</p>
+                  </div>
+                  <button
+                    onClick={() => setSettings({ ...settings, enable_ai_features: settings.enable_ai_features === 'false' ? 'true' : 'false' })}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      settings.enable_ai_features !== 'false' ? 'bg-orange-600' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        settings.enable_ai_features !== 'false' ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold text-orange-900 mb-1">{t('active_agent_model')}</label>
                   <select 

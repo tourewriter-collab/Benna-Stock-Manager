@@ -705,7 +705,8 @@ INSERT INTO settings (key, value) VALUES
     ('default_map_lng',         '-13.712222'),
     ('benna_cron_frequency',    '15'),
     ('clear_insights_interval', 'never'),
-    ('global_ai_access',        'false')
+    ('global_ai_access',        'false'),
+    ('enable_ai_features',      'true')
 ON CONFLICT (key) DO NOTHING;
 
 INSERT INTO app_config (key, value) VALUES

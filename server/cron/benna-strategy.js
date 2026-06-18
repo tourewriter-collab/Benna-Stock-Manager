@@ -122,6 +122,12 @@ function generateHeuristicAlert(context) {
 // Runs the check and strategy formulation if frequency is met
 export async function checkAndRunStrategy() {
   try {
+    // 0. Check if AI features are disabled globally
+    const aiEnabledSetting = db.prepare('SELECT value FROM settings WHERE key = ?').get('enable_ai_features');
+    if (aiEnabledSetting && aiEnabledSetting.value === 'false') {
+      return; // Skip if AI is turned off
+    }
+
     // 1. Fetch current strategic frequency setting
     let minutesFreq = 15;
     const setting = db.prepare('SELECT value FROM settings WHERE key = ?').get('benna_cron_frequency');

@@ -18,6 +18,7 @@ const Layout: React.FC = () => {
   const { syncStatus, pendingCount, triggerSync, isOnline } = useSync();
   const location = useLocation();
   const [logo, setLogo] = React.useState<string | null>(null);
+  const [aiEnabled, setAiEnabled] = React.useState<boolean>(true);
 
   interface Notification {
     id: string;
@@ -96,6 +97,11 @@ const Layout: React.FC = () => {
     fetchApi('/settings').then(settings => {
       if (settings?.company_logo) {
         setLogo(settings.company_logo);
+      }
+      if (settings?.enable_ai_features === 'false') {
+        setAiEnabled(false);
+      } else {
+        setAiEnabled(true);
       }
     }).catch(console.error);
   }, []);
@@ -403,7 +409,7 @@ const Layout: React.FC = () => {
       <UpdaterOverlay />
 
       {/* ── Benna AI Agent Floating Chat ── */}
-      <BennaAgent />
+      {aiEnabled && <BennaAgent />}
     </div>
   );
 };
