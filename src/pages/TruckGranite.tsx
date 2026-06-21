@@ -271,9 +271,11 @@ export default function TruckGranite() {
   const printDeliveryTicket = async (trip: GraniteDelivery) => {
     // Fetch print language preference from settings
     let pl = 'both';
+    let logoUrl = '';
     try {
       const settings = await fetchApi('/settings');
-      pl = settings?.print_language || 'both';
+      pl = settings?.print_language && settings.print_language !== 'both' ? settings.print_language : (isFr ? 'fr' : 'en');
+      logoUrl = settings?.company_logo || '';
     } catch { /* default to both */ }
  
     const printWindow = window.open('', '_blank');
@@ -319,6 +321,7 @@ export default function TruckGranite() {
         </head>
         <body>
           <div class="header">
+            ${logoUrl ? `<img src="${logoUrl}" style="max-height: 80px; margin-bottom: 10px;" alt="Logo" /><br/>` : `<h2>Benna Projects Manager</h2>`}
             <p class="title">${L('title')}</p>
             <p class="subtitle">ID: ${trip.id}</p>
           </div>

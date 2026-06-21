@@ -59,7 +59,8 @@ export const generateOrderPDF = (order: OrderData, settings: Settings, _t: (key:
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
-  const pl = settings.print_language || 'both';
+  const isFr = i18n.language.startsWith('fr');
+  const pl = settings.print_language && settings.print_language !== 'both' ? settings.print_language : (isFr ? 'fr' : 'en');
 
   // Add Logo
   if (settings.company_logo) {

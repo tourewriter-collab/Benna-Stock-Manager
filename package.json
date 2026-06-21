@@ -1,7 +1,7 @@
 {
-  "name": "benna-business-manager",
-  "version": "2.1.6",
-  "description": "Benna Projects Manager - Full-stack project management system",
+  "name": "benna-projects-manager",
+  "version": "2.1.7",
+  "description": "Benna Projects Manager - Full-stack business management system",
   "main": "electron/main.cjs",
   "type": "module",
   "author": "Ikikecollective",
@@ -113,7 +113,7 @@
         }
       ],
       "icon": "build/icon.png",
-      "artifactName": "Benna-Projects-Manager-Setup-${version}.${ext}"
+      "artifactName": "Benna-Business-Manager-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -127,7 +127,7 @@
     "mac": {
       "target": "dmg",
       "icon": "build/icon.png",
-      "artifactName": "Benna-Projects-Manager-${version}.${ext}",
+      "artifactName": "Benna-Business-Manager-${version}.${ext}",
       "identity": null,
       "category": "public.app-category.business",
       "hardenedRuntime": false,

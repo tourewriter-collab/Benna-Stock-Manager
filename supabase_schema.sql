@@ -1,5 +1,5 @@
 -- =============================================================================
--- Benna Business Manager — Definitive Supabase Schema v6.0
+-- Benna Projects Manager — Definitive Supabase Schema v6.0
 -- 2026-06-08  |  Paste this ENTIRE script into Supabase SQL Editor → Run
 --
 -- KEY DESIGN PRINCIPLE:

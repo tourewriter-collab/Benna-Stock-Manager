@@ -122,9 +122,11 @@ const Invoices: React.FC = () => {
   const printInvoice = async (invoice: Invoice) => {
     // Fetch print language preference from settings
     let pl = 'both';
+    let logoUrl = '';
     try {
       const settings = await fetchApi('/settings');
-      pl = settings?.print_language || 'both';
+      pl = settings?.print_language && settings.print_language !== 'both' ? settings.print_language : (isFr ? 'fr' : 'en');
+      logoUrl = settings?.company_logo || '';
     } catch { /* default to both */ }
 
     const printWindow = window.open('', '_blank');
@@ -145,6 +147,10 @@ const Invoices: React.FC = () => {
       notes: { en: 'Notes', fr: 'Notes' },
       sig_authorized: { en: 'Authorized Signature', fr: 'Signature Autorisée' },
       sig_client: { en: 'Client Signature', fr: 'Signature Client' },
+      description: { en: 'Description', fr: 'Description' },
+      amount: { en: 'Amount', fr: 'Montant' },
+      service_rendered: { en: 'General Delivery/Services Rendered', fr: 'Livraison Générale / Services Rendus' },
+      subtotal: { en: 'Subtotal', fr: 'Sous-total' },
     };
     const L = (key: string) => labels[key]?.[chosenLang] || labels[key]?.[isFr ? 'fr' : 'en'] || key;
 
@@ -187,7 +193,7 @@ const Invoices: React.FC = () => {
         <body>
           <div class="header-container">
             <div class="company-details">
-              <h1>IKIKÉ BUSINESS MANAGER</h1>
+              ${logoUrl ? `<img src="${logoUrl}" style="max-height: 80px; margin-bottom: 10px;" alt="Logo" />` : `<h1>Benna Projects Manager</h1>`}
               <p>Conakry, Guinée</p>
             </div>
             <div class="invoice-title-box">
@@ -212,13 +218,13 @@ const Invoices: React.FC = () => {
           <table class="financial-table">
             <thead>
               <tr>
-                <th>Description</th>
-                <th class="text-right">Amount / Montant</th>
+                <th>${L('description')}</th>
+                <th class="text-right">${L('amount')}</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>General Delivery/Services Rendered</td>
+                <td>${L('service_rendered')}</td>
                 <td class="text-right">${formatPrice(invoice.total_amount)}</td>
               </tr>
             </tbody>
@@ -226,7 +232,7 @@ const Invoices: React.FC = () => {
 
           <div class="summary-box">
             <div class="summary-row">
-              <span>Subtotal:</span>
+              <span>${L('subtotal')}:</span>
               <span>${formatPrice(invoice.total_amount)}</span>
             </div>
             <div class="summary-row">

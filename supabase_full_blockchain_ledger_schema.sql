@@ -1,5 +1,5 @@
 -- =============================================================================
--- Benna Business Manager – Enterprise-Grade Cryptographic Ledger Schema
+-- Benna Projects Manager – Enterprise-Grade Cryptographic Ledger Schema
 -- Version 4.0  |  2026-06-08
 -- Run this script in your Supabase SQL Editor.
 -- =============================================================================

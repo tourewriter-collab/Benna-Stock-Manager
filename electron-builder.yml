@@ -1,5 +1,5 @@
 appId: com.ikikecollective.bennastockmanager
-productName: Benna Business Manager
+productName: Benna Projects Manager
 npmRebuild: true
 directories:
   output: release
@@ -43,7 +43,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: "Benna Business Manager"
+  shortcutName: "Benna Projects Manager"
 
 mac:
   target: dmg

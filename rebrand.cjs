@@ -25,7 +25,7 @@ files.forEach(file => {
 
   // Replacements
   content = content.replace(/Ikiké Business Manager/g, 'Benna Projects Manager');
-  content = content.replace(/ikike-business-manager/g, 'benna-business-manager');
+  content = content.replace(/ikike-business-manager/g, 'benna-projects-manager');
   content = content.replace(/Ikiké/g, 'Benna');
   content = content.replace(/Ikike/g, 'Benna');
   content = content.replace(/ikike/g, 'benna');
